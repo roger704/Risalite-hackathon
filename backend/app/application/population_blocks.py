@@ -53,6 +53,13 @@ def aggregate_blocks_to_areas(
         raise ValueError("Population blocks mix snapshot_id values")
     if len(reference_periods) > 1:
         raise ValueError("Population blocks mix reference_period values")
+    area_definitions = {
+        (record.hierarchy, record.boundary_edition)
+        for record in items
+        if record.area_code is not None
+    }
+    if len(area_definitions) > 1:
+        raise ValueError("Population blocks mix hierarchy/boundary_edition values")
     grouped: dict[str, list[PopulationBlock]] = {}
     unassigned = []
     for record in items:

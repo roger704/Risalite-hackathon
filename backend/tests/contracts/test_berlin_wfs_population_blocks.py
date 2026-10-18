@@ -24,6 +24,7 @@ from app.domain import (
     record_from_dict,
     record_to_dict,
 )
+from app.infrastructure.storage import read_records, write_records
 
 BACKEND = Path(__file__).parents[2]
 FIXTURES = BACKEND / "tests/fixtures/berlin_wfs_population_blocks"
@@ -149,8 +150,9 @@ def test_normalizes_population_blocks_and_preserves_suppression_and_flags(tmp_pa
     assert first.residents == 100
     assert first.residents_status is ValueStatus.OBSERVED
     assert first.residents_by_age == dict(
-        zip(POPULATION_BLOCK_AGE_BANDS, [10, 10, 20, 50, 5, 3, 1, 1])
+        zip(POPULATION_BLOCK_AGE_BANDS, [10, 10, 20, 49, 5, 3, None, 3])
     )
+    assert "age_bands_suppressed_0_to_2" in first.quality_flags
     assert first.geometry["type"] == "MultiPolygon"
     west, south, east, north = shape(first.geometry).bounds
     assert 13.0 < west < east < 13.9
@@ -161,6 +163,10 @@ def test_normalizes_population_blocks_and_preserves_suppression_and_flags(tmp_pa
     assert "residents_suppressed_0_to_2" in batch.records[5].quality_flags
     assert batch.records[6].residents_by_age == {}
     assert any("6 blocks" in warning and "lower bound" in warning for warning in batch.warnings)
+    assert any(
+        "3 age-band cells published as 0 (= 0–2) in 3 observed blocks" in warning
+        for warning in batch.warnings
+    )
     assert connector.validate(batch).valid
 
 
@@ -171,10 +177,10 @@ def test_normalization_flags_density_and_missing_or_inconsistent_ages(tmp_path):
     properties["alter_u6"] = None
     _, _, batch = normalized(tmp_path, features)
     assert batch.records[0].quality_flags == ("density_inconsistent", "age_bands_missing")
+    assert batch.records[0].residents_by_age == {}
     assert any("1 blocks flagged density_inconsistent" in warning for warning in batch.warnings)
 
-    features[0]["properties"]["alter_u6"] = 9
-    features[0]["properties"]["alter_6_u10"] = 9
+    features[0]["properties"]["alter_u6"] = 11
     _, _, batch = normalized(tmp_path, features)
     assert "age_bands_sum_mismatch" in batch.records[0].quality_flags
 
@@ -185,6 +191,25 @@ def test_rejects_invalid_resident_contract(tmp_path, residents):
     features[0]["properties"]["ew2023"] = residents
     with pytest.raises(SchemaError):
         normalized(tmp_path, features)
+
+
+@pytest.mark.parametrize("age_value", [1, 2])
+def test_rejects_published_age_band_values_within_suppression_range(tmp_path, age_value):
+    features = fixture_features()[:1]
+    features[0]["properties"]["alter_u6"] = age_value
+    with pytest.raises(SchemaError, match="age-band count"):
+        normalized(tmp_path, features)
+
+
+@pytest.mark.parametrize(
+    ("age_field", "age_value"),
+    [("alter_u6", 11), ("alter_18_u65", 46)],
+)
+def test_flags_age_band_bounded_sum_mismatches(tmp_path, age_field, age_value):
+    features = fixture_features()[:1]
+    features[0]["properties"][age_field] = age_value
+    _, _, batch = normalized(tmp_path, features)
+    assert "age_bands_sum_mismatch" in batch.records[0].quality_flags
 
 
 def test_rejects_suppressed_nonzero_density_nonpositive_area_and_duplicate_ids(tmp_path):
@@ -249,14 +274,22 @@ def test_parent_coverage_and_assignment_requirements(tmp_path):
         check_parent(config, (parents()[0],), parents())
 
 
-def test_population_block_model_validation_and_round_trip():
+def test_population_block_model_validation_and_storage_round_trip(tmp_path):
+    age_bands = dict.fromkeys(POPULATION_BLOCK_AGE_BANDS, 3)
+    age_bands["0-6"] = None
     record = block(
         area_code="01011101",
         hierarchy="planungsraum",
         boundary_edition="2021",
         area_overlap_share=0.75,
+        residents_by_age=age_bands,
     )
-    assert record_from_dict(record_to_dict(record)) == record
+    encoded = record_to_dict(record)
+    assert record_from_dict(encoded) == record
+    assert record_from_dict(json.loads(json.dumps(encoded))) == record
+    path = tmp_path / "population-block.parquet"
+    write_records((record,), path)
+    assert read_records(path) == (record,)
     assert record.residents_status is ValueStatus.OBSERVED
     with pytest.raises(ValidationError):
         block(block_id="")

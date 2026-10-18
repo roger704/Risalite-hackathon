@@ -17,6 +17,7 @@ def block(
     flags=(),
     snapshot_id="blocks-snapshot",
     reference_period="2023-12-31",
+    boundary_edition="2021",
 ):
     suppressed = status is ValueStatus.SUPPRESSED
     return PopulationBlock(
@@ -37,7 +38,7 @@ def block(
         residents_by_age={} if suppressed else dict.fromkeys(POPULATION_BLOCK_AGE_BANDS, 0),
         area_code=area_code,
         hierarchy="planungsraum" if area_code else None,
-        boundary_edition="2021" if area_code else None,
+        boundary_edition=boundary_edition if area_code else None,
         area_overlap_share=1.0 if area_code else None,
         quality_flags=flags,
     )
@@ -96,4 +97,10 @@ def test_zero_observed_population_keeps_density_missing():
 )
 def test_rejects_mixed_or_non_block_records(records):
     with pytest.raises(ValueError):
+        aggregate_blocks_to_areas(records)
+
+
+def test_rejects_mixed_area_definitions():
+    records = [block("a"), block("b", boundary_edition="2023")]
+    with pytest.raises(ValueError, match="Population blocks mix hierarchy/boundary_edition values"):
         aggregate_blocks_to_areas(records)

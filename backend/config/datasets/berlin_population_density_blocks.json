@@ -87,7 +87,7 @@
     "max_unassigned_share": 0.01,
     "limitations": [
       "Measures melderechtlich registrierte Einwohner (main residence) on 31.12.2023 per ISU5 block or block part (Blockkarte 1:5000, Raumbezug Umweltatlas 2022). It does not measure daytime population, workers, visitors, tourists or secondary residences.",
-      "Counts are published only above 2: a published 0 means 0-2 residents. Such blocks are stored with residents and density missing (status suppressed), never as 0. Per the source documentation age-band cells follow the same >2 rule, so an age-band 0 can mean 0-2.",
+      "Counts are published only above 2: a published 0 means 0-2 residents. Such blocks are stored with residents and density missing (status suppressed), never as 0. Age-band cells follow the same >2 rule: 0 means 0-2 and is stored as null in a complete age breakdown; a published age value of 1 or 2 fails validation.",
       "Density is residents per hectare of the whole block area as published (ew_ha_2023), including non-residential parts of the block; it is not a net residential density.",
       "Umweltatlas product with its own reference date and spatial basis; totals differ from the official half-yearly LOR population (berlin_population). Do not mix or substitute the two.",
       "Each block is assigned whole to the LOR Planungsraum with the largest overlap (EPSG:25833); block and LOR geometries are not reconciled, partial and ambiguous overlaps are flagged.",

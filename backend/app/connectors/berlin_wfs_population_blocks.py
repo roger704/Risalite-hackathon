@@ -98,6 +98,8 @@ def normalize_population_blocks(
     flag_counts: dict[str, int] = {}
     n_suppressed = 0
     n_observed = 0
+    suppressed_age_cells = 0
+    suppressed_age_blocks = 0
     observed_residents = 0
     try:
         transformer = Transformer.from_crs(options["expected_crs"], "EPSG:4326", always_xy=True)
@@ -156,10 +158,14 @@ def normalize_population_blocks(
             flags = []
             age_values = {}
             source_ages = {band: properties[prop] for band, prop in age_fields.items()}
+            suppression_limit = options["suppression_max_residents"]
             for value in source_ages.values():
                 if value is not None and (type(value) is not int or value < 0):
                     raise SchemaError(f"Invalid age-band count for block {block_id}")
-            suppression_limit = options["suppression_max_residents"]
+                if type(value) is int and 0 < value <= suppression_limit:
+                    raise SchemaError(
+                        f"Published age-band count for block {block_id} is within the suppression range"
+                    )
             if residents == 0:
                 if density != 0:
                     raise SchemaError(f"Suppressed block {block_id} must publish zero density")
@@ -180,9 +186,23 @@ def normalize_population_blocks(
                 observed_residents += residents
                 if abs(round(residents / area_ha, 2) - density) > 0.011:
                     flags.append("density_inconsistent")
-                if all(type(source_ages[band]) is int for band in POPULATION_BLOCK_AGE_BANDS):
-                    age_values = source_ages
-                    if sum(age_values.values()) != residents:
+                if all(source_ages[band] is not None for band in POPULATION_BLOCK_AGE_BANDS):
+                    age_values = {
+                        band: None if source_ages[band] == 0 else source_ages[band]
+                        for band in POPULATION_BLOCK_AGE_BANDS
+                    }
+                    suppressed_age_bands = sum(value is None for value in age_values.values())
+                    if suppressed_age_bands:
+                        flags.append("age_bands_suppressed_0_to_2")
+                        suppressed_age_cells += suppressed_age_bands
+                        suppressed_age_blocks += 1
+                    exact_age_total = sum(
+                        value for value in age_values.values() if value is not None
+                    )
+                    if (
+                        exact_age_total > residents
+                        or exact_age_total + suppression_limit * suppressed_age_bands < residents
+                    ):
                         flags.append("age_bands_sum_mismatch")
                 else:
                     flags.append("age_bands_missing")
@@ -228,6 +248,11 @@ def normalize_population_blocks(
         f"(true total ≤ {observed_residents} + "
         f"{options['suppression_max_residents']}·{n_suppressed})"
     )
+    if suppressed_age_cells:
+        warnings.append(
+            f"{suppressed_age_cells} age-band cells published as 0 (= 0–2) in "
+            f"{suppressed_age_blocks} observed blocks: stored as missing, not 0"
+        )
     for flag, count in sorted(flag_counts.items()):
         warnings.append(f"{count} blocks flagged {flag}")
     if extra_properties:

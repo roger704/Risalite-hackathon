@@ -604,7 +604,7 @@ class PopulationBlock(Record):
     residents_status: ValueStatus | str
     density_per_ha: float | None
     reference_period: str
-    residents_by_age: dict[str, int] = field(default_factory=dict)
+    residents_by_age: dict[str, int | None] = field(default_factory=dict)
     land_use_type: str | None = None
     land_use_type_en: str | None = None
     area_code: str | None = None
@@ -658,8 +658,11 @@ class PopulationBlock(Record):
             raise ValidationError("residents_by_age contains an unsupported age band")
         if self.residents_by_age and set(self.residents_by_age) != set(POPULATION_BLOCK_AGE_BANDS):
             raise ValidationError("residents_by_age must be empty or contain every age band")
-        if any(type(value) is not int or value < 0 for value in self.residents_by_age.values()):
-            raise ValidationError("Age-band residents must be nonnegative integers")
+        if any(
+            value is not None and (type(value) is not int or value < 0)
+            for value in self.residents_by_age.values()
+        ):
+            raise ValidationError("Age-band residents must be nonnegative integers or missing")
         _period(self.reference_period)
         for name in ("land_use_type", "land_use_type_en"):
             _optional_text(name, getattr(self, name))
