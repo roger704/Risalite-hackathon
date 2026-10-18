@@ -32,7 +32,9 @@ def default_deps() -> Deps:
     from app.scoring import v2
 
     if os.environ.get("RISALITE_AREA_DATA", "summary") in {"fixtures", "fixture"}:
-        port = FixtureAreaData.from_frontend_fixtures(Path(__file__).resolve().parents[3] / "frontend" / "fixtures")
+        port = FixtureAreaData.from_frontend_fixtures(
+            Path(__file__).resolve().parents[3] / "frontend" / "fixtures"
+        )
     else:
         from app.application.service import DataService
 
@@ -51,7 +53,9 @@ def default_deps() -> Deps:
         return research.ResearchConfig()
 
     def checker():
-        return FactChecker(offline=config().fake or os.environ.get("RISALITE_FACTCHECK_OFFLINE") == "1")
+        return FactChecker(
+            offline=config().fake or os.environ.get("RISALITE_FACTCHECK_OFFLINE") == "1"
+        )
 
     return Deps(
         scoring=v2,
@@ -107,7 +111,9 @@ def clarify(run_id: str, payload: dict, authorization: str | None = Header(defau
 
 
 @router.get("/runs/{run_id}/areas")
-def search_areas(run_id: str, q: str = Query(default=""), authorization: str | None = Header(default=None)):
+def search_areas(
+    run_id: str, q: str = Query(default=""), authorization: str | None = Header(default=None)
+):
     _get(run_id, authorization)
     return service().search_areas(q)
 
@@ -152,7 +158,9 @@ async def events(
                 idle = 0.0
                 yield ": keep-alive\n\n"
 
-    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+    return StreamingResponse(
+        stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"}
+    )
 
 
 @router.get("/runs/{run_id}/result")

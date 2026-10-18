@@ -445,7 +445,7 @@ def create_app(
                 "NOT_FOUND",
                 f"No {scenario} {metric_code} data for area {area_code} and target year "
                 f"{target_year} with the requested age interval.",
-        )
+            )
         return expected_change(bases[0], targets[0])
 
     application.include_router(create_centers_router(get_service))

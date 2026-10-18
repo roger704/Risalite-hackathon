@@ -82,7 +82,9 @@ class Context:
     @property
     def question(self) -> str:
         subs = [s["text"] for s in self.approved_subquestions]
-        return self.run["question"] + ("\n\nApproved sub-questions:\n" + "\n".join(f"- {s}" for s in subs) if subs else "")
+        return self.run["question"] + (
+            "\n\nApproved sub-questions:\n" + "\n".join(f"- {s}" for s in subs) if subs else ""
+        )
 
 
 async def _maybe(value: Any) -> Any:
@@ -93,7 +95,12 @@ async def _guard(ctx: Context, agent: str, call: Awaitable[Any], default: Any) -
     try:
         return await call
     except Exception as exc:
-        ctx.log.emit("tool_error", agent, {"error": f"{type(exc).__name__}: {exc}"}, why="Agent failed; its recorded findings are kept")
+        ctx.log.emit(
+            "tool_error",
+            agent,
+            {"error": f"{type(exc).__name__}: {exc}"},
+            why="Agent failed; its recorded findings are kept",
+        )
         return default
 
 
@@ -138,7 +145,9 @@ def accepted(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         f
         for f in findings
-        if f.get("status") != "rejected" and f.get("verification") in ACCEPTED and f.get("evidence_ids")
+        if f.get("status") != "rejected"
+        and f.get("verification") in ACCEPTED
+        and f.get("evidence_ids")
     ]
 
 
@@ -167,7 +176,11 @@ def pass_through_datasets(ledger: EvidenceLedger) -> int:
     for entry in ledger.entries():
         if entry.get("method") == "dataset" and entry_status(entry) == "unverified":
             reason = f"dataset value derived in this run from snapshot {entry.get('snapshot_id') or '?'}; not re-verified"
-            ledger.set_status(entry["evidence_id"], "partial", {"checked_at": utc_now(), "ratio": None, "reason": reason})
+            ledger.set_status(
+                entry["evidence_id"],
+                "partial",
+                {"checked_at": utc_now(), "ratio": None, "reason": reason},
+            )
             count += 1
     return count
 
@@ -177,7 +190,9 @@ async def fact_check_stage(ctx: Context, checker: Any) -> list[dict[str, Any]]:
     the verified findings back. Unsupported ones are marked rejected and logged."""
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
     pass_through_datasets(ctx.ledger)
-    pending = [f for f in ctx.findings if not f.get("verification") and f.get("status") != "rejected"]
+    pending = [
+        f for f in ctx.findings if not f.get("verification") and f.get("status") != "rejected"
+    ]
     _write_jsonl(ctx.run_dir / "findings.jsonl", ctx.findings)
     await fact_check_run(ctx.run_dir, checker, trace=_Trace(ctx.log))
     ctx.findings = _read_jsonl(ctx.run_dir / "findings.jsonl")
@@ -186,7 +201,12 @@ async def fact_check_stage(ctx: Context, checker: Any) -> list[dict[str, Any]]:
         if item["finding_id"] in fresh and item.get("verification") == "unsupported":
             item["status"] = "rejected"
             item["reject_reason"] = item.get("fact_check_reason") or "unsupported on re-check"
-            ctx.log.emit("finding_rejected", "factcheck", {"finding_id": item["finding_id"], "claim": item.get("claim")}, why="unsupported on re-check")
+            ctx.log.emit(
+                "finding_rejected",
+                "factcheck",
+                {"finding_id": item["finding_id"], "claim": item.get("claim")},
+                why="unsupported on re-check",
+            )
     _write_jsonl(ctx.run_dir / "findings.jsonl", ctx.findings)
     return accepted(ctx.findings)
 
@@ -210,7 +230,9 @@ def future_kind(kind: str | None, unit: str | None, template: Any) -> str | None
     return next((key for key in KIND_ALIASES.get(str(kind), ()) if key in effects), None)
 
 
-def future_modifiers(ctx: Context, findings: list[dict[str, Any]], cell_ids: set[str], template: Any) -> list[Any]:
+def future_modifiers(
+    ctx: Context, findings: list[dict[str, Any]], cell_ids: set[str], template: Any
+) -> list[Any]:
     FutureModifier = ctx.deps.scoring.FutureModifier
     units = getattr(template, "future_units", {}) or {}
     modifiers, seen, ignored = [], set(), []
@@ -246,7 +268,12 @@ def future_modifiers(ctx: Context, findings: list[dict[str, Any]], cell_ids: set
             )
         )
     if ignored:
-        ctx.log.emit("merge", "orchestrator", {"ignored_future_findings": ignored}, why="Future kind has no effect in this template")
+        ctx.log.emit(
+            "merge",
+            "orchestrator",
+            {"ignored_future_findings": ignored},
+            why="Future kind has no effect in this template",
+        )
     return modifiers
 
 
@@ -255,7 +282,8 @@ def _template(ctx: Context) -> Any:
     approved = {layer["id"]: layer for layer in ctx.run.get("approval", {}).get("layers") or []}
     layers = tuple(
         dataclasses.replace(
-            layer, weight=float(approved[layer.id]["weight"]) if approved[layer.id]["enabled"] else 0.0
+            layer,
+            weight=float(approved[layer.id]["weight"]) if approved[layer.id]["enabled"] else 0.0,
         )
         if layer.id in approved
         else layer
@@ -273,7 +301,12 @@ def _cells_payload(cells: list[Any]) -> list[dict[str, Any]]:
 
 
 def _cell_payload(cell: Any) -> dict[str, Any]:
-    return {"id": cell.cell_id, "name": cell.name, "parent_name": cell.parent_name, "raw_values": dict(cell.raw_values)}
+    return {
+        "id": cell.cell_id,
+        "name": cell.name,
+        "parent_name": cell.parent_name,
+        "raw_values": dict(cell.raw_values),
+    }
 
 
 def _require_data(ctx: Context, template: Any, inputs: list[Any], area: dict[str, Any]) -> None:
@@ -307,13 +340,25 @@ async def run_area(ctx: Context) -> dict[str, Any]:
     _require_data(ctx, template, inputs, area)
     for layer in template.layers:
         present = sum(1 for c in inputs if c.raw.get(layer.id) is not None)
-        ctx.log.emit("layer", "data", {"layer_id": layer.id, "cells": len(inputs), "present": present, "weight": layer.weight}, why="Layer values per PLR from pinned snapshots")
+        ctx.log.emit(
+            "layer",
+            "data",
+            {
+                "layer_id": layer.id,
+                "cells": len(inputs),
+                "present": present,
+                "weight": layer.weight,
+            },
+            why="Layer values per PLR from pinned snapshots",
+        )
     reference = await asyncio.to_thread(port.berlin_reference, template) or None
     reasons = port.confidence_reasons(area_id)
     crosscheck = getattr(port, "crosscheck", None)
     crosscheck = crosscheck(area_id) if crosscheck else {}
 
-    def score(modifiers: list[Any] = (), risks: dict[str, list[dict[str, Any]]] | None = None) -> Any:
+    def score(
+        modifiers: list[Any] = (), risks: dict[str, list[dict[str, Any]]] | None = None
+    ) -> Any:
         return scoring.score_area(
             inputs,
             template,
@@ -331,7 +376,12 @@ async def run_area(ctx: Context) -> dict[str, Any]:
 
     v0 = score()
     top3 = top(v0)
-    ctx.log.emit("score", "scorer", {"version": "v0", "top3": [c.cell_id for c in top3], "excluded": v0.excluded}, why="Top-3 by score_present drive wave 2")
+    ctx.log.emit(
+        "score",
+        "scorer",
+        {"version": "v0", "top3": [c.cell_id for c in top3], "excluded": v0.excluded},
+        why="Top-3 by score_present drive wave 2",
+    )
 
     by_id = {c.cell_id: c for c in inputs}
     area_payload = {"area_id": area_id, "name": area["name"]}
@@ -343,8 +393,15 @@ async def run_area(ctx: Context) -> dict[str, Any]:
                 ctx,
                 f"researcher:wave1:{n}",
                 research.research_area(
-                    ctx.question, area_payload, cells_payload, ctx.ledger, ctx.log.emitter(f"researcher:wave1:{n}"), cfg,
-                    subquestions=[sub["text"]], agent=f"researcher:wave1:{n}", subquestion_id=sub["id"],
+                    ctx.question,
+                    area_payload,
+                    cells_payload,
+                    ctx.ledger,
+                    ctx.log.emitter(f"researcher:wave1:{n}"),
+                    cfg,
+                    subquestions=[sub["text"]],
+                    agent=f"researcher:wave1:{n}",
+                    subquestion_id=sub["id"],
                 ),
                 [],
             )
@@ -360,8 +417,16 @@ async def run_area(ctx: Context) -> dict[str, Any]:
                     ctx,
                     f"researcher:wave2:{c.cell_id}",
                     research.research_cell(
-                        ctx.question, _cell_payload(c), ctx.ledger, ctx.log.emitter(f"researcher:wave2:{c.cell_id}"), small(cfg),
-                        context=[Finding.model_validate(f) for f in ctx.findings if _cell_of(f.get("localization"), {c.cell_id})],
+                        ctx.question,
+                        _cell_payload(c),
+                        ctx.ledger,
+                        ctx.log.emitter(f"researcher:wave2:{c.cell_id}"),
+                        small(cfg),
+                        context=[
+                            Finding.model_validate(f)
+                            for f in ctx.findings
+                            if _cell_of(f.get("localization"), {c.cell_id})
+                        ],
                         agent=f"researcher:wave2:{c.cell_id}",
                     ),
                     [],
@@ -377,10 +442,23 @@ async def run_area(ctx: Context) -> dict[str, Any]:
     try:
         verified = await fact_check_stage(ctx, checker)
         modifiers = future_modifiers(ctx, verified, set(by_id), template)
-        ctx.log.emit("merge", "orchestrator", {"accepted": len(verified), "modifiers": [{"cell_id": m.cell_id, "kind": m.kind} for m in modifiers]}, why="Only verified/partial findings reach modifiers")
+        ctx.log.emit(
+            "merge",
+            "orchestrator",
+            {
+                "accepted": len(verified),
+                "modifiers": [{"cell_id": m.cell_id, "kind": m.kind} for m in modifiers],
+            },
+            why="Only verified/partial findings reach modifiers",
+        )
         v1 = score(modifiers)
         top3 = top(v1)
-        ctx.log.emit("rescore", "scorer", {"version": "v1", "top3": [c.cell_id for c in top3]}, why="Future modifiers merged")
+        ctx.log.emit(
+            "rescore",
+            "scorer",
+            {"version": "v1", "top3": [c.cell_id for c in top3]},
+            why="Future modifiers merged",
+        )
 
         skeptics = await asyncio.gather(
             *[
@@ -388,16 +466,26 @@ async def run_area(ctx: Context) -> dict[str, Any]:
                     ctx,
                     f"skeptic:{c.cell_id}",
                     research.skeptic(
-                        ctx.question, _cell_payload(c),
-                        [Finding.model_validate(f) for f in verified if _cell_of(f.get("localization"), {c.cell_id})],
-                        ctx.ledger, ctx.log.emitter(f"skeptic:{c.cell_id}"), small(cfg), agent=f"skeptic:{c.cell_id}",
+                        ctx.question,
+                        _cell_payload(c),
+                        [
+                            Finding.model_validate(f)
+                            for f in verified
+                            if _cell_of(f.get("localization"), {c.cell_id})
+                        ],
+                        ctx.ledger,
+                        ctx.log.emitter(f"skeptic:{c.cell_id}"),
+                        small(cfg),
+                        agent=f"skeptic:{c.cell_id}",
                     ),
                     [],
                 )
                 for c in top3
             ]
         )
-        risk_meta = _add_risks(ctx, [(c.cell_id, f"plr:{c.cell_id}", risks) for c, risks in zip(top3, skeptics)])
+        risk_meta = _add_risks(
+            ctx, [(c.cell_id, f"plr:{c.cell_id}", risks) for c, risks in zip(top3, skeptics)]
+        )
         await fact_check_stage(ctx, checker)
     finally:
         close = getattr(checker, "aclose", None)
@@ -407,28 +495,63 @@ async def run_area(ctx: Context) -> dict[str, Any]:
     high_risk: dict[str, list[str]] = {}
     risks_by_cell: dict[str, list[dict[str, Any]]] = {}
     for item in _verified_risks(ctx, risk_meta):
-        cell, severity = risk_meta[item["finding_id"]]["target"], risk_meta[item["finding_id"]]["severity"]
+        cell, severity = (
+            risk_meta[item["finding_id"]]["target"],
+            risk_meta[item["finding_id"]]["severity"],
+        )
         risks_by_cell.setdefault(cell, []).append(
-            {"severity": severity, "text": item["claim"], "quote": item["quote"], "evidence_id": item["evidence_ids"][0], "finding_id": item["finding_id"]}
+            {
+                "severity": severity,
+                "text": item["claim"],
+                "quote": item["quote"],
+                "evidence_id": item["evidence_ids"][0],
+                "finding_id": item["finding_id"],
+            }
         )
         if severity == "high":
             high_risk.setdefault(cell, []).append(item["finding_id"])
-        ctx.log.emit("skeptic_risk", f"skeptic:{cell}", {"finding_id": item["finding_id"], "severity": severity, "text": item["claim"], "verification": item.get("verification")}, why="Fact-checked risk")
+        ctx.log.emit(
+            "skeptic_risk",
+            f"skeptic:{cell}",
+            {
+                "finding_id": item["finding_id"],
+                "severity": severity,
+                "text": item["claim"],
+                "verification": item.get("verification"),
+            },
+            why="Fact-checked risk",
+        )
 
     final = score(modifiers, risks_by_cell)
-    final.cells = scoring.rank(final.cells, "present", high_risk=high_risk, tie_band=template.tie_band)
-    ctx.log.emit("rescore", "scorer", {"version": "final", "demoted": high_risk, "order": [c.cell_id for c in final.cells[:3]]}, why="High risks demote, scores unchanged")
+    final.cells = scoring.rank(
+        final.cells, "present", high_risk=high_risk, tie_band=template.tie_band
+    )
+    ctx.log.emit(
+        "rescore",
+        "scorer",
+        {"version": "final", "demoted": high_risk, "order": [c.cell_id for c in final.cells[:3]]},
+        why="High risks demote, scores unchanged",
+    )
 
-    doc = scoring.to_cells_document(final, area | {"plr_count": len(area.get("plr_ids", []))}, template)
+    doc = scoring.to_cells_document(
+        final, area | {"plr_count": len(area.get("plr_ids", []))}, template
+    )
     cells = doc.model_dump(by_alias=True) if hasattr(doc, "model_dump") else dict(doc)
     _apply_layer_approval(cells, ctx.run)
     report = await research.write_report(
-        ctx.question, {"area": area_payload, "cells": cells}, [Finding.model_validate(f) for f in accepted(ctx.findings)], ctx.ledger, ctx.log.emitter("writer"), cfg
+        ctx.question,
+        {"area": area_payload, "cells": cells},
+        [Finding.model_validate(f) for f in accepted(ctx.findings)],
+        ctx.ledger,
+        ctx.log.emitter("writer"),
+        cfg,
     )
     return {"cells": cells, "report_md": report, "cells_geojson": port.geojson(area_id)}
 
 
-def _add_risks(ctx: Context, groups: list[tuple[str, str, list[dict[str, Any]]]], **tags: Any) -> dict[str, dict[str, Any]]:
+def _add_risks(
+    ctx: Context, groups: list[tuple[str, str, list[dict[str, Any]]]], **tags: Any
+) -> dict[str, dict[str, Any]]:
     """Skeptic risks → findings.jsonl rows (claim_type risk); returns finding_id → target/severity."""
     meta: dict[str, dict[str, Any]] = {}
     for target, localization, risks in groups:
@@ -439,7 +562,10 @@ def _add_risks(ctx: Context, groups: list[tuple[str, str, list[dict[str, Any]]]]
                     "finding_id": risk.get("finding_id") or f"r_{target}_{n}",
                     "claim": risk.get("text", ""),
                     "quote": risk.get("quote") or "",
-                    "evidence_ids": list(risk.get("evidence_ids") or ([risk["evidence_id"]] if risk.get("evidence_id") else [])),
+                    "evidence_ids": list(
+                        risk.get("evidence_ids")
+                        or ([risk["evidence_id"]] if risk.get("evidence_id") else [])
+                    ),
                     "agent": risk.get("agent") or f"skeptic:{target}",
                     "status": "accepted",
                 }
@@ -474,7 +600,10 @@ async def run_point(ctx: Context) -> dict[str, Any]:
         raise RunFailure("T1 point research is not available (app.application.t1 is not installed)")
     cfg = ctx.cfg
     prepared = ctx.run["prepared"]
-    approved = set(ctx.run.get("approval", {}).get("hypothesis_ids") or [h["id"] for h in prepared.get("hypotheses", [])])
+    approved = set(
+        ctx.run.get("approval", {}).get("hypothesis_ids")
+        or [h["id"] for h in prepared.get("hypotheses", [])]
+    )
     hypotheses = [h for h in prepared.get("hypotheses", []) if h["id"] in approved]
     if not hypotheses:
         raise RunFailure("No approved hypotheses for this address")
@@ -485,7 +614,13 @@ async def run_point(ctx: Context) -> dict[str, Any]:
                 ctx,
                 f"researcher:t1:{h['id']}",
                 research.research_hypothesis(
-                    ctx.question, space, h, ctx.ledger, ctx.log.emitter(f"researcher:t1:{h['id']}"), cfg, agent=f"researcher:t1:{h['id']}"
+                    ctx.question,
+                    space,
+                    h,
+                    ctx.ledger,
+                    ctx.log.emitter(f"researcher:t1:{h['id']}"),
+                    cfg,
+                    agent=f"researcher:t1:{h['id']}",
                 ),
                 [],
             )
@@ -501,10 +636,28 @@ async def run_point(ctx: Context) -> dict[str, Any]:
     checker = ctx.deps.checker_factory()
     try:
         verified = await fact_check_stage(ctx, checker)
-        fit = await _guard(
-            ctx, "fit", research.derive_fit(ctx.question, prepared, [Finding.model_validate(f) for f in verified], ctx.log.emitter("fit"), cfg), {}
-        ) if hasattr(research, "derive_fit") else {}
-        ctx.log.emit("merge", "orchestrator", {"accepted": len(verified), "fit": {h: sorted(d) for h, d in (fit or {}).items()}}, why="Fit from verified findings only")
+        fit = (
+            await _guard(
+                ctx,
+                "fit",
+                research.derive_fit(
+                    ctx.question,
+                    prepared,
+                    [Finding.model_validate(f) for f in verified],
+                    ctx.log.emitter("fit"),
+                    cfg,
+                ),
+                {},
+            )
+            if hasattr(research, "derive_fit")
+            else {}
+        )
+        ctx.log.emit(
+            "merge",
+            "orchestrator",
+            {"accepted": len(verified), "fit": {h: sorted(d) for h, d in (fit or {}).items()}},
+            why="Fit from verified findings only",
+        )
         skeptics = await asyncio.gather(
             *[
                 _guard(
@@ -512,9 +665,20 @@ async def run_point(ctx: Context) -> dict[str, Any]:
                     f"skeptic:{h['id']}",
                     research.skeptic(
                         ctx.question,
-                        {"id": h["id"], "name": f"{h.get('name', h['id'])} at {space.get('address', 'the address')}", "raw_values": dict(h.get("metrics") or {})},
-                        [Finding.model_validate(f) for f in verified if f.get("hypothesis_id") == h["id"]],
-                        ctx.ledger, ctx.log.emitter(f"skeptic:{h['id']}"), small(cfg), agent=f"skeptic:{h['id']}",
+                        {
+                            "id": h["id"],
+                            "name": f"{h.get('name', h['id'])} at {space.get('address', 'the address')}",
+                            "raw_values": dict(h.get("metrics") or {}),
+                        },
+                        [
+                            Finding.model_validate(f)
+                            for f in verified
+                            if f.get("hypothesis_id") == h["id"]
+                        ],
+                        ctx.ledger,
+                        ctx.log.emitter(f"skeptic:{h['id']}"),
+                        small(cfg),
+                        agent=f"skeptic:{h['id']}",
                     ),
                     [],
                 )
@@ -529,11 +693,32 @@ async def run_point(ctx: Context) -> dict[str, Any]:
         if close:
             await close()
 
-    candidates = await _maybe(t1.build_candidates(prepared, accepted(ctx.findings), fit or {}, ledger=ctx.ledger))
-    doc = candidates.model_dump(by_alias=True) if hasattr(candidates, "model_dump") else dict(candidates)
-    ctx.log.emit("score", "scorer", {"hypotheses": [{"id": h["id"], "score": h.get("score"), "rank_final": h.get("rank_final")} for h in doc.get("hypotheses", [])]}, why="Candidates from data pre-score, fit and verified claims")
+    candidates = await _maybe(
+        t1.build_candidates(prepared, accepted(ctx.findings), fit or {}, ledger=ctx.ledger)
+    )
+    doc = (
+        candidates.model_dump(by_alias=True)
+        if hasattr(candidates, "model_dump")
+        else dict(candidates)
+    )
+    ctx.log.emit(
+        "score",
+        "scorer",
+        {
+            "hypotheses": [
+                {"id": h["id"], "score": h.get("score"), "rank_final": h.get("rank_final")}
+                for h in doc.get("hypotheses", [])
+            ]
+        },
+        why="Candidates from data pre-score, fit and verified claims",
+    )
     report = await research.write_report(
-        ctx.question, {"space": space, "candidates": doc}, [Finding.model_validate(f) for f in accepted(ctx.findings)], ctx.ledger, ctx.log.emitter("writer"), cfg
+        ctx.question,
+        {"space": space, "candidates": doc},
+        [Finding.model_validate(f) for f in accepted(ctx.findings)],
+        ctx.ledger,
+        ctx.log.emitter("writer"),
+        cfg,
     )
     return {"candidates": doc, "report_md": report, "cells_geojson": prepared.get("cells_geojson")}
 
@@ -542,22 +727,35 @@ async def run_point(ctx: Context) -> dict[str, Any]:
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.write_text("".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows), encoding="utf-8")
+    path.write_text(
+        "".join(json.dumps(r, ensure_ascii=False, default=str) + "\n" for r in rows),
+        encoding="utf-8",
+    )
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
-def self_grade(evidence: list[dict[str, Any]], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def self_grade(
+    evidence: list[dict[str, Any]], findings: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     verified = sum(1 for f in findings if f.get("verification") == "verified")
     partial = sum(1 for f in findings if f.get("verification") == "partial")
     unsupported = sum(1 for f in findings if f.get("verification") == "unsupported")
     return [
-        {"ok": unsupported == 0, "text": f"Findings: {verified} verified, {partial} partial, {unsupported} unsupported (dropped)"},
-        {"ok": bool(evidence), "text": f"{len(evidence)} ledger entries back the layers and findings"},
+        {
+            "ok": unsupported == 0,
+            "text": f"Findings: {verified} verified, {partial} partial, {unsupported} unsupported (dropped)",
+        },
+        {
+            "ok": bool(evidence),
+            "text": f"{len(evidence)} ledger entries back the layers and findings",
+        },
     ]
 
 
@@ -571,7 +769,12 @@ async def run_config(ctx: Context) -> AsyncIterator[Any]:
         return
     factory = ctx.deps.connector_factory or tavily_connector
     async with factory(cfg) as connector:
-        ctx.log.emit("status", "orchestrator", {"connector": type(connector).__name__, "max_searches": RUN_MAX_SEARCHES}, why="One shared search client per run")
+        ctx.log.emit(
+            "status",
+            "orchestrator",
+            {"connector": type(connector).__name__, "max_searches": RUN_MAX_SEARCHES},
+            why="One shared search client per run",
+        )
         yield _with(cfg, connector=connector)
 
 
@@ -586,21 +789,30 @@ async def tavily_connector(cfg: Any) -> AsyncIterator[Any]:
         max_inference_calls=0,
         max_tokens=0,
     )
-    async with TavilyClient(TavilyConfig.from_env(max_results=getattr(cfg, "max_results", 5)), budget) as client:
+    async with TavilyClient(
+        TavilyConfig.from_env(max_results=getattr(cfg, "max_results", 5)), budget
+    ) as client:
         yield client
 
 
 async def execute(ctx: Context) -> dict[str, Any]:
     """Run all stages and write ``runs/<id>/…``; returns the ``RunResult`` payload."""
     run = ctx.run
-    ctx.log.emit("status", "orchestrator", {"status": "running"}, why="Plan approved; research started")
+    ctx.log.emit(
+        "status", "orchestrator", {"status": "running"}, why="Plan approved; research started"
+    )
     async with run_config(ctx) as cfg:
         ctx.cfg = cfg
         output = await (run_point(ctx) if run["shape"] == "point" else run_area(ctx))
     entries = ctx.ledger.entries()
     report = strip_unknown_citations(output.get("report_md") or "", entries)
     if report.stripped:
-        ctx.log.emit("write", "writer", {"stripped_citations": list(report.stripped)}, why="Citations not in the ledger were removed")
+        ctx.log.emit(
+            "write",
+            "writer",
+            {"stripped_citations": list(report.stripped)},
+            why="Citations not in the ledger were removed",
+        )
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
     (ctx.run_dir / "report.md").write_text(report.text, encoding="utf-8")
     _write_jsonl(ctx.run_dir / "findings.jsonl", ctx.findings)
@@ -608,11 +820,17 @@ async def execute(ctx: Context) -> dict[str, Any]:
     # [ev_…]/[ds_…] id markers (the UI resolves ids; fact_check_run would renumber them).
     report_md = report.text
     if output.get("cells") is not None:
-        (ctx.run_dir / "cells.json").write_text(json.dumps(output["cells"], ensure_ascii=False, indent=2), encoding="utf-8")
+        (ctx.run_dir / "cells.json").write_text(
+            json.dumps(output["cells"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     if output.get("candidates") is not None:
-        (ctx.run_dir / "candidates.json").write_text(json.dumps(output["candidates"], ensure_ascii=False, indent=2), encoding="utf-8")
+        (ctx.run_dir / "candidates.json").write_text(
+            json.dumps(output["candidates"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     ctx.log.emit("write", "orchestrator", {"files": sorted(p.name for p in ctx.run_dir.iterdir())})
-    evidence = [EvidenceEntry.model_validate(e).model_dump(exclude_none=True) for e in ctx.ledger.entries()]
+    evidence = [
+        EvidenceEntry.model_validate(e).model_dump(exclude_none=True) for e in ctx.ledger.entries()
+    ]
     stats = metrics(ctx.log.events)
     (ctx.run_dir / "metrics.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
     ctx.log.emit("metrics", "orchestrator", stats)

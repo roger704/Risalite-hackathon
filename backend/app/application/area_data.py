@@ -58,7 +58,12 @@ class AreaUnit:
     plr_ids: tuple[str, ...]
 
     def candidate(self) -> dict[str, Any]:
-        return {"area_id": self.area_id, "level": self.level, "name": self.name, "bezirk": self.bezirk}
+        return {
+            "area_id": self.area_id,
+            "level": self.level,
+            "name": self.name,
+            "bezirk": self.bezirk,
+        }
 
     def resolution(self) -> dict[str, Any]:
         return {
@@ -117,11 +122,15 @@ def units_from_lor(names: dict[str, dict[str, str]]) -> list[AreaUnit]:
         )
         plrs.append(AreaUnit(f"plr:{plr_id}", "plr", attrs.get("name", plr_id), bezirk, (plr_id,)))
     units = [
-        AreaUnit(f"bezirk:{bez}", "bezirk", BEZIRKE.get(bez, bez), BEZIRKE.get(bez, bez), tuple(ids))
+        AreaUnit(
+            f"bezirk:{bez}", "bezirk", BEZIRKE.get(bez, bez), BEZIRKE.get(bez, bez), tuple(ids)
+        )
         for bez, ids in sorted(bezirke.items())
     ]
     units += [
-        AreaUnit(f"ortsteil:{ortsteil_key[key]}", "ortsteil", key[1], BEZIRKE.get(key[0]), tuple(ids))
+        AreaUnit(
+            f"ortsteil:{ortsteil_key[key]}", "ortsteil", key[1], BEZIRKE.get(key[0]), tuple(ids)
+        )
         for key, ids in sorted(ortsteile.items(), key=lambda item: ortsteil_key[item[0]])
     ]
     units += [
@@ -136,7 +145,9 @@ def search_units(units: Iterable[AreaUnit], query: str) -> list[dict[str, Any]]:
     if not value:
         return []
     hits = [unit for unit in units if value in unit.name.casefold() or value == unit.area_id]
-    hits.sort(key=lambda u: (not u.name.casefold().startswith(value), -LEVEL_ORDER[u.level], u.area_id))
+    hits.sort(
+        key=lambda u: (not u.name.casefold().startswith(value), -LEVEL_ORDER[u.level], u.area_id)
+    )
     return [unit.candidate() for unit in hits[:50]]
 
 
@@ -198,7 +209,9 @@ class FixtureAreaData:
     def resolve(self, area_id: str) -> dict[str, Any]:
         return self._unit(area_id).resolution()
 
-    def _cell(self, row: dict[str, Any], template: Template, ledger: EvidenceLedger | None) -> CellInput:
+    def _cell(
+        self, row: dict[str, Any], template: Template, ledger: EvidenceLedger | None
+    ) -> CellInput:
         raw = {layer.id: _number(row.get("raw", {}).get(layer.id)) for layer in template.layers}
         evidence = {}
         for layer in template.layers:
@@ -254,7 +267,9 @@ class FixtureAreaData:
         return [
             layer.id
             for layer in template.layers
-            if not any(_number(row.get("raw", {}).get(layer.id)) is not None for row in self.plrs.values())
+            if not any(
+                _number(row.get("raw", {}).get(layer.id)) is not None for row in self.plrs.values()
+            )
         ]
 
     def geojson(self, area_id: str) -> dict[str, Any] | None:
@@ -262,7 +277,9 @@ class FixtureAreaData:
             return None
         ids = set(self._unit(area_id).plr_ids)
         features = [
-            f for f in self.geometry.get("features", []) if str(f.get("properties", {}).get("id", f.get("id"))) in ids
+            f
+            for f in self.geometry.get("features", [])
+            if str(f.get("properties", {}).get("id", f.get("id"))) in ids
         ]
         return {"type": "FeatureCollection", "features": features}
 
@@ -271,7 +288,11 @@ class FixtureAreaData:
         """Synthetic Kreuzberg demo cells mapped to ``coffee_v2`` layer ids."""
         cells = json.loads((fixture_dir / "cells.json").read_text(encoding="utf-8"))
         geometry_path = fixture_dir / "cells.geojson"
-        geometry = json.loads(geometry_path.read_text(encoding="utf-8")) if geometry_path.exists() else None
+        geometry = (
+            json.loads(geometry_path.read_text(encoding="utf-8"))
+            if geometry_path.exists()
+            else None
+        )
         residents = 5000.0
         plrs = {}
         for cell in cells["cells"]:
@@ -333,8 +354,11 @@ def _young_share(residents: dict[str, Any]) -> tuple[float | None, list[dict[str
         and b["age_max_exclusive"] <= 45
     ]
     covered = sorted((b["age_min"], b["age_max_exclusive"]) for b in bands)
-    contiguous = bool(covered) and covered[0][0] == 18 and covered[-1][1] == 45 and all(
-        a[1] == b[0] for a, b in zip(covered, covered[1:])
+    contiguous = (
+        bool(covered)
+        and covered[0][0] == 18
+        and covered[-1][1] == 45
+        and all(a[1] == b[0] for a, b in zip(covered, covered[1:]))
     )
     counts = [_value(b.get("count")) for b in bands]
     if not total or not contiguous or any(c is None for c in counts):
@@ -347,11 +371,20 @@ def _osm_count(summary: dict[str, Any]) -> tuple[float | None, list[dict[str, st
     osm = ihk = None
     sources: list[dict[str, str]] = []
     for entry in (summary.get("competitors") or {}).get("sources") or []:
-        count = _value(entry.get("count")) if isinstance(entry.get("count"), dict) else _number(entry.get("count"))
+        count = (
+            _value(entry.get("count"))
+            if isinstance(entry.get("count"), dict)
+            else _number(entry.get("count"))
+        )
         if entry.get("inventory") == "mapped_places":
             osm = count
             sources = _sources(entry.get("count")) or (
-                [{"dataset_id": entry.get("dataset_id"), "snapshot_id": entry.get("snapshot_id", "")}]
+                [
+                    {
+                        "dataset_id": entry.get("dataset_id"),
+                        "snapshot_id": entry.get("snapshot_id", ""),
+                    }
+                ]
             )
         elif entry.get("inventory") == "registered_businesses":
             ihk = count
@@ -361,7 +394,9 @@ def _osm_count(summary: dict[str, Any]) -> tuple[float | None, list[dict[str, st
 def _transit_departures(transit: dict[str, Any]) -> tuple[float | None, list[dict[str, str]]]:
     windows = transit.get("windows") or []
     picked = [
-        w for w in windows if (str(w.get("window_start"))[:5], str(w.get("window_end"))[:5]) in TRANSIT_WINDOWS
+        w
+        for w in windows
+        if (str(w.get("window_start"))[:5], str(w.get("window_end"))[:5]) in TRANSIT_WINDOWS
     ]
     values = [_value(w.get("scheduled_departures")) for w in picked]
     if not picked or any(v is None for v in values):
@@ -524,7 +559,9 @@ class SummaryAreaData:
 
         osm, osm_sources, ihk = _osm_count(base)
         saturation = (
-            None if osm is None or total is None else round(osm / max(total, MIN_SATURATION_DENOMINATOR) * 10000, 3)
+            None
+            if osm is None or total is None
+            else round(osm / max(total, MIN_SATURATION_DENOMINATOR) * 10000, 3)
         )
         values["cafe_saturation"] = (saturation, osm_sources, "cafés per 10,000 residents")
         values["cafe_crosscheck"] = (ihk, [], "businesses")
@@ -533,7 +570,9 @@ class SummaryAreaData:
         footfall: list[float] = []
         footfall_sources: list[dict[str, str]] = []
         for category in FOOTFALL_CATEGORIES:
-            count, sources, _ = _osm_count(self._summary(plr, category=category, include_geometry=False))
+            count, sources, _ = _osm_count(
+                self._summary(plr, category=category, include_geometry=False)
+            )
             if count is None:
                 footfall = []
                 break
@@ -607,11 +646,17 @@ class SummaryAreaData:
 
     def berlin_reference(self, template: Template) -> list[CellInput]:
         if template.id not in self._reference:
-            self._reference[template.id] = [self._cell(plr, template, None) for plr in sorted(self._names)]
+            self._reference[template.id] = [
+                self._cell(plr, template, None) for plr in sorted(self._names)
+            ]
         return self._reference[template.id]
 
     def confidence_reasons(self, area_id: str) -> dict[str, list[str]]:
-        return {p: list(self._notes.get(p, [])) for p in self._by_id[area_id].plr_ids if self._notes.get(p)}
+        return {
+            p: list(self._notes.get(p, []))
+            for p in self._by_id[area_id].plr_ids
+            if self._notes.get(p)
+        }
 
     def crosscheck(self, area_id: str) -> dict[str, tuple[int, int]]:
         """PLR → (OSM, IHK) café counts (rows are loaded by ``cells`` first)."""
@@ -620,7 +665,12 @@ class SummaryAreaData:
 
     def geojson(self, area_id: str) -> dict[str, Any] | None:
         features = [
-            {"type": "Feature", "id": plr, "properties": {"id": plr, "name": self._names.get(plr, {}).get("name")}, "geometry": self._geometry[plr]}
+            {
+                "type": "Feature",
+                "id": plr,
+                "properties": {"id": plr, "name": self._names.get(plr, {}).get("name")},
+                "geometry": self._geometry[plr],
+            }
             for plr in self._by_id[area_id].plr_ids
             if plr in self._geometry
         ]

@@ -103,7 +103,9 @@ def ambiguous(hits: list[AreaUnit]) -> list[AreaUnit]:
 
 def clarify_question(options: list[AreaUnit]) -> str:
     labels = " or ".join(f"the {u.level.capitalize()} {u.name}" for u in options)
-    return f"'{options[0].name}' is ambiguous: do you mean {labels}? Answer e.g. '{options[0].level}'."
+    return (
+        f"'{options[0].name}' is ambiguous: do you mean {labels}? Answer e.g. '{options[0].level}'."
+    )
 
 
 def pick_from_answer(answer: str, options: list[AreaUnit]) -> AreaUnit | None:
@@ -111,14 +113,19 @@ def pick_from_answer(answer: str, options: list[AreaUnit]) -> AreaUnit | None:
     for unit in options:
         if value == unit.area_id.casefold():
             return unit
-    synonyms = {"bezirk": ("bezirk", "district", "borough"), "ortsteil": ("ortsteil", "neighbourhood", "neighborhood", "locality")}
+    synonyms = {
+        "bezirk": ("bezirk", "district", "borough"),
+        "ortsteil": ("ortsteil", "neighbourhood", "neighborhood", "locality"),
+    }
     for unit in options:
         if any(word in value for word in synonyms.get(unit.level, (unit.level,))):
             return unit
     return None
 
 
-def candidates(selected: AreaUnit, hits: list[AreaUnit], units: list[AreaUnit]) -> list[dict[str, Any]]:
+def candidates(
+    selected: AreaUnit, hits: list[AreaUnit], units: list[AreaUnit]
+) -> list[dict[str, Any]]:
     by_id = {u.area_id: u for u in units}
     chosen: list[AreaUnit] = [selected, *[u for u in hits if u.area_id != selected.area_id]]
     for unit in list(chosen):
@@ -160,10 +167,21 @@ def build_plan(
         for layer in template.layers
     ]
     plan: dict[str, Any] = {
-        "area": {"area_id": area.area_id, "level": area.level, "name": area.name, "plr_count": len(area.plr_ids)},
+        "area": {
+            "area_id": area.area_id,
+            "level": area.level,
+            "name": area.name,
+            "plr_count": len(area.plr_ids),
+        },
         "area_candidates": area_candidates,
         "sub_questions": [
-            {"id": sid, "text": text.format(area=area.name), "source_class": "web", "sources": "Tavily web search", "layer_ids": []}
+            {
+                "id": sid,
+                "text": text.format(area=area.name),
+                "source_class": "web",
+                "sources": "Tavily web search",
+                "layer_ids": [],
+            }
             for sid, text in SUB_QUESTIONS.get(shape, SUB_QUESTIONS["location"])
         ],
         "layers": layers,
@@ -175,5 +193,7 @@ def build_plan(
         "template_id": template.id,
     }
     if unmapped:
-        plan["note"] = "No data source for layer(s): " + ", ".join(unmapped) + " (shown as missing)."
+        plan["note"] = (
+            "No data source for layer(s): " + ", ".join(unmapped) + " (shown as missing)."
+        )
     return plan

@@ -18,7 +18,12 @@ LAYERS = (
     v2.LayerSpec("residents_block_density", "Density", "+", 0.5, required=True),
     v2.LayerSpec("cafe_saturation", "Cafés", "-", 0.5, required=True),
 )
-TEMPLATE = v2.Template("coffee_v2", LAYERS, future_effect={"housing_growth": "+"}, future_units={"housing_growth": "dwellings"})
+TEMPLATE = v2.Template(
+    "coffee_v2",
+    LAYERS,
+    future_effect={"housing_growth": "+"},
+    future_units={"housing_growth": "dwellings"},
+)
 PLRS = {
     f"0810010{i}": {
         "id": f"0810010{i}",
@@ -40,7 +45,9 @@ UNITS = [
 CALLS: list = []
 
 
-def score_area(cells, template, *, berlin_reference=None, modifiers=(), extra_confidence_reasons=None, **kwargs):
+def score_area(
+    cells, template, *, berlin_reference=None, modifiers=(), extra_confidence_reasons=None, **kwargs
+):
     CALLS.append(("score_area", sorted(kwargs), [m.kind for m in modifiers]))
     bonus = {m.cell_id: 0.1 for m in modifiers}
     scored = []
@@ -48,9 +55,18 @@ def score_area(cells, template, *, berlin_reference=None, modifiers=(), extra_co
         present = cell.raw["residents_block_density"] / 10000
         scored.append(
             v2.ScoredCell(
-                cell.cell_id, cell.name, {k: 0.5 for k in cell.raw}, dict(cell.raw), present, None,
+                cell.cell_id,
+                cell.name,
+                {k: 0.5 for k in cell.raw},
+                dict(cell.raw),
+                present,
+                None,
                 present + bonus.get(cell.cell_id, 0.0),
-                modifiers=[{"label": m.label, "evidence_id": m.evidence_id, "quote": m.quote} for m in modifiers if m.cell_id == cell.cell_id],
+                modifiers=[
+                    {"label": m.label, "evidence_id": m.evidence_id, "quote": m.quote}
+                    for m in modifiers
+                    if m.cell_id == cell.cell_id
+                ],
                 parent_name=cell.parent_name,
             )
         )
@@ -67,11 +83,37 @@ def rank(cells, mode="present", *, high_risk=None, tie_band=0.02):
 def to_cells_document(result, area, template, *, mode_default="present"):
     return CellsDocument.model_validate(
         {
-            "area": {"area_id": area["area_id"], "name": area["name"], "level": area["level"], "plr_count": area["plr_count"]},
-            "layers": [{"id": s.id, "label": s.label, "direction": s.direction, "weight_default": s.weight, "evidence_id": "x"} for s in template.layers],
+            "area": {
+                "area_id": area["area_id"],
+                "name": area["name"],
+                "level": area["level"],
+                "plr_count": area["plr_count"],
+            },
+            "layers": [
+                {
+                    "id": s.id,
+                    "label": s.label,
+                    "direction": s.direction,
+                    "weight_default": s.weight,
+                    "evidence_id": "x",
+                }
+                for s in template.layers
+            ],
             "cells": [
-                {"id": c.cell_id, "name": c.name, "values": c.values, "raw_values": c.raw_values, "score_present": c.score_present,
-                 "score_future": c.score_future, "risks": c.risks, "demoted_by": c.demoted_by, "modifiers": [{"label": m["label"], "quote": m["quote"], "evidence_id": m["evidence_id"]} for m in c.modifiers]}
+                {
+                    "id": c.cell_id,
+                    "name": c.name,
+                    "values": c.values,
+                    "raw_values": c.raw_values,
+                    "score_present": c.score_present,
+                    "score_future": c.score_future,
+                    "risks": c.risks,
+                    "demoted_by": c.demoted_by,
+                    "modifiers": [
+                        {"label": m["label"], "quote": m["quote"], "evidence_id": m["evidence_id"]}
+                        for m in c.modifiers
+                    ],
+                }
                 for c in result.cells
             ],
         }
@@ -79,13 +121,27 @@ def to_cells_document(result, area, template, *, mode_default="present"):
 
 
 def fake_scoring(**overrides):
-    funcs = dict(FutureModifier=v2.FutureModifier, load_template=lambda _id: TEMPLATE, score_area=score_area,
-                 rank=rank, to_cells_document=to_cells_document)
+    funcs = dict(
+        FutureModifier=v2.FutureModifier,
+        load_template=lambda _id: TEMPLATE,
+        score_area=score_area,
+        rank=rank,
+        to_cells_document=to_cells_document,
+    )
     return SimpleNamespace(**{**funcs, **overrides})
 
 
 def _web(ledger, eid, text):
-    ledger.append({"evidence_id": eid, "method": "tavily-search", "url": f"https://example.org/{eid}", "title": eid, "passage": text, "status": "unverified"})
+    ledger.append(
+        {
+            "evidence_id": eid,
+            "method": "tavily-search",
+            "url": f"https://example.org/{eid}",
+            "title": eid,
+            "passage": text,
+            "status": "unverified",
+        }
+    )
 
 
 async def research_area(question, area, cells, ledger, emit, cfg, **options):
@@ -93,10 +149,29 @@ async def research_area(question, area, cells, ledger, emit, cfg, **options):
     _web(ledger, "ev_housing", "Bis 2028 entstehen 400 Wohnungen am Standort.")
     emit("search", {"why": "housing", "query": "Wohnungsbau Neukölln"})
     return [
-        Finding(finding_id="f_future", claim="400 dwellings by 2028", quote="Bis 2028 entstehen 400 Wohnungen", evidence_ids=["ev_housing"],
-                claim_type="future_project", localization=f"plr:{cells[0]['id']}", agent=options["agent"], status="accepted", unit="dwellings", amount=400, kind="housing"),
-        Finding(finding_id="f_fake", claim="invented", quote="this sentence is not on the page at all", evidence_ids=["ev_housing"],
-                claim_type="fact", localization="area", agent=options["agent"], status="accepted"),
+        Finding(
+            finding_id="f_future",
+            claim="400 dwellings by 2028",
+            quote="Bis 2028 entstehen 400 Wohnungen",
+            evidence_ids=["ev_housing"],
+            claim_type="future_project",
+            localization=f"plr:{cells[0]['id']}",
+            agent=options["agent"],
+            status="accepted",
+            unit="dwellings",
+            amount=400,
+            kind="housing",
+        ),
+        Finding(
+            finding_id="f_fake",
+            claim="invented",
+            quote="this sentence is not on the page at all",
+            evidence_ids=["ev_housing"],
+            claim_type="fact",
+            localization="area",
+            agent=options["agent"],
+            status="accepted",
+        ),
     ]
 
 
@@ -109,7 +184,15 @@ async def research_cell(question, cell, ledger, emit, cfg, **options):
 async def skeptic(question, cell, findings, ledger, emit, cfg, **options):
     CALLS.append((options["agent"], cfg.max_searches, cfg.max_extracts))
     _web(ledger, f"ev_risk{cell['id']}", "Die Miete hat sich verdoppelt.")
-    return [{"severity": "high", "text": "Rent doubled", "quote": "Die Miete hat sich verdoppelt", "evidence_id": f"ev_risk{cell['id']}", "finding_id": f"f_risk_{cell['id']}"}]
+    return [
+        {
+            "severity": "high",
+            "text": "Rent doubled",
+            "quote": "Die Miete hat sich verdoppelt",
+            "evidence_id": f"ev_risk{cell['id']}",
+            "finding_id": f"f_risk_{cell['id']}",
+        }
+    ]
 
 
 async def write_report(question, result, findings, ledger, emit, cfg, **options):
@@ -118,7 +201,12 @@ async def write_report(question, result, findings, ledger, emit, cfg, **options)
 
 
 def fake_research(**overrides):
-    funcs = dict(research_area=research_area, research_cell=research_cell, skeptic=skeptic, write_report=write_report)
+    funcs = dict(
+        research_area=research_area,
+        research_cell=research_cell,
+        skeptic=skeptic,
+        write_report=write_report,
+    )
     funcs.update(overrides)
     return SimpleNamespace(**funcs)
 
@@ -129,8 +217,12 @@ def make_client(tmp_path):
 
     def make(scoring=None, research=None, t1=None):
         deps = Deps(
-            scoring=scoring or fake_scoring(), research=research or fake_research(), port=FixtureAreaData(UNITS, PLRS),
-            checker_factory=lambda: FactChecker(offline=True), config_factory=lambda: SimpleNamespace(fake=True, max_searches=8, max_extracts=6), t1=t1,
+            scoring=scoring or fake_scoring(),
+            research=research or fake_research(),
+            port=FixtureAreaData(UNITS, PLRS),
+            checker_factory=lambda: FactChecker(offline=True),
+            config_factory=lambda: SimpleNamespace(fake=True, max_searches=8, max_extracts=6),
+            t1=t1,
         )
         runs_live.configure(RunService(deps, tmp_path))
         app = FastAPI()
@@ -155,26 +247,48 @@ def _events(client, run_id, auth, last=None):
 
 def test_full_flow_clarify_approve_stream_result(make_client, tmp_path):
     client = make_client()
-    created = client.post("/research", json={"question": "Where should I open a café in Neukölln?"}).json()
+    created = client.post(
+        "/research", json={"question": "Where should I open a café in Neukölln?"}
+    ).json()
     assert created["status"] == "needs_clarification" and created["mode"] == "live"
     assert "Bezirk" in created["clarify_question"] and "Ortsteil" in created["clarify_question"]
     auth = {"Authorization": f"Bearer {created['run_token']}"}
     run_id = created["run_id"]
 
-    planned = client.post(f"/runs/{run_id}/clarify", json={"answer": "the Ortsteil"}, headers=auth).json()
+    planned = client.post(
+        f"/runs/{run_id}/clarify", json={"answer": "the Ortsteil"}, headers=auth
+    ).json()
     assert planned["status"] == "awaiting_approval"
     plan = planned["plan"]
-    assert plan["area"] == {"area_id": "ortsteil:0810", "level": "ortsteil", "name": "Neukölln", "plr_count": 5}
+    assert plan["area"] == {
+        "area_id": "ortsteil:0810",
+        "level": "ortsteil",
+        "name": "Neukölln",
+        "plr_count": 5,
+    }
     assert {c["area_id"] for c in plan["area_candidates"]} >= {"ortsteil:0810", "bezirk:08"}
     assert [s["id"] for s in plan["sub_questions"]] == ["s1", "s2", "s3"]
-    assert client.get(f"/runs/{run_id}/areas?q=britz", headers=auth).json()[0]["area_id"] == "ortsteil:0820"
+    assert (
+        client.get(f"/runs/{run_id}/areas?q=britz", headers=auth).json()[0]["area_id"]
+        == "ortsteil:0820"
+    )
     assert client.get(f"/runs/{run_id}/result", headers=auth).status_code == 202
 
-    bad = client.post(f"/runs/{run_id}/approve", json={"layers": [{"id": "nope", "enabled": True, "weight": 0.5}]}, headers=auth)
+    bad = client.post(
+        f"/runs/{run_id}/approve",
+        json={"layers": [{"id": "nope", "enabled": True, "weight": 0.5}]},
+        headers=auth,
+    )
     assert bad.status_code == 422
     approved = client.post(
         f"/runs/{run_id}/approve",
-        json={"subquestions": ["s1", "s2"], "layers": [{"id": "residents_block_density", "enabled": True, "weight": 0.6}, {"id": "cafe_saturation", "enabled": False, "weight": 0.4}]},
+        json={
+            "subquestions": ["s1", "s2"],
+            "layers": [
+                {"id": "residents_block_density", "enabled": True, "weight": 0.6},
+                {"id": "cafe_saturation", "enabled": False, "weight": 0.4},
+            ],
+        },
         headers=auth,
     )
     assert approved.json() == {"status": "approved"}
@@ -183,7 +297,23 @@ def test_full_flow_clarify_approve_stream_result(make_client, tmp_path):
     types = [e["type"] for e in events]
     assert [e["seq"] for e in events] == list(range(len(events)))
     assert all(e["run_id"] == run_id and e["ts"] for e in events)
-    for expected in ("classify", "clarify", "area", "plan", "approved", "layer", "score", "search", "fact_check", "finding_rejected", "merge", "rescore", "skeptic_risk", "write", "metrics"):
+    for expected in (
+        "classify",
+        "clarify",
+        "area",
+        "plan",
+        "approved",
+        "layer",
+        "score",
+        "search",
+        "fact_check",
+        "finding_rejected",
+        "merge",
+        "rescore",
+        "skeptic_risk",
+        "write",
+        "metrics",
+    ):
         assert expected in types, expected
     assert events[-1]["detail"] == {"status": "done"}
     replay = _events(client, run_id, auth, last=events[-3]["seq"])
@@ -198,7 +328,10 @@ def test_full_flow_clarify_approve_stream_result(make_client, tmp_path):
     housing = next(c for c in result.cells.cells if c.id == "08100101")
     assert housing.modifiers and housing.modifiers[0].evidence_id == "ev_housing"
     layers = {layer.id: layer for layer in result.cells.layers}
-    assert layers["cafe_saturation"].enabled is False and layers["residents_block_density"].weight_default == 0.6
+    assert (
+        layers["cafe_saturation"].enabled is False
+        and layers["residents_block_density"].weight_default == 0.6
+    )
     findings = {f.finding_id: f for f in result.findings}
     assert findings["f_future"].verification == "verified"
     assert findings["f_fake"].status == "rejected"
@@ -206,7 +339,14 @@ def test_full_flow_clarify_approve_stream_result(make_client, tmp_path):
     assert any(e.method == "dataset" for e in result.evidence)
 
     run_dir = tmp_path / run_id
-    for name in ("cells.json", "evidence.jsonl", "findings.jsonl", "report.md", "events.jsonl", "plan.json"):
+    for name in (
+        "cells.json",
+        "evidence.jsonl",
+        "findings.jsonl",
+        "report.md",
+        "events.jsonl",
+        "plan.json",
+    ):
         assert (run_dir / name).exists(), name
     assert "token_hash" in json.loads((run_dir / "run.json").read_text())
     assert created["run_token"] not in (run_dir / "run.json").read_text()
@@ -221,7 +361,12 @@ def test_auth_rejection(make_client):
         assert client.get(f"/runs/{run_id}/result", headers=headers).status_code == 404
         assert client.post(f"/runs/{run_id}/approve", json={}, headers=headers).status_code == 404
         assert client.get(f"/runs/{run_id}/events", headers=headers).status_code == 404
-    assert client.get("/runs/unknown/result", headers={"Authorization": f"Bearer {created['run_token']}"}).status_code == 404
+    assert (
+        client.get(
+            "/runs/unknown/result", headers={"Authorization": f"Bearer {created['run_token']}"}
+        ).status_code
+        == 404
+    )
 
 
 def test_area_change_regenerates_plan_and_events_need_approval(make_client):
@@ -230,9 +375,19 @@ def test_area_change_regenerates_plan_and_events_need_approval(make_client):
     auth = {"Authorization": f"Bearer {created['run_token']}"}
     run_id = created["run_id"]
     assert client.get(f"/runs/{run_id}/events", headers=auth).status_code == 409
-    changed = client.post(f"/runs/{run_id}/approve", json={"area_id": "bezirk:08"}, headers=auth).json()
-    assert changed["status"] == "awaiting_approval" and changed["plan"]["area"]["area_id"] == "bezirk:08"
-    assert client.post(f"/runs/{run_id}/approve", json={"area_id": "bezirk:99"}, headers=auth).status_code == 422
+    changed = client.post(
+        f"/runs/{run_id}/approve", json={"area_id": "bezirk:08"}, headers=auth
+    ).json()
+    assert (
+        changed["status"] == "awaiting_approval"
+        and changed["plan"]["area"]["area_id"] == "bezirk:08"
+    )
+    assert (
+        client.post(
+            f"/runs/{run_id}/approve", json={"area_id": "bezirk:99"}, headers=auth
+        ).status_code
+        == 422
+    )
 
 
 def test_failure_emits_error_and_failed_status(make_client):
@@ -242,7 +397,9 @@ def test_failure_emits_error_and_failed_status(make_client):
     client = make_client(scoring=SimpleNamespace(**{**vars(fake_scoring()), "score_area": broken}))
     created = client.post("/research", json={"question": "Café in Britz?"}).json()
     auth = {"Authorization": f"Bearer {created['run_token']}"}
-    assert client.post(f"/runs/{created['run_id']}/approve", json={}, headers=auth).json() == {"status": "approved"}
+    assert client.post(f"/runs/{created['run_id']}/approve", json={}, headers=auth).json() == {
+        "status": "approved"
+    }
     events = _events(client, created["run_id"], auth)
     error = next(e for e in events if e["type"] == "error")
     assert "scoring exploded" in error["detail"]["error"]
@@ -291,29 +448,80 @@ def test_summary_area_data_maps_layers_and_records_ledger(tmp_path):
                 },
             },
             "residents": {
-                "total": field(4000), "density": field(8000.0),
-                "age_bands": [{"age_min": 18, "age_max_exclusive": 27, "count": field(800)}, {"age_min": 27, "age_max_exclusive": 45, "count": field(1200)}],
+                "total": field(4000),
+                "density": field(8000.0),
+                "age_bands": [
+                    {"age_min": 18, "age_max_exclusive": 27, "count": field(800)},
+                    {"age_min": 27, "age_max_exclusive": 45, "count": field(1200)},
+                ],
             },
-            "competitors": {"sources": [
-                {"inventory": "mapped_places", "count": {"value": counts[category], "sources": [{"dataset_id": "osm_pois", "snapshot_id": "o1"}]}},
-                {"inventory": "registered_businesses", "count": {"value": 12, "sources": []}},
-            ]},
-            "transit": {"windows": [
-                {"window_start": "07:00", "window_end": "10:00", "scheduled_departures": field(100)},
-                {"window_start": "16:00", "window_end": "19:00", "scheduled_departures": field(50)},
-                {"window_start": "20:00", "window_end": "23:00", "scheduled_departures": field(999)},
-            ]},
+            "competitors": {
+                "sources": [
+                    {
+                        "inventory": "mapped_places",
+                        "count": {
+                            "value": counts[category],
+                            "sources": [{"dataset_id": "osm_pois", "snapshot_id": "o1"}],
+                        },
+                    },
+                    {"inventory": "registered_businesses", "count": {"value": 12, "sources": []}},
+                ]
+            },
+            "transit": {
+                "windows": [
+                    {
+                        "window_start": "07:00",
+                        "window_end": "10:00",
+                        "scheduled_departures": field(100),
+                    },
+                    {
+                        "window_start": "16:00",
+                        "window_end": "19:00",
+                        "scheduled_departures": field(50),
+                    },
+                    {
+                        "window_start": "20:00",
+                        "window_end": "23:00",
+                        "scheduled_departures": field(999),
+                    },
+                ]
+            },
         }
 
-    names = {"02100104": {"name": "Moritzplatz", "bzr_name": "Südliche Friedrichstadt", "bzr_id": "021001", "pgr_id": "0210", "pgr_name": "Kreuzberg Nord"}}
+    names = {
+        "02100104": {
+            "name": "Moritzplatz",
+            "bzr_name": "Südliche Friedrichstadt",
+            "bzr_id": "021001",
+            "pgr_id": "0210",
+            "pgr_name": "Kreuzberg Nord",
+        }
+    }
     port = SummaryAreaData(summary, names)
-    assert {"bezirk:02", "ortsteil:0210", "bezirksregion:021001", "plr:02100104"} <= {u.area_id for u in port.units()}
+    assert {"bezirk:02", "ortsteil:0210", "bezirksregion:021001", "plr:02100104"} <= {
+        u.area_id for u in port.units()
+    }
     assert port.resolve("ortsteil:0210")["name"] == "Kreuzberg"
-    template = v2.Template("coffee_v2", (*LAYERS, v2.LayerSpec("young_adult_share", "18–45", "+", 0.1), v2.LayerSpec("footfall_proxy", "POI", "+", 0.1),
-                                         v2.LayerSpec("transit", "Transit", "+", 0.1), v2.LayerSpec("centre_proximity", "Centre", "-", 0.1)))
+    template = v2.Template(
+        "coffee_v2",
+        (
+            *LAYERS,
+            v2.LayerSpec("young_adult_share", "18–45", "+", 0.1),
+            v2.LayerSpec("footfall_proxy", "POI", "+", 0.1),
+            v2.LayerSpec("transit", "Transit", "+", 0.1),
+            v2.LayerSpec("centre_proximity", "Centre", "-", 0.1),
+        ),
+    )
     ledger = EvidenceLedger(tmp_path)
     [cell] = port.cells("ortsteil:0210", template, ledger=ledger)
-    assert cell.raw == {"residents_block_density": 8000.0, "cafe_saturation": 10.0, "young_adult_share": 0.5, "footfall_proxy": 12.0, "transit": 150.0, "centre_proximity": None}
+    assert cell.raw == {
+        "residents_block_density": 8000.0,
+        "cafe_saturation": 10.0,
+        "young_adult_share": 0.5,
+        "footfall_proxy": 12.0,
+        "transit": 150.0,
+        "centre_proximity": None,
+    }
     assert port.unmapped_layers(template) == ["centre_proximity"]
     assert set(cell.layer_evidence) == {layer.id for layer in template.layers}
     assert ledger.get(cell.layer_evidence["cafe_saturation"])["dataset_id"] == "osm_pois"
@@ -353,12 +561,16 @@ def test_area_run_names_budgets_and_factcheck_file(make_client, tmp_path):
     client = make_client()
     created = client.post("/research", json={"question": "Café in Britz?"}).json()
     auth = {"Authorization": f"Bearer {created['run_token']}"}
-    assert client.post(f"/runs/{created['run_id']}/approve", json={}, headers=auth).json() == {"status": "approved"}
+    assert client.post(f"/runs/{created['run_id']}/approve", json={}, headers=auth).json() == {
+        "status": "approved"
+    }
     _events(client, created["run_id"], auth)
     agents = [c[0] for c in CALLS if c[0] != "score_area"]
     assert {"researcher:wave1:1", "researcher:wave1:2", "researcher:wave1:3"} <= set(agents)
     assert all(c[1:] == (3, 3) for c in CALLS if c[0].startswith(("researcher:wave2:", "skeptic:")))
-    assert any(c[0].startswith("researcher:wave2:") for c in CALLS) and any(c[0].startswith("skeptic:") for c in CALLS)
+    assert any(c[0].startswith("researcher:wave2:") for c in CALLS) and any(
+        c[0].startswith("skeptic:") for c in CALLS
+    )
     scored = [c for c in CALLS if c[0] == "score_area"]
     assert all({"weights", "crosscheck", "risks"} <= set(c[1]) for c in scored)
     assert any(c[2] == ["housing_growth"] for c in scored)
@@ -400,35 +612,59 @@ def test_point_flow_with_static_readers(tmp_path):
     from app.application.t1.demo import demo_readers
 
     deps = Deps(
-        scoring=v2, research=research, port=FixtureAreaData(UNITS, PLRS),
+        scoring=v2,
+        research=research,
+        port=FixtureAreaData(UNITS, PLRS),
         checker_factory=lambda: FactChecker(offline=True),
-        config_factory=lambda: research.ResearchConfig(fake=True), t1=t1, t1_readers=demo_readers,
+        config_factory=lambda: research.ResearchConfig(fake=True),
+        t1=t1,
+        t1_readers=demo_readers,
     )
     runs_live.configure(RunService(deps, tmp_path))
     app = FastAPI()
     app.include_router(runs_live.router)
     try:
         with TestClient(app) as client:
-            unknown = client.post("/research", json={"question": "Was passt an die Wiener Straße 99?"}).json()
+            unknown = client.post(
+                "/research", json={"question": "Was passt an die Wiener Straße 99?"}
+            ).json()
             assert unknown["status"] == "needs_clarification" and unknown["shape"] == "point"
-            created = client.post("/research", json={"question": "Was passt an die Wiener Straße 12?"}).json()
+            created = client.post(
+                "/research", json={"question": "Was passt an die Wiener Straße 12?"}
+            ).json()
             assert created["shape"] == "point" and created["status"] == "awaiting_approval", created
             hypotheses = [h["id"] for h in created["plan"]["hypotheses"]]
             assert hypotheses
             auth = {"Authorization": f"Bearer {created['run_token']}"}
-            client.post(f"/runs/{created['run_id']}/approve", json={"hypothesis_ids": hypotheses[:2]}, headers=auth)
+            client.post(
+                f"/runs/{created['run_id']}/approve",
+                json={"hypothesis_ids": hypotheses[:2]},
+                headers=auth,
+            )
             events = _events(client, created["run_id"], auth)
-            assert events[-1]["detail"] == {"status": "done"}, [e for e in events if e["type"] == "error"]
+            assert events[-1]["detail"] == {"status": "done"}, [
+                e for e in events if e["type"] == "error"
+            ]
             agents = {e["agent"] for e in events}
             assert {f"researcher:t1:{h}" for h in hypotheses[:2]} <= agents
             assert {f"skeptic:{h}" for h in hypotheses[:2]} <= agents
-            result = RunResult.model_validate(client.get(f"/runs/{created['run_id']}/result", headers=auth).json())
-            assert [h.id for h in result.candidates.hypotheses] and len(result.candidates.hypotheses) == 2
-            assert all(f.hypothesis_id in hypotheses[:2] for f in result.findings if f.claim_type != "dataset")
+            result = RunResult.model_validate(
+                client.get(f"/runs/{created['run_id']}/result", headers=auth).json()
+            )
+            assert [h.id for h in result.candidates.hypotheses] and len(
+                result.candidates.hypotheses
+            ) == 2
+            assert all(
+                f.hypothesis_id in hypotheses[:2]
+                for f in result.findings
+                if f.claim_type != "dataset"
+            )
             run_dir = tmp_path / created["run_id"]
             doc = json.loads((run_dir / "candidates.json").read_text())
             assert {"hypotheses"} <= set(doc) and (run_dir / "factcheck.json").exists()
-            ledger = [json.loads(line) for line in (run_dir / "evidence.jsonl").read_text().splitlines()]
+            ledger = [
+                json.loads(line) for line in (run_dir / "evidence.jsonl").read_text().splitlines()
+            ]
             latest = {e["evidence_id"]: e for e in ledger}
             datasets = [e for e in latest.values() if e.get("method") == "dataset"]
             assert datasets and all(e["status"] == "partial" for e in datasets)

@@ -70,7 +70,9 @@ def _reference() -> list[ReferencePlr]:
 
 
 def demo_readers() -> StaticReaders:
-    near = [_offset(dx, dy) for dx, dy in ((100, 0), (-150, 80), (0, 200), (300, -100), (-80, -120))]
+    near = [
+        _offset(dx, dy) for dx, dy in ((100, 0), (-150, 80), (0, 200), (300, -100), (-80, -120))
+    ]
     sources = {
         role: {
             "dataset_id": dataset,
@@ -103,7 +105,9 @@ def demo_readers() -> StaticReaders:
             Poi("osm:b1", "bakery", *near[3], "Bäcker"),
             Poi("osm:k1", "hairdresser", *near[4], "Salon"),
         ],
-        stations=[{"lon": near[0][0], "lat": near[0][1], "departures": {"morning": 600, "evening": 500}}],
+        stations=[
+            {"lon": near[0][0], "lat": near[0][1], "departures": {"morning": 600, "evening": 500}}
+        ],
         reference=_reference(),
         sources=sources,
     )

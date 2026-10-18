@@ -80,13 +80,26 @@ class RunService:
         run_dir = self.runs_dir / run["run_id"]
         run_dir.mkdir(parents=True, exist_ok=True)
         keep = {k: v for k, v in run.items() if k not in {"result", "prepared"}}
-        (run_dir / "run.json").write_text(json.dumps(keep, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        (run_dir / "run.json").write_text(
+            json.dumps(keep, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
         if run.get("plan"):
-            (run_dir / "plan.json").write_text(json.dumps({"plan": run["plan"], "approval": run.get("approval")}, ensure_ascii=False, indent=2), encoding="utf-8")
+            (run_dir / "plan.json").write_text(
+                json.dumps(
+                    {"plan": run["plan"], "approval": run.get("approval")},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
 
     def _evict(self) -> None:
         while len(self.runs) >= MAX_RUNS:
-            idle = [r for r in self.runs.values() if r["status"] in TERMINAL | {"needs_clarification", "awaiting_approval"}]
+            idle = [
+                r
+                for r in self.runs.values()
+                if r["status"] in TERMINAL | {"needs_clarification", "awaiting_approval"}
+            ]
             if not idle:
                 raise RunError(503, "run store is full")
             oldest = min(idle, key=lambda r: r["created_at"])
@@ -94,14 +107,19 @@ class RunService:
             self.logs.pop(oldest["run_id"], None)
 
     # create / clarify -----------------------------------------------------------------
-    async def create(self, question: str, role: str | None, profile: str | None, template_hint: str | None) -> dict[str, Any]:
+    async def create(
+        self, question: str, role: str | None, profile: str | None, template_hint: str | None
+    ) -> dict[str, Any]:
         question = question.strip()
         if not question:
             raise RunError(422, "question is required")
         self._evict()
         classification = classify(question, template_hint)
         if classification["shape"] == "point" and self.deps.t1 is None:
-            raise RunError(501, "T1 point/address research is not available: app.application.t1 is not installed")
+            raise RunError(
+                501,
+                "T1 point/address research is not available: app.application.t1 is not installed",
+            )
         run_id, token = str(uuid4()), secrets.token_urlsafe(24)
         run = {
             "run_id": run_id,
@@ -128,7 +146,14 @@ class RunService:
         self._persist(run)
         return self.response(run, token)
 
-    def _plan_point(self, run: dict[str, Any], query: str | None = None, *, lat: float | None = None, lon: float | None = None) -> None:
+    def _plan_point(
+        self,
+        run: dict[str, Any],
+        query: str | None = None,
+        *,
+        lat: float | None = None,
+        lon: float | None = None,
+    ) -> None:
         """T1: resolve the address and prepare hypotheses; ambiguous/unknown → clarify."""
         log = self.logs[run["run_id"]]
         query = query or run["classification"].get("address") or run["question"]
@@ -156,15 +181,37 @@ class RunService:
                 if options
                 else f"I could not find that address ({prepared.get('reason', 'no match')}). Please give street, house number and postcode."
             )
-            log.emit("clarify", "orchestrator", {"question": run["clarify_question"], "candidates": [_point_label(o) for o in options]}, why="Never guess the address")
+            log.emit(
+                "clarify",
+                "orchestrator",
+                {
+                    "question": run["clarify_question"],
+                    "candidates": [_point_label(o) for o in options],
+                },
+                why="Never guess the address",
+            )
             return
         run["prepared"] = prepared
         run.pop("pending_points", None)
-        run["classification"]["address"] = prepared.get("space", {}).get("address") or run["classification"].get("address")
+        run["classification"]["address"] = prepared.get("space", {}).get("address") or run[
+            "classification"
+        ].get("address")
         run["plan"] = {
             "sub_questions": [],
             "hypotheses": [
-                {k: h.get(k) for k in ("id", "name", "prescore", "preferred", "why", "confidence", "dimensions", "metrics")}
+                {
+                    k: h.get(k)
+                    for k in (
+                        "id",
+                        "name",
+                        "prescore",
+                        "preferred",
+                        "why",
+                        "confidence",
+                        "dimensions",
+                        "metrics",
+                    )
+                }
                 for h in prepared.get("hypotheses", [])
             ],
             "layers": [],
@@ -175,7 +222,15 @@ class RunService:
         }
         run["status"] = "awaiting_approval"
         run["clarify_question"] = None
-        log.emit("plan", "planner", {"hypotheses": [h.get("id") for h in run["plan"]["hypotheses"]], "address": run["classification"]["address"]}, why="Hypotheses pre-scored on data")
+        log.emit(
+            "plan",
+            "planner",
+            {
+                "hypotheses": [h.get("id") for h in run["plan"]["hypotheses"]],
+                "address": run["classification"]["address"],
+            },
+            why="Hypotheses pre-scored on data",
+        )
 
     def _resolve(self, run: dict[str, Any], text: str) -> None:
         units = self.deps.port.units()
@@ -187,7 +242,12 @@ class RunService:
             run["pending_areas"] = [u.area_id for u in options]
             run["clarify_question"] = clarify_question(options) if options else CLARIFY_AREA
             run["plan"] = None
-            log.emit("clarify", "orchestrator", {"question": run["clarify_question"], "candidates": run["pending_areas"]}, why="Never guess the area")
+            log.emit(
+                "clarify",
+                "orchestrator",
+                {"question": run["clarify_question"], "candidates": run["pending_areas"]},
+                why="Never guess the area",
+            )
             return
         self._plan_area(run, hits[0], hits)
 
@@ -195,14 +255,24 @@ class RunService:
         units = self.deps.port.units()
         template = self.deps.scoring.load_template(run["classification"]["template"])
         unmapped = self.deps.port.unmapped_layers(template)
-        run["plan"] = build_plan(run["shape"], selected, candidates(selected, hits, units), template, unmapped)
+        run["plan"] = build_plan(
+            run["shape"], selected, candidates(selected, hits, units), template, unmapped
+        )
         run["classification"]["area"] = selected.name
         run["status"] = "awaiting_approval"
         run["clarify_question"] = None
         run.pop("pending_areas", None)
         log = self.logs[run["run_id"]]
         log.emit("area", "orchestrator", run["plan"]["area"], why="Resolved to a stable LOR id")
-        log.emit("plan", "planner", {"template": template.id, "layers": [layer["id"] for layer in run["plan"]["layers"]], "unmapped": unmapped})
+        log.emit(
+            "plan",
+            "planner",
+            {
+                "template": template.id,
+                "layers": [layer["id"] for layer in run["plan"]["layers"]],
+                "unmapped": unmapped,
+            },
+        )
 
     def clarify(self, run: dict[str, Any], answer: str, token: str) -> dict[str, Any]:
         if run["status"] != "needs_clarification":
@@ -221,7 +291,9 @@ class RunService:
             self._plan_area(run, picked, options or [picked])
         else:
             run["question"] = f"{run['question']} {answer.strip()}"
-            hits = match_areas(answer, list(units.values())) or match_areas(run["question"], list(units.values()))
+            hits = match_areas(answer, list(units.values())) or match_areas(
+                run["question"], list(units.values())
+            )
             if hits and not ambiguous(hits):
                 self._plan_area(run, hits[0], hits)
             else:
@@ -237,9 +309,22 @@ class RunService:
         if value.isdigit() and 1 <= int(value) <= len(options):
             picked = options[int(value) - 1]
         else:
-            picked = next((o for o in options if value.casefold() in {_point_label(o).casefold(), str(o.get("stable_id", "")).casefold()}), None)
+            picked = next(
+                (
+                    o
+                    for o in options
+                    if value.casefold()
+                    in {_point_label(o).casefold(), str(o.get("stable_id", "")).casefold()}
+                ),
+                None,
+            )
         if picked is not None and picked.get("lat") is not None:
-            self._plan_point(run, picked.get("address") or _point_label(picked), lat=picked["lat"], lon=picked["lon"])
+            self._plan_point(
+                run,
+                picked.get("address") or _point_label(picked),
+                lat=picked["lat"],
+                lon=picked["lon"],
+            )
         else:
             run["question"] = f"{run['question']} {value}"
             self._plan_point(run, value)
@@ -248,7 +333,9 @@ class RunService:
         return self.deps.port.search_areas(query)
 
     # approve --------------------------------------------------------------------------
-    def approve(self, run: dict[str, Any], body: dict[str, Any], provided: set[str]) -> dict[str, Any]:
+    def approve(
+        self, run: dict[str, Any], body: dict[str, Any], provided: set[str]
+    ) -> dict[str, Any]:
         if run["status"] != "awaiting_approval":
             raise RunError(409, "Run is not awaiting approval")
         plan = run["plan"] or {}
@@ -267,21 +354,33 @@ class RunService:
             planned = {h["id"] for h in plan.get("hypotheses", [])}
             ids = body.get("hypothesis_ids") or []
             if not ids or any(h not in planned for h in ids):
-                raise RunError(422, "Approved hypothesis_ids must be non-empty and present in the plan")
+                raise RunError(
+                    422, "Approved hypothesis_ids must be non-empty and present in the plan"
+                )
         area_id = body.get("area_id")
         if area_id is not None and run["shape"] != "point":
             units = {u.area_id: u for u in self.deps.port.units()}
             if area_id not in units:
                 raise RunError(422, f"Unknown area_id: {area_id}")
             if area_id != plan["area"]["area_id"]:
-                hits = [units[c["area_id"]] for c in plan.get("area_candidates", []) if c["area_id"] in units]
+                hits = [
+                    units[c["area_id"]]
+                    for c in plan.get("area_candidates", [])
+                    if c["area_id"] in units
+                ]
                 self._plan_area(run, units[area_id], hits)
                 self._persist(run)
-                return {**self.response(run, ""), "status": "awaiting_approval", "plan": run["plan"]}
+                return {
+                    **self.response(run, ""),
+                    "status": "awaiting_approval",
+                    "plan": run["plan"],
+                }
         run["approval"] = body
         run["status"] = "approved"
         run["approved_at"] = time.time()
-        self.logs[run["run_id"]].emit("approved", "orchestrator", body, why="The user approved the research plan.")
+        self.logs[run["run_id"]].emit(
+            "approved", "orchestrator", body, why="The user approved the research plan."
+        )
         self._persist(run)
         self.tasks[run["run_id"]] = asyncio.create_task(self._execute(run))
         return {"status": "approved"}
@@ -293,7 +392,9 @@ class RunService:
         run["status"] = "running"
         try:
             result = await execute(ctx)
-            (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8")
+            (run_dir / "result.json").write_text(
+                json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8"
+            )
             run["result"] = result
             run["status"] = "done"
         except Exception as exc:
@@ -342,4 +443,10 @@ def _profile(profile: str | dict | None) -> dict | None:
 
 
 def _point_label(option: dict[str, Any]) -> str:
-    return str(option.get("label") or option.get("address") or " ".join(str(option.get(k) or "") for k in ("street", "house_number", "postcode")).strip())
+    return str(
+        option.get("label")
+        or option.get("address")
+        or " ".join(
+            str(option.get(k) or "") for k in ("street", "house_number", "postcode")
+        ).strip()
+    )

@@ -71,7 +71,16 @@ def metrics(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     for event in events:
         role = str(event.get("agent", "system")).split(":")[0]
         item = result.setdefault(
-            role, {"model": None, "calls": 0, "tokens_in": 0, "tokens_out": 0, "seconds": 0.0, "searches": 0, "extracts": 0}
+            role,
+            {
+                "model": None,
+                "calls": 0,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "seconds": 0.0,
+                "searches": 0,
+                "extracts": 0,
+            },
         )
         if event.get("model"):
             item["model"] = event["model"]
