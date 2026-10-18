@@ -6,6 +6,7 @@
 <link rel="icon" href="data:,">
 <title>Risalite — Berlin location research</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -90,13 +91,24 @@
   <div id="fixture-notice" class="demo-note fixture-notice hidden" role="status"></div>
   <div class="dash">
     <div>
-      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
+      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div>
+        <div class="export-row" role="group" aria-label="Export report and sources">
+          <span class="export-label">Export</span>
+          <button class="btn ghost" data-export="report.md">Report (.md)</button>
+          <button class="btn ghost" data-export="report.html">Report (HTML)</button>
+          <button class="btn ghost" data-export="sources.csv">Sources (.csv)</button>
+          <button class="btn ghost" data-export="sources.bib">Sources (.bib)</button>
+        </div>
+        <div id="export-err" class="err hidden" role="alert"></div>
+      </div>
       <div class="card"><h2><span class="n">3</span> <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
       <div class="card" id="battle-card"><h2 id="battle-title"></h2><div id="d-battle"></div></div>
     </div>
     <div>
       <div class="card"><h2><span class="n">4</span> Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
+        <div class="row map-ctl" id="map-ctl"><div class="toggle" id="map-view"><button data-v="3d" class="on">3D</button><button data-v="2d">2D</button></div><div class="toggle" id="map-base"><button data-b="map" class="on">Map</button><button data-b="sat">Aerial</button></div><button class="btn ghost" id="map-recenter" style="padding:6px 10px;font-size:12px">Reset view</button><span class="small mut" id="map-note"></span></div>
         <div id="map"></div>
+        <div id="map3d" class="hidden"></div>
         <div class="legend" id="legend"></div>
       </div>
       <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
@@ -115,6 +127,7 @@
 </section>
 </main>
 <script src="vendor/leaflet/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="scoring.js"></script>
 <script src="app.js"></script>
 </body>

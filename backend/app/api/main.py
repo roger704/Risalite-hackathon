@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.centers import create_centers_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
@@ -313,6 +314,8 @@ def create_app(
             limit=limit,
             cursor=cursor,
         )
+
+    application.include_router(create_centers_router(get_service))
 
     @application.get("/api/v1/childcare/facilities")
     def childcare_facility_points(

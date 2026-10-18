@@ -22,6 +22,19 @@ from shapely.geometry import mapping, shape
 from shapely.ops import transform
 
 from app.connectors.base import FileConnector
+from app.connectors.berlin_wfs_population_blocks import (
+    assign_parent as assign_population_block_parent,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    check_parent as check_population_block_parent,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    normalize_population_blocks,
+    validate_population_blocks,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    validate_options as validate_population_block_options,
+)
 from app.connectors.berlin_wfs_roads import (
     normalize_road_segments,
     validate_road_segment_options,
@@ -34,6 +47,7 @@ from app.domain import (
     FetchRequest,
     IncompatibleSnapshotError,
     NormalizedBatch,
+    PopulationBlock,
     QualityReport,
     RawBundle,
     RoadTrafficSegment,
@@ -237,7 +251,12 @@ def _options(config: DatasetConfig) -> dict:
         return options
     if options["record_type"] == "residential_location_class":
         return options
-    if options["record_type"] not in {"area", "facility", "road_traffic_segment"}:
+    if options["record_type"] not in {
+        "area",
+        "facility",
+        "road_traffic_segment",
+        "population_block",
+    }:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
     if options["record_type"] == "facility":
         from app.connectors.berlin_wfs_facility import check_facility_options
@@ -263,8 +282,12 @@ def _options(config: DatasetConfig) -> dict:
             value not in {"Polygon", "MultiPolygon"} for value in geometry_types
         ):
             raise SchemaError("WFS geometry_types must list Polygon and/or MultiPolygon")
-    else:
+    elif options["record_type"] == "road_traffic_segment":
         validate_road_segment_options(options)
+    else:
+        validate_population_block_options(options)
+        if not isinstance(options.get("hierarchy"), str) or not options["hierarchy"].strip():
+            raise SchemaError("WFS hierarchy must be a nonempty string")
     return options
 
 
@@ -424,6 +447,9 @@ class BerlinWFSConnector(FileConnector):
         if options["record_type"] == "road_traffic_segment":
             return normalize_road_segments(features, options, config, raw)
 
+        if options["record_type"] == "population_block":
+            return normalize_population_blocks(features, raw, config, options)
+
         source_bounds = _bbox(options, "source_bbox")
         allowed_bounds = _bbox(options, "allowed_bbox", [13.0, 52.3, 13.9, 52.8])
         if options["record_type"] == "facility":
@@ -528,6 +554,8 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def validate(self, batch: NormalizedBatch) -> QualityReport:
+        if batch.records and all(isinstance(record, PopulationBlock) for record in batch.records):
+            return validate_population_blocks(batch)
         if any(getattr(record, "record_type", None) == "facility" for record in batch.records):
             from app.connectors.berlin_wfs_facility import validate_facilities
 
@@ -584,6 +612,8 @@ class BerlinWFSConnector(FileConnector):
 
             return check_development_plan_parent(records, parent_records)
         options = _options(config)
+        if options["record_type"] == "population_block":
+            return check_population_block_parent(config, records, parent_records)
         if options["record_type"] == "facility":
             from app.connectors.berlin_wfs_facility import check_facility_parent
 
@@ -670,3 +700,10 @@ class BerlinWFSConnector(FileConnector):
                 "geometry differences are reported, not reconciled."
             ],
         }
+
+    def assign_parent(
+        self, config: DatasetConfig, batch: NormalizedBatch, parent_records: tuple
+    ) -> NormalizedBatch:
+        if config.parser_options.get("record_type") == "population_block":
+            return assign_population_block_parent(config, batch, parent_records)
+        return batch
