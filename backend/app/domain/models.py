@@ -626,3 +626,4 @@ class RoadTrafficSegment(Record):
 
 
 RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
+NormalizedRecord = NormalizedRecord | RoadTrafficSegment

@@ -2,11 +2,15 @@
 
 import json
 from pathlib import Path
+from typing import get_args
 
 import httpx
+from fastapi.testclient import TestClient
 
+from app.api.main import RecordsResponse, create_app
 from app.application.service import DataService
 from app.connectors.berlin_wfs import BerlinWFSConnector
+from app.domain import NormalizedRecord, RoadTrafficSegment
 from app.infrastructure.http import HTTPFetcher
 from app.infrastructure.storage import read_records
 
@@ -57,3 +61,26 @@ async def test_publishes_paged_traffic_snapshot_and_reads_records(tmp_path):
     assert records[0].record_type == "road_traffic_segment"
     assert records[0].record_id == "road_segment:00000001_00000002"
     assert service.records("berlin_traffic_volumes_2019", manifest.snapshot_id)["count"] == 3
+
+    with TestClient(create_app(service=service), raise_server_exceptions=False) as client:
+        response = client.get(
+            "/api/v1/datasets/berlin_traffic_volumes_2019/records",
+            params={"snapshot_id": manifest.snapshot_id},
+        )
+
+    assert response.status_code == 200, response.text
+    response_records = response.json()["records"]
+    assert len(response_records) == 3
+    assert [record["record_type"] for record in response_records] == [
+        "road_traffic_segment",
+        "road_traffic_segment",
+        "road_traffic_segment",
+    ]
+    assert [record["dtv_motor_vehicles_per_day"] for record in response_records] == [
+        1000,
+        2000,
+        None,
+    ]
+    assert RoadTrafficSegment in get_args(NormalizedRecord)
+    response_record_type = get_args(RecordsResponse.model_fields["records"].annotation)[0]
+    assert RoadTrafficSegment in get_args(response_record_type)
