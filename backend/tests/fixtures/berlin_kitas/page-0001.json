@@ -1,0 +1,49 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "kita.01000003",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          389706.3,
+          5818449.2
+        ]
+      },
+      "geometry_name": "geom",
+      "properties": {
+        "e_nr": "01000003",
+        "e_name": "Waldgruppe Synthetisch",
+        "e_bez_nr": "01",
+        "e_bez": "Mitte",
+        "e_plz": "10115",
+        "e_ort": "Berlin",
+        "e_strasse": "Synthetische Straße",
+        "e_hnr": "1",
+        "e_zusatz": "",
+        "e_tel": "030 0000000",
+        "e_web": "",
+        "e_platz": "18",
+        "e_art": "Waldkindergarten",
+        "ang_1": "",
+        "ang_2": "",
+        "t_nr": "9000001",
+        "t_name": "Synthetischer Träger e.V.",
+        "t_art": "Eigenbetriebe",
+        "t_web": ""
+      }
+    }
+  ],
+  "totalFeatures": 3,
+  "numberMatched": 3,
+  "numberReturned": 1,
+  "timeStamp": "2026-10-18T12:00:01.000Z",
+  "links": [],
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  }
+}
