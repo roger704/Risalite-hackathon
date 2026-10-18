@@ -103,6 +103,40 @@ The connector distinguishes numeric zero from suppressed, missing, and not-appli
 
 HTML returned instead of data, changed headers, invalid identifiers, duplicate observations, overlapping age-band mappings, incomplete area coverage, and inconsistent age totals prevent publication. The general [connector blueprint](../CONNECTOR_BLUEPRINT.md) describes later connectors and the wider architecture; it is not a list of already implemented capabilities.
 
+## Research adapters (Tavily, Nebius)
+
+The backend includes offline-testable Tavily search/extraction and Nebius structured-inference adapters. They expose research-domain contracts and do not add orchestration or HTTP endpoints.
+
+Configure provider credentials in the runtime environment; keys are never included in URLs, logs, or config representations:
+
+| Setting | Required | Default / purpose |
+|---|---|---|
+| `TAVILY_API_KEY` | Yes to use Tavily | Tavily bearer credential |
+| `TavilyConfig.timeout_seconds` | No | HTTP client timeout in seconds (default 30; finite and positive; must exceed extraction timeout when configured) |
+| `TavilyConfig.extract_timeout_seconds` | No | Optional provider-side extraction timeout in seconds (unset by default and omitted from requests; range 1–60) |
+| `NEBIUS_API_KEY` | Yes to use Nebius | Nebius Token Factory bearer credential |
+| `NEBIUS_MODEL` | Yes to use Nebius | Account-enabled model identifier; there is no hard-coded model |
+| `NEBIUS_BASE_URL` | No | `https://api.tokenfactory.nebius.com/v1/` |
+
+The clients can be instantiated with a shared `ResearchBudget`. Tavily counts one search per logical cache-miss request and one extract unit for each submitted URL on a cache-miss batch (up to 20 URLs per provider request). Nebius counts every HTTP request, including HTTP retries and structured-schema retries. Tokens are recorded from provider usage when available and may overshoot the cap on the final call; no subsequent request is allowed once the token cap is exhausted. `BudgetExceededError` is intended to map to HTTP 429 when an API layer is added. Provider response caches live only on each client instance and are therefore scoped to that run.
+
+The provider base URLs are host-allowlisted: Tavily defaults to `api.tavily.com`, and Nebius defaults to `api.tokenfactory.nebius.com`. A custom `NEBIUS_BASE_URL` or Tavily base URL is rejected unless its host is explicitly added to the corresponding `allowed_hosts` config in code. The Tavily adapter validates extraction URLs before asking Tavily to fetch them: it rejects userinfo, non-default ports, localhost/internal names, non-global IP literals, and hostnames resolving to any non-global address. The DNS check protects this request and any later direct-fetch implementation; Tavily itself performs the provider-side fetch. Evidence is untrusted, wrapped in nonce-delimited markers, and marker-like source text is neutralized. Nebius uses fixed system prompts, sends no tools, and sends keys only in the `Authorization` header.
+
+### Verified vs assumed
+
+Provider request and response details below were checked against official provider documentation on **18 October 2026**. This is a documentation verification, not a live credential or account test.
+
+| Provider | Verified from official docs | Not verified live / account-dependent |
+|---|---|---|
+| Tavily | Base `https://api.tavily.com`; POST `/search` and `/extract`; bearer auth; search depths `advanced`, `basic`, `fast`, `ultra-fast`; topics `general`, `news`, `finance`; extract depths `basic`, `advanced`; `markdown`/`text` formats; search results use `content` and extract results use `raw_content`; extraction partials use `results` plus `failed_results`; `Retry-After` on 429; documented 400, 401, 422, 429, 432, 433, and 500 behavior. | No credentials are available in this environment, so authentication, actual response timing, account limits, and live provider behavior have not been checked. |
+| Nebius Token Factory | OpenAI-compatible base `https://api.tokenfactory.nebius.com/v1/` and `/chat/completions`; bearer auth; `model`, `messages`, `temperature`, `max_tokens`, and JSON response formats; response content, refusal, finish reason, and token usage fields; documented 400, 401, 402, 403, 404, 422, 429, 500, 503, and 529 behavior. | No credentials are available, so enabled model availability and actual latency are unknown. JSON-schema enforcement is per model and has not been verified for any account-enabled model. |
+
+Live checks are opt-in and skipped when their corresponding keys (and `NEBIUS_MODEL`) are absent:
+
+```sh
+uv run pytest -m live tests/live
+```
+
 ### IHK businesses (`ihk_businesses`)
 
 Import boundaries first; like population, the IHK import pins the active LOR snapshot unless `--lor-snapshot` is given:
