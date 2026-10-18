@@ -1,0 +1,2 @@
+{"role":"location researcher","type":"search","text":"Search local data","why":"Find comparable neighborhood metrics.","model":"fixture-model","tokens":120,"seconds":1.5}
+{"role":"fact-checker","type":"claim_reject","text":"Rejected unsupported late-night assertion.","why":"No verifiable source was found.","model":"fixture-checker","tokens":40,"seconds":0.5}

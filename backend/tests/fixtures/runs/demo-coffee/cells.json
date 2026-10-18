@@ -1,0 +1,59 @@
+{
+  "area": {"name": "Friedrichshain-Kreuzberg", "level": "plr", "cell_count": 5},
+  "mode_default": "present",
+  "layers": [
+    {"id": "demand_density", "label": "Resident demand", "direction": "+", "weight_default": 0.4, "source": "https://example.test/demand", "evidence_id": "e1", "why": "Residents support regular café footfall."},
+    {"id": "competition", "label": "Café competition", "direction": "-", "weight_default": 0.3, "source": "https://example.test/competition", "evidence_id": "e2", "why": "Dense competition reduces room for another café."},
+    {"id": "transit", "label": "Transit access", "direction": "+", "weight_default": 0.2, "source": "https://example.test/transit", "evidence_id": "e4", "why": "Transit supports walk-in customers."},
+    {"id": "rent", "label": "Rent affordability", "direction": "-", "weight_default": 0.1, "source": "https://example.test/rent", "evidence_id": "e1", "why": "Higher rent increases operating pressure."}
+  ],
+  "cells": [
+    {
+      "id": "A",
+      "name": "Admiralskiez",
+      "geometry_ref": "cells.geojson#A",
+      "values": {"demand_density": 0.9, "competition": 0.3, "transit": 0.3, "rent": 0.4},
+      "modifiers": [
+        {"type": "future", "label": "Future housing", "quote": "300 Wohnungen bis 2028", "evidence_id": "e4", "localization": "plr", "bonus": 0.1, "magnitude": {"units": 300}}
+      ],
+      "risks": [],
+      "unknowns": [{"text": "Current vacancy rate is unknown.", "suggested_validation": "Call local property managers."}]
+    },
+    {
+      "id": "B",
+      "name": "Bergmannkiez",
+      "geometry_ref": "cells.geojson#B",
+      "values": {"demand_density": 0.65, "competition": 0.2, "transit": 0.7, "rent": 0.4},
+      "modifiers": [],
+      "risks": [],
+      "unknowns": []
+    },
+    {
+      "id": "C",
+      "name": "Café Höfe",
+      "geometry_ref": "cells.geojson#C",
+      "values": {"demand_density": 0.3, "competition": 0.8, "transit": 0.9, "rent": 0.2},
+      "modifiers": [],
+      "risks": [],
+      "unknowns": []
+    },
+    {
+      "id": "D",
+      "name": "Donaustraße",
+      "geometry_ref": "cells.geojson#D",
+      "values": {"demand_density": 0.5, "competition": 0.4, "transit": 0.5, "rent": 0.7},
+      "modifiers": [],
+      "risks": [],
+      "unknowns": []
+    },
+    {
+      "id": "E",
+      "name": "Eisenbahnstraße",
+      "geometry_ref": "cells.geojson#E",
+      "values": {"demand_density": 0.2, "competition": 0.1, "transit": 0.4, "rent": 0.3},
+      "modifiers": [],
+      "risks": [{"text": "Few late-night options nearby.", "quote": "No late openings found.", "evidence_id": "e1", "severity": "high"}],
+      "unknowns": []
+    }
+  ]
+}
