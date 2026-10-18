@@ -129,7 +129,7 @@ uv run location-data ingest berlin_lor
 uv run location-data ingest zensus_grid
 ```
 
-The connector streams the pinned 100 m CSV from the ZIP and retains cells intersecting the configured EPSG:3035 extent. The manifest reports whole cells within Berlin, all cells intersecting Berlin, cells whose centroids fall inside Berlin, and an area-weighted estimate. The within/intersecting whole-cell sums form lower and upper bounds; areal weighting assumes uniform density within each partially intersecting cell. Coverage reports how much of the catchment is covered by published cells, while absent cells remain unpublished rather than being treated as measured zero.
+The connector streams the pinned 100 m CSV from the ZIP and retains cells intersecting the configured EPSG:3035 extent. The manifest reports whole cells within Berlin, all cells intersecting Berlin, cells whose centroids fall inside Berlin, and an area-weighted estimate. The fully contained published-cell sum is the lower bound; the all-intersecting-cell sum is an upper bound only when cells with published values cover the whole catchment (otherwise the upper bound is null because absent cells may be unpublished). Areal weighting assumes uniform density within each partially intersecting cell. Coverage reports how much of the catchment is covered by published cells, while absent cells remain unpublished rather than being treated as measured zero.
 
 Catchments must lie inside the recorded extract extent; otherwise the CLI rejects them to avoid undercounting. If an intersecting cell has no published value, the upper bound is unavailable.
 

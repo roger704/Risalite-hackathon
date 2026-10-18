@@ -110,7 +110,8 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
         area_weighted_sum += record.value * fraction
 
     catchment_area = catchment.area
-    complete = without_value == 0
+    share_of_catchment = published_area / catchment_area
+    complete = without_value == 0 and published_area >= catchment_area * (1 - 1e-6)
     warnings = [
         "Values are perturbed by the cell-key method (CKM); sums need not match official totals.",
         "Cells absent from the file have no published value; absence is not zero.",
@@ -118,6 +119,11 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
         "Values describe the historical reference date 2022-05-15, not current population.",
     ]
     if not complete:
+        warnings.append(
+            f"Published cells with values cover {share_of_catchment:.1%} of the catchment; "
+            "absent cells may have no residents or be withheld, so no upper bound is given"
+        )
+    if without_value:
         statuses = ", ".join(sorted(without_value_by_status))
         warnings.append(
             f"{without_value} intersecting cells have no published value (statuses {statuses}); "
@@ -157,11 +163,15 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             "lower": within_sum,
             "upper": intersecting_sum if complete else None,
             "complete": complete,
-            "meaning": "sum of fully contained vs all intersecting published cells",
+            "meaning": (
+                "lower = fully contained published cells; upper = all intersecting cells, "
+                "only when published cells with values cover the whole catchment (otherwise "
+                "null because absent cells may be unpublished)"
+            ),
         },
         "coverage": {
             "published_cell_area_in_catchment_m2": round(published_area, 1),
-            "share_of_catchment": round(published_area / catchment_area, 4),
+            "share_of_catchment": round(share_of_catchment, 4),
             "valueless_cell_area_in_catchment_m2": round(valueless_area, 1),
             "meaning": (
                 "share of the catchment covered by cells with published values; valueless "

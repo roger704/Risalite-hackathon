@@ -358,6 +358,8 @@ def test_aggregate_grid_whole_cells_estimate_coverage_and_null_values():
     assert result["intersected_estimate"]["value_status"] == "estimated"
     assert result["bounds"]["lower"] == 10
     assert result["bounds"]["upper"] == 30
+    assert result["bounds"]["complete"] is True
+    assert result["whole_cells"]["complete"] is True
     assert result["cells"]["without_value"] == 0
     assert result["coverage"]["share_of_catchment"] == pytest.approx(1.0, abs=0.0001)
     assert result["definition"].startswith("Zensus 2022 census population")
@@ -394,6 +396,31 @@ def test_aggregate_grid_marks_missing_bounds_incomplete_and_excludes_missing_are
     assert any(
         "1 intersecting cells have no published value (statuses suppressed)" in warning
         and "upper bound unavailable" in warning
+        for warning in result["warnings"]
+    )
+
+
+def test_aggregate_grid_marks_absent_cell_gaps_incomplete():
+    first = grid_observation(GridCell(100, 3270900, 4548500), 10)
+    first_polygon = cell_polygon(parse_grid_id(first.grid_id), "EPSG:25833")
+    absent_polygon = cell_polygon(
+        GridCell(100, 3270900, 4548600),
+        "EPSG:25833",
+    )
+    catchment = unary_union([first_polygon, absent_polygon])
+
+    result = aggregate_grid([first], catchment)
+
+    assert result["cells"]["without_value"] == 0
+    assert result["bounds"]["lower"] == 10
+    assert result["bounds"]["upper"] is None
+    assert result["bounds"]["complete"] is False
+    assert result["whole_cells"]["intersecting_sum"] == 10
+    assert result["whole_cells"]["complete"] is False
+    assert result["coverage"]["share_of_catchment"] == pytest.approx(0.5, abs=0.0001)
+    assert any(
+        "Published cells with values cover 50.0% of the catchment; absent cells may have no "
+        "residents or be withheld, so no upper bound is given" == warning
         for warning in result["warnings"]
     )
 
