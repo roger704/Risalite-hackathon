@@ -24,7 +24,7 @@ from app.contracts.evidence import EvidenceEntry, Finding
 from app.evidence.citations import strip_unknown_citations
 from app.evidence.factcheck import fact_check_run
 from app.evidence.ledger import EvidenceLedger, entry_status, utc_now
-from app.research.locality import address_terms, cell_terms
+from app.research.locality import address_street, address_terms, cell_terms
 
 from .events import EventLog, metrics
 from .planning import FUTURE_UNITS
@@ -686,8 +686,6 @@ def _add_risks(
             severity = risk.get("severity") if risk.get("severity") in SEVERITIES else "low"
             risk_localization = row.get("localization", risk.get("localization"))
             downgraded = risk_localization == "area"
-            if downgraded and severity == "high":
-                severity = "medium"
             row.update(
                 claim_type="risk",
                 severity=severity,
@@ -696,7 +694,8 @@ def _add_risks(
             )
             row.setdefault("agent", f"skeptic:{target}")
             for added in _add_findings(ctx, [row]):
-                meta[added["finding_id"]] = {"target": target, "severity": severity}
+                if not downgraded:
+                    meta[added["finding_id"]] = {"target": target, "severity": severity}
     return meta
 
 
@@ -814,8 +813,14 @@ async def run_point(ctx: Context) -> dict[str, Any]:
                                 dict.fromkeys(
                                     [
                                         *address_terms(space.get("address")),
+                                        *(
+                                            [street]
+                                            if (street := address_street(space.get("address")))
+                                            else []
+                                        ),
                                         *cell_terms(
-                                            space.get("cell_name"), space.get("streets") or []
+                                            space.get("cell_name"),
+                                            space.get("streets") or [],
                                         ),
                                     ]
                                 )

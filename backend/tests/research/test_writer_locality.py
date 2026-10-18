@@ -75,3 +75,46 @@ def test_t1_item_accepts_matching_hypothesis_address_finding():
     )
 
     assert "Address finding [ev_address]." in rendered
+
+
+def test_dataset_citations_are_limited_to_item_cell_or_global():
+    result = {
+        "cells": {
+            "cells": [
+                {"id": "A", "name": "Cell A"},
+                {"id": "B", "name": "Cell B"},
+            ]
+        }
+    }
+    report = Report(
+        summary=[Sentence(text="Area data.", evidence_ids=["ds_A"])],
+        cells=[
+            CellSection(
+                cell_id="B",
+                reasons=[
+                    Sentence(text="Cross-cell data.", evidence_ids=["ds_A"]),
+                    Sentence(text="Cell data.", evidence_ids=["ds_B"]),
+                    Sentence(text="Global data.", evidence_ids=["ds_global"]),
+                ],
+            )
+        ],
+    )
+    entries = [
+        {"evidence_id": "ds_A", "method": "dataset", "query": {"area_code": "A"}},
+        {"evidence_id": "ds_B", "method": "dataset", "query": {"area_code": "B"}},
+        {"evidence_id": "ds_global", "method": "dataset", "query": {}},
+    ]
+
+    rendered = render(
+        report,
+        result,
+        {"ds_A", "ds_B", "ds_global"},
+        "Test report",
+        findings=[_finding("B", "ds_B")],
+        entries=entries,
+    )
+
+    assert "Area data [ds_A]." in rendered
+    assert "Cross-cell data." not in rendered
+    assert "Cell data [ds_B]." in rendered
+    assert "Global data [ds_global]." in rendered

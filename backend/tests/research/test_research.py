@@ -34,7 +34,7 @@ from app.research import (
     write_report,
 )
 from app.research.events import Events
-from app.research.locality import address_terms, cell_terms
+from app.research.locality import address_street, address_terms, cell_terms
 from app.research.toolkit import BUDGET_MESSAGE, Toolkit, match_quote, quote_numbers
 
 NOW = datetime(2026, 10, 18, tzinfo=timezone.utc)
@@ -439,7 +439,7 @@ async def test_address_localization_falls_back_to_cell_then_area(tmp_path, passa
         tmp_path,
         passage,
         {
-            "address": ["Wiener Straße"],
+            "address": ["Wiener Straße 12"],
             "02010101": ["Askanischer Platz"],
         },
         ["address", "02010101", "area"],
@@ -458,6 +458,37 @@ async def test_address_localization_falls_back_to_cell_then_area(tmp_path, passa
     if expected == "area":
         assert finding.localization_requested == "address"
         assert "localization_downgraded" in emit.types()
+
+
+@pytest.mark.parametrize(
+    ("passage", "expected"),
+    [
+        ("A listing is available at Wiener Str. 12.", "address"),
+        ("A listing is available at Wiener Straße 40.", "02010101"),
+        ("A listing is available near Kottbusser Tor.", "area"),
+    ],
+)
+async def test_address_localization_requires_house_number(tmp_path, passage, expected):
+    address = "Wiener Straße 12, 10999 Berlin"
+    kit, _, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {
+            "address": address_terms(address),
+            "02010101": cell_terms("Askanischer Platz", [address_street(address)]),
+        },
+        ["address", "02010101", "area"],
+    )
+
+    await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="address",
+    )
+
+    assert kit.accepted[0].localization == expected
 
 
 @pytest.mark.parametrize(
@@ -594,8 +625,9 @@ async def test_agents_pass_place_terms_and_brief_cell_streets(tmp_path, monkeypa
     ]
     assert "Street 14" in calls[0]["place_terms"]["02010101"]
     assert calls[1]["place_terms"]["02010101"][-1] == "Street 19"
-    assert calls[2]["place_terms"]["address"] == ["Wiener Straße"]
+    assert calls[2]["place_terms"]["address"] == ["Wiener Straße 12"]
     assert calls[2]["place_terms"]["02010101"][0] == "Graefekiez Nord"
+    assert "Wiener Straße" in calls[2]["place_terms"]["02010101"]
     assert calls[3]["place_terms"]["02010101"][0] == "Graefekiez Nord"
     assert agents._cell_brief(cell)["streets"] == streets[:15]
 
@@ -754,7 +786,7 @@ async def test_t1_skeptic_uses_explicit_place_terms(tmp_path, snippet, expected_
     finding = risks[0]["finding"]
     assert risks[0]["localization"] == expected_localization
     if expected_localization == "h_1":
-        assert finding["localization_check"] == "mentioned:Wiener Straße"
+        assert finding["localization_check"] == "mentioned:Wiener Straße 12"
     else:
         assert finding["localization_requested"] == "h_1"
         assert finding["localization_check"] == "downgraded"

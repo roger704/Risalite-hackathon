@@ -464,7 +464,7 @@ def test_approval_respects_max_executing_runs(make_client, monkeypatch):
     assert response.status_code == 429
 
 
-def test_downgraded_high_risk_is_area_scoped_and_capped():
+def test_downgraded_high_risk_is_area_scoped_and_not_scored():
     from types import SimpleNamespace
 
     from app.application.runs.pipeline import _add_risks
@@ -487,7 +487,8 @@ def test_downgraded_high_risk_is_area_scoped_and_capped():
     meta = _add_risks(ctx, [("02010101", "plr:02010101", [risk])])
 
     assert ctx.findings[0]["localization"] == "area"
-    assert meta["f_area_risk"]["severity"] == "medium"
+    assert ctx.findings[0]["severity"] == "high"
+    assert meta == {}
 
 
 async def test_address_streets_load_from_injected_snapshot_reader(tmp_path):

@@ -15,7 +15,7 @@ from app.evidence.ledger import EvidenceLedger
 from app.research import fake, prompts
 from app.research.config import Emit, ResearchConfig
 from app.research.events import Events
-from app.research.locality import address_terms, cell_terms
+from app.research.locality import address_street, address_terms, cell_terms
 from app.research.models import chat_model, structured_call
 from app.research.runner import run_agent
 from app.research.toolkit import Role, Toolkit
@@ -197,7 +197,15 @@ async def research_hypothesis(
         place_terms={
             **({"address": address_terms(space.get("address"))}),
             **(
-                {str(cell_id): cell_terms(space.get("cell_name"), space.get("streets") or [])}
+                {
+                    str(cell_id): cell_terms(
+                        space.get("cell_name"),
+                        [
+                            *(space.get("streets") or []),
+                            *([street] if (street := address_street(space.get("address"))) else []),
+                        ],
+                    )
+                }
                 if cell_id
                 else {}
             ),

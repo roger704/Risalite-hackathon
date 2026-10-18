@@ -11,7 +11,7 @@ _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _DIRECTION = re.compile(
     r"\s+(?:Nordost|Nordwest|Südost|Südwest|Nord|Süd|Ost|West)\s*$", re.IGNORECASE
 )
-_HOUSE_NUMBER = re.compile(r"\s+\d+[A-Za-z]?(?:\s*[-–—/]\s*\d+[A-Za-z]?)?\s*$")
+_HOUSE_NUMBER = re.compile(r"(?:^|\s)(?P<number>\d+[A-Za-z]?)\s*$")
 
 
 def _tokens(text: str) -> tuple[str, ...]:
@@ -59,12 +59,26 @@ def cell_terms(name: str | None, streets: Iterable[str] = ()) -> list[str]:
     return _dedupe(candidates)
 
 
-def address_terms(address: str | None) -> list[str]:
+def _address_parts(address: str | None) -> tuple[str, str | None]:
     if not address:
-        return []
+        return "", None
     street = address.split(",", 1)[0].strip()
-    street = _HOUSE_NUMBER.sub("", street).strip(" ,")
-    return _dedupe([street], minimum_length=0) if street else []
+    match = _HOUSE_NUMBER.search(street)
+    if match is None:
+        return street, None
+    return street[: match.start()].strip(" ,"), match.group("number")
+
+
+def address_street(address: str | None) -> str | None:
+    street, _ = _address_parts(address)
+    return street or None
+
+
+def address_terms(address: str | None) -> list[str]:
+    street, number = _address_parts(address)
+    if not street or not number:
+        return []
+    return _dedupe([f"{street} {number}"], minimum_length=0)
 
 
 def mentioned(text: str, terms: Sequence[str]) -> str | None:

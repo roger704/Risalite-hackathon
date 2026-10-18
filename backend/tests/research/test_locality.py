@@ -4,12 +4,22 @@ from app.research.locality import address_terms, cell_terms, mentioned
 def test_address_abbreviation_matches_full_street_name():
     terms = address_terms("Wiener Straße 12, 10999 Berlin")
 
-    assert terms == ["Wiener Straße"]
-    assert mentioned("Ein Geschäft in der Wiener Str. 12 hat eröffnet.", terms) == "Wiener Straße"
+    assert terms == ["Wiener Straße 12"]
+    assert (
+        mentioned("Ein Geschäft in der Wiener Str. 12 hat eröffnet.", terms) == "Wiener Straße 12"
+    )
 
 
 def test_address_terms_preserve_short_street_names():
-    assert address_terms("U 1, 10115 Berlin") == ["U"]
+    assert address_terms("U 1, 10115 Berlin") == ["U 1"]
+
+
+def test_address_terms_require_the_exact_house_number():
+    terms = address_terms("Wiener Straße 12a, 10999 Berlin")
+
+    assert mentioned("Wiener Str. 12a is available.", terms) == "Wiener Straße 12a"
+    assert mentioned("Wiener Straße 12 is available.", terms) is None
+    assert mentioned("Wiener Straße 120 is available.", terms) is None
 
 
 def test_cell_terms_include_name_without_trailing_direction():
