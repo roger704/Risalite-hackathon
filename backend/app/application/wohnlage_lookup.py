@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from dataclasses import asdict
+from datetime import date
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
 
+from app.application.service import _hash
 from app.domain import ConnectorError, NotFoundError
 
 JOIN_METHOD = (
@@ -20,6 +24,11 @@ NOTICE = (
     "Wohnlage is the official Mietspiegel 2026 classification of an address's wider "
     "residential surroundings. It is not income, purchasing power, commercial suitability, "
     "footfall, shop rent, or a rent amount."
+)
+REGISTRY_CONFIG_CHANGED_WARNING = (
+    "Registry configuration has changed since this snapshot was published; response metadata "
+    "is taken "
+    "from the pinned snapshot."
 )
 
 
@@ -47,6 +56,51 @@ def _table_for_record(path: Path, record_id: str):
 
 def _decode_rows(table):
     return [json.loads(value) for value in table.column("record_json").to_pylist()]
+
+
+def _snapshot_year(manifest) -> str:
+    valid_from = getattr(manifest, "valid_from", None)
+    if not isinstance(valid_from, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", valid_from):
+        raise ConnectorError(
+            "SNAPSHOT_INCOMPATIBLE",
+            "Pinned Wohnlage snapshot has a missing or malformed valid_from date",
+        )
+    try:
+        date.fromisoformat(valid_from)
+    except ValueError as exc:
+        raise ConnectorError(
+            "SNAPSHOT_INCOMPATIBLE",
+            "Pinned Wohnlage snapshot has a missing or malformed valid_from date",
+        ) from exc
+    return valid_from[:4]
+
+
+def _snapshot_edition(path: Path):
+    table = ds.dataset(path, format="parquet").head(1, columns=["record_json"])
+    rows = _decode_rows(table)
+    return rows[0].get("edition") if rows else None
+
+
+def _typename_from_url(url: str | None) -> str | None:
+    if not isinstance(url, str):
+        return None
+    values = next(
+        (
+            values
+            for key, values in parse_qs(urlparse(url).query).items()
+            if key.casefold() == "typenames"
+        ),
+        None,
+    )
+    return values[0] if values else None
+
+
+def _snapshot_typename(manifest) -> str | None:
+    for asset in getattr(manifest, "raw_assets", ()):
+        typename = _typename_from_url(getattr(asset, "resource_url", None))
+        if typename:
+            return typename
+    return _typename_from_url(getattr(manifest, "resource_url", None))
 
 
 def _snapshot_records(service, dataset_id: str, snapshot_id: str):
@@ -99,31 +153,45 @@ def lookup_wohnlage(
     address_id: str | None = None,
 ) -> dict:
     config = service._config(dataset_id)
+    if config.adapter != "berlin_wfs_wohnlagen":
+        raise ConnectorError(
+            "INVALID_REQUEST", f"Wohnlage lookup is not supported for dataset: {dataset_id}"
+        )
     manifest, wohnlage_path = _snapshot_records(service, dataset_id, snapshot_id)
+    year = _snapshot_year(manifest)
     options = config.parser_options
-    year = options["edition_year"]
-    edition = options["edition"]
+    config_matches_snapshot = _hash(asdict(config)) == manifest.parser_config_hash
+    snapshot_warnings = list(manifest.quality_report.warnings)
+    evidence_typename = _snapshot_typename(manifest)
+    if evidence_typename is None and config_matches_snapshot:
+        evidence_typename = options.get("typename")
+    source_links = (
+        options.get("source_links", []) if config_matches_snapshot else [manifest.landing_url]
+    )
+    limitations = options.get("limitations", []) if config_matches_snapshot else snapshot_warnings
+    response_warnings = list(snapshot_warnings)
+    if not config_matches_snapshot:
+        response_warnings.append(REGISTRY_CONFIG_CHANGED_WARNING)
     base_response = {
         "schema_version": "1.0",
         "dataset_id": dataset_id,
         "snapshot_id": snapshot_id,
         "retrieved_at": manifest.retrieved_at.isoformat().replace("+00:00", "Z"),
         "source_edition": manifest.source_edition,
-        "edition": edition,
+        "edition": options.get("edition") if config_matches_snapshot else None,
         "valid_from": manifest.valid_from,
         "valid_to": manifest.valid_to,
         "join_method": JOIN_METHOD,
-        "source_links": options.get("source_links", []),
-        "limitations": options.get("limitations", []),
+        "source_links": source_links,
+        "limitations": limitations,
         "notice": NOTICE,
         "attribution": manifest.attribution,
         "license": {
             "id": manifest.license_id,
             "url": manifest.license_url,
         },
-        "warnings": list(manifest.quality_report.warnings),
+        "warnings": response_warnings,
         "evidence": {
-            "typename": options["typename"],
             "raw_file_hashes": [asset.sha256 for asset in manifest.raw_assets],
         },
         "candidates": [],
@@ -131,6 +199,8 @@ def lookup_wohnlage(
         "address": None,
         "wohnlage_class": None,
     }
+    if evidence_typename:
+        base_response["evidence"]["typename"] = evidence_typename
 
     mode_address_key = address_key is not None
     mode_street = (
@@ -204,6 +274,9 @@ def lookup_wohnlage(
 
     base_response["query"] = query
     if key is None:
+        snapshot_edition = _snapshot_edition(wohnlage_path)
+        if snapshot_edition is not None:
+            base_response["edition"] = snapshot_edition
         base_response["join_status"] = "not_joinable"
         base_response["join_method"] = JOIN_METHOD
         base_response["warnings"].append(
@@ -216,6 +289,9 @@ def lookup_wohnlage(
     found = _decode_rows(rows)
     candidates: list[dict] = []
     if not found:
+        snapshot_edition = _snapshot_edition(wohnlage_path)
+        if snapshot_edition is not None:
+            base_response["edition"] = snapshot_edition
         prefix = f"wohnlage:{year}:{key[:8]}"
         candidates = _candidate_rows(wohnlage_path, prefix)
         base_response["candidates"] = candidates
@@ -224,15 +300,17 @@ def lookup_wohnlage(
         return base_response
 
     record = found[0]
+    base_response["edition"] = record.get("edition")
     base_response["evidence"].update(
         {
             "schluessel": record["address_key"],
-            "provider_feature_id": (
-                f"{options['typename'].split(':')[-1]}.{record['address_key']}"
-            ),
             "original_wol_label": record.get("source_label"),
         }
     )
+    if evidence_typename:
+        base_response["evidence"]["provider_feature_id"] = (
+            f"{evidence_typename.split(':')[-1]}.{record['address_key']}"
+        )
     mismatch = False
     if input_address is not None:
         address_street = input_address.get("street_name")
