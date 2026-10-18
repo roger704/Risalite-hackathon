@@ -267,8 +267,8 @@ function scenario(c){
     subq=[['How many children under 6 live in each PLR?','official geodata','ua_einwohnerdichte_2025',['demand']],['How many approved Kita places exist per PLR?','official geodata','kita',['supply']],['What does the Bezirk Kita plan say about deficits?','web (Tavily)','berlin.de, *.berlin.de'],['Which closures or openings are announced after today?','web (Tavily)','berlin.de, local press'],['Where is new housing planned?','official geodata','step_wo_2040']];
     paid=[];
     const ids=area.cells.map(x=>x.id);
-    mods[ids[11]]=[{label:'Planned housing: ~420 units by 2029',quote:'Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029',src:s6,magnitude:'420 units'}];
-    mods[ids[6]]=[{label:'Two Kitas (85 places) closing 2027',quote:'…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…',src:s7,magnitude:'85 places'}];
+    mods[ids[11]]=[{q:4,label:'Planned housing: ~420 units by 2029',quote:'Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029',src:s6,magnitude:'420 units'}];
+    mods[ids[6]]=[{q:3,label:'Two Kitas (85 places) closing 2027',quote:'…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…',src:s7,magnitude:'85 places'}];
     rejected=[{claim:'“Neukölln has the lowest Kita coverage in Berlin”',url:'https://www.example-parenting-blog.de/kita-ranking',reason:'Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)'}];
     src.s5=s5;
     c.extra={planDoc:s5};
@@ -292,14 +292,14 @@ function scenario(c){
     subq=[['Where do many (young) residents live?','official geodata','ua_einwohnerdichte_2025',['demand','young']],['Where are cafés already concentrated?','official geodata + OSM','gewerbedaten (NACE 56), Overpass amenity=cafe',['competition']],['Which cells have good transit access?','official geodata','oepnv_ungestoert',['transit']],['What does it cost to rent there?','official geodata + web','brw2026, rent reports',['cost']],['What do IHK / the Bezirk say about gastronomy?','web (Tavily)','ihk.de, berlin.de'],['Which residential/office projects are coming after today?','web (Tavily)','berlin.de, local press']];
     paid=[['hystreet.com','pedestrian footfall counts'],['Google Places','competitor ratings & opening hours']];
     if(c.area==='kreuzberg'){
-      mods['02100104']=[{label:'Office campus: ~1,200 workplaces by 2027',quote:'…rund 1.200 Arbeitsplätze, Fertigstellung 2027…',src:s8,magnitude:'1,200 workplaces'}];
-      mods['02300316']=[{label:'Planned housing: 300 units at Köpenicker Straße',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
+      mods['02100104']=[{q:5,label:'Office campus: ~1,200 workplaces by 2027',quote:'…rund 1.200 Arbeitsplätze, Fertigstellung 2027…',src:s8,magnitude:'1,200 workplaces'}];
+      mods['02300316']=[{q:5,label:'Planned housing: 300 units at Köpenicker Straße',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
       risks['02300419']=[{text:'Ground-floor rents rising fast',quote:'…Erdgeschossmieten im Wrangelkiez +18 % gegenüber Vorjahr…',src:s10,sev:'high'}];
       unknowns['02200213']=['Actual footfall on Graefestraße — hystreet slot skipped (no key). Validate: 2 × 30-min manual counts.'];
       unknowns['02300418']=['Vacancy of ground-floor units unknown. Validate: walk Reichenberger Str. / check listings.'];
     } else {
       const ids=area.cells.map(x=>x.id);
-      mods[ids[12]]=[{label:'Planned housing: 300 units',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
+      mods[ids[12]]=[{q:5,label:'Planned housing: 300 units',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
     }
     rejected=[{claim:'“Footfall on Oranienstraße rose 30 % in 2026”',url:'https://www.example-food-blog.de/kreuzberg-hotspots',reason:'Quote not found on re-fetch (best fuzzy match 0.38 < 0.85) → dropped, planner re-planned web search for footfall'}];
     c.extra={ihk:s6,zk:s7};
@@ -338,7 +338,7 @@ function pointScenario(c){
      for:[['Only one organic shop nearby',a3]],
      against:[['Low operator fit','profile'],['Margins thin at this rent level',a5]],
      unk:[['Willingness to pay for zero-waste in this Kiez','10 short customer interviews']]}];
-  const fit=/bak/i.test(c.op||'');
+  const fit=/^\s*6\s*(yrs?|years?)\s+(of\s+)?bakery experience\b/i.test(c.op||'');
   if(!fit)H.forEach(h=>{h.score=Math.round((h.score+(5-h.d[2])/6)*10)/10;h.d[2]=5;h.dw[2]=c.op?'Profile not modelled in this mockup — scored neutral':'No operator profile — scored neutral';h.for=h.for.filter(f=>f[1]!=='profile');h.against=h.against.filter(f=>f[1]!=='profile')});
   const competitors=[];const g=area.cells.find(x=>x.id===cellId);
   for(let i=0;i<22;i++){const r=hash('c'+i),r2=hash('d'+i);competitors.push({x:g.cx+(r-.5)*90,y:g.cy+(r2-.5)*70,h:i%3})}
@@ -447,8 +447,8 @@ $('#approve').onclick=()=>{
     state.on={};SC.layers.forEach(l=>state.on[l.id]=true);$$('#p-layers input').forEach(i=>state.on[i.dataset.l]=i.checked);
     if(!Object.values(state.on).some(Boolean)){alert('Keep at least one scoring layer.');return}
     SC.defaultOn={...state.on};
+    SC.cells.forEach(c=>c.modifiers=c.modifiers.filter(m=>SC.sel.has(m.q)));
     SC.subq.forEach((s,i)=>{if(SC.sel.has(i))return;
-      if(/after today|planned/.test(s[0]))SC.cells.forEach(c=>c.modifiers=[]);
       if(/cost to rent/.test(s[0]))SC.cells.forEach(c=>c.risks=[]);
       if(/IHK/.test(s[0]))C.extra.ihk=null;
       if(/Kita plan/.test(s[0]))C.extra.planDoc=null;});
@@ -493,7 +493,7 @@ function renderSummary(){
   $('#d-mix').textContent='written for the default layer mix';
   let h;
   if(C.shape==='gap'){
-    h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${hasFut()?`Two announced changes after today would widen the gap further — a closure of two Kitas and ~420 planned housing units (shown under <i>Present + future</i>).`:''} One web claim about city-wide rankings could not be verified and was dropped.`;
+    h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${(f=>f.length?`${f.length>1?'Two announced changes':'One announced change'} after today would widen the gap further — ${f.join(' and ')} (shown under <i>Present + future</i>).`:'')(SC.cells.flatMap(c=>c.modifiers).map(m=>m.q===3?'a closure of two Kitas':'~420 planned housing units'))} One web claim about city-wide rankings could not be verified and was dropped.`;
   } else {
     h=`For a ${SC.noun} in ${SC.aname}, the default mix ranks <b>${r[0].cell.name}</b> first, then <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b> ${cite(SC.sGeo)}. These cells pair high residential density and a young population ${cite(L[0].src)} with fewer existing cafés than the neighbouring hotspots ${cite(L[2].src)}${C.extra.ihk?`, consistent with the IHK observation that specialty coffee grows in dense, young Kieze ${cite(C.extra.ihk)}`:''}. ${C.area==='kreuzberg'?`${SC.cells.find(c=>c.id==='02300419').risks.length?`Wrangelkiez scores highest on demand but was demoted by the skeptic because ground-floor rents are rising sharply ${cite(SC.cells.find(c=>c.id==='02300419').risks[0].src)}. `:''}${hasFut()?`Two announced projects — an office campus at Moritzplatz and 300 flats at Köpenicker Straße — lift those cells under <i>Present + future</i>; the`:'The'} Bezirk's centre concept ${hasFut()?'also ':''}prioritises Moritzplatz ${cite(C.extra.zk)}.`:''} Footfall could not be measured: hystreet.com was skipped (no key) and one footfall claim was rejected by the fact-checker.`;
   }
