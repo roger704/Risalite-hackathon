@@ -15,6 +15,8 @@ from app.domain import (
     QualityReport,
     RawAsset,
     SnapshotManifest,
+    StopService,
+    TransitStop,
     manifest_to_dict,
     record_to_dict,
 )
@@ -123,6 +125,55 @@ def test_http_reads_preserve_pinned_snapshot_and_suppression():
         assert manifest.status_code == 200
         assert manifest.json()["reference_period"] == "2025-12-31"
         assert service.ingestions == []
+
+
+def test_http_reads_serialize_transit_stop_and_service_records():
+    class TransitService(LocalService):
+        def records(self, dataset_id, snapshot_id, **filters):
+            stop = TransitStop(
+                source_id=dataset_id,
+                snapshot_id=snapshot_id,
+                source_record_id="P1a",
+                record_id="P1a",
+                geometry={"type": "Point", "coordinates": [13.4, 52.5]},
+                stop_id="P1a",
+                name="Platform 1",
+                location_type=0,
+            )
+            service = StopService(
+                source_id=dataset_id,
+                snapshot_id=snapshot_id,
+                source_record_id="S1",
+                record_id="S1|2026-11-10|07:00:00-10:00:00",
+                stop_id="S1",
+                service_date="2026-11-10",
+                window_start="07:00:00",
+                window_end="10:00:00",
+                timezone="Europe/Berlin",
+                departures=12,
+                trip_count=10,
+                route_count=2,
+                route_types=(1, 3),
+            )
+            return {
+                "dataset_id": dataset_id,
+                "snapshot_id": snapshot_id,
+                "records": [record_to_dict(stop), record_to_dict(service)],
+                "count": 2,
+                "next_cursor": None,
+            }
+
+    with TestClient(create_app(service=TransitService())) as client:
+        response = client.get(
+            "/api/v1/datasets/vbb_gtfs/records",
+            params={"snapshot_id": "gtfs-example"},
+        )
+
+    assert response.status_code == 200
+    records = response.json()["records"]
+    assert records[0]["stop_id"] == "P1a"
+    assert records[1]["stop_id"] == "S1"
+    assert records[1]["departures"] == 12
 
 
 @pytest.mark.parametrize(

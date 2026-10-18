@@ -1,0 +1,83 @@
+{
+  "dataset_id": "ihk_businesses",
+  "provider": "IHK Berlin (Industrie- und Handelskammer zu Berlin)",
+  "adapter": "ihk",
+  "landing_url": "https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten",
+  "resource_url": "https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv",
+  "allowed_hosts": [
+    "media.githubusercontent.com"
+  ],
+  "license_id": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "attribution": "IHK Berlin, IHKBerlin_Gewerbedaten (October 2026 edition), CC0 1.0",
+  "boundary_edition": "2021",
+  "source_edition": "2026-10",
+  "source_crs": "EPSG:4326",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 200000000,
+  "timeout_seconds": 300.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "source_commit": "75957615265716ec8549d04d63ed76bd6d6c547a",
+    "expected_sha256": "64456f921af26ed0e30179063af0c65a1eb005b30bad7b36e35211b49e18181e",
+    "category_mapping": "ihk_v1",
+    "category_mapping_sha256": "3c568d2bc352f285417946e9fed612c93bc3de08dc2446ef9d08f4a13ff36493",
+    "encoding": "utf-8-sig",
+    "delimiter": ",",
+    "expected_columns": [
+      "opendata_id",
+      "city",
+      "postcode",
+      "latitude",
+      "longitude",
+      "ihk_branch_id",
+      "nace_id",
+      "branch_top_level_id",
+      "employees_range",
+      "ihk_branch_desc",
+      "nace_desc",
+      "branch_top_level_desc",
+      "business_age",
+      "business_type",
+      "Bezirk",
+      "planungsraum_id",
+      "Planungsraum",
+      "Bezirksregion",
+      "Prognoseraum",
+      "Ortsteil"
+    ],
+    "null_markers": [
+      "",
+      "NULL"
+    ],
+    "unknown_employee_labels": [
+      "unbekannt"
+    ],
+    "hierarchy": "planungsraum",
+    "area_code_length": 8,
+    "berlin_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "min_expected_rows": 300000,
+    "max_excluded_row_fraction": 0.001,
+    "parent_check": {
+      "boundary_tolerance_m": 1.0,
+      "max_missing_area_code_fraction": 0.01,
+      "max_unmatched_area_code_fraction": 0.01,
+      "max_outside_supplied_area_fraction": 0.02
+    },
+    "limitations": [
+      "IHK records are businesses registered with IHK Berlin (Handelsregister entries and Kleingewerbetreibende). Craft businesses registered only with the Handwerkskammer, freelancers and public bodies are absent.",
+      "OSM places and IHK businesses are separate inventories. Report source-specific counts; never add them as unique businesses.",
+      "A registration is not proof of an open venue: a registered address may be an office or home address, and branch locations may be missing.",
+      "employees_min/employees_max are the inclusive bounds of the supplied size class, not headcounts. '0 Beschäftigte' means no reported employees; 'unbekannt' and missing classes have null bounds.",
+      "business_age_label is the supplied business age at the edition date, kept as text.",
+      "planungsraum_id is supplied by IHK and reported against the pinned LOR snapshot; it is never reassigned from coordinates.",
+      "Source file pinned to IHKBerlin_Gewerbedaten commit 75957615 (2026-10-01 update); header, delimiter, encoding and value labels reviewed on 2026-10-18."
+    ]
+  }
+}

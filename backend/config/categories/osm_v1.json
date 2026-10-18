@@ -1,0 +1,70 @@
+{
+  "mapping_version": "osm_v1",
+  "selectors": [
+    {
+      "key": "amenity",
+      "value_regex": "(^|;)\\s*(cafe|fast_food|restaurant|coworking_space)\\s*(;|$)"
+    },
+    {
+      "key": "shop",
+      "value_regex": "(^|;)\\s*(coffee|bakery)\\s*(;|$)"
+    },
+    {
+      "key": "office",
+      "value_regex": "(^|;)\\s*coworking\\s*(;|$)"
+    },
+    {
+      "key": "cuisine",
+      "value_regex": "(^|;)\\s*coffee"
+    }
+  ],
+  "categories": [
+    {
+      "canonical_category": "coffee_shop",
+      "role": "primary",
+      "match": [
+        {"key": "amenity", "value": "cafe"},
+        {"key": "cuisine", "value": "coffee_shop"}
+      ]
+    },
+    {
+      "canonical_category": "coffee_retail",
+      "role": "context",
+      "description": "shop=coffee sells coffee beans/equipment; may serve drinks but is not counted as a café competitor",
+      "match": [{"key": "shop", "value": "coffee"}]
+    },
+    {
+      "canonical_category": "bakery",
+      "role": "complementary",
+      "match": [{"key": "shop", "value": "bakery"}]
+    },
+    {
+      "canonical_category": "fast_food",
+      "role": "complementary",
+      "match": [{"key": "amenity", "value": "fast_food"}]
+    },
+    {
+      "canonical_category": "restaurant",
+      "role": "complementary",
+      "match": [{"key": "amenity", "value": "restaurant"}]
+    },
+    {
+      "canonical_category": "coworking",
+      "role": "context",
+      "match": [
+        {"key": "amenity", "value": "coworking_space"},
+        {"key": "office", "value": "coworking"}
+      ]
+    }
+  ],
+  "attribute_tags": [
+    "name",
+    "opening_hours",
+    "brand",
+    "wheelchair",
+    "website",
+    "amenity",
+    "shop",
+    "cuisine"
+  ]
+}
