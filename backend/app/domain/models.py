@@ -1237,6 +1237,7 @@ NormalizedRecord = (
     | TransitStop
     | StopService
     | GreenSpace
+    | Address
     | DevelopmentPlan
     | ResidentialLocationClass
     | AreaIndicatorClass
