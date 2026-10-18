@@ -19,6 +19,7 @@ This is a practical inventory for the project. Provider documentation and datase
 | **[Berlin kindergarten locations](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2)** | Locations and information about publicly funded kindergartens | Public WFS service; DL-DE-Zero 2.0 | Map existing childcare provision |
 | **[Berlin household statistics](https://www.statistik-berlin-brandenburg.de/a-i-17-j/)** | Household size and family structures by LOR | Published tables and downloads | Identify family-oriented neighborhoods |
 | **[Official Berlin address points](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba)** | Addresses with coordinates | Public WFS service; DL-DE-Zero 2.0 | Locate candidate addresses without a paid geocoding API |
+| **[Berlin ALKIS building footprints](https://www.berlin.de/sen/stadt/stadtdaten/geoinformation/liegenschaftskataster/geobasisdaten-online/datenbereitstellung/)** | Official `AX_Gebaeude` footprints and documented cadastral attributes through WFS | Public WFS; DL-DE-Zero 2.0 | Inspect building geometry and address references; not current commercial-use evidence |
 
 ### Why IHK Business Data Matters
 
@@ -97,3 +98,5 @@ This provides a free data foundation for both demo scenarios while keeping uncer
 The [backend setup guide](backend/README.md) documents the two working connectors and their reviewed download resources. On 18 October 2026, a full download-to-publication run imported 542 LOR planning-area polygons and 4,878 population observations (542 areas, one total plus eight age bands) from the official sources without rejected rows. Population refers to 30 June 2026; the selected boundary archive is the 1 January 2023 release of the 2021 LOR scheme. All area codes matched; code matching alone does not certify unchanged geometry between editions.
 
 The selected LOR archive is licensed CC BY 3.0 and supplies IDs without neighborhood names. The population workbook is licensed CC BY 3.0 DE. These source-specific licenses take precedence over general assumptions about Berlin Open Data licensing. Exact URLs, mappings, attribution, and reference dates are in the reviewed files under `backend/config/datasets/`.
+
+The ALKIS buildings connector covers only `AX_Gebaeude` within its configured bounded extent; it is not a citywide inventory. The WFS filter uses intersects semantics, so footprints can extend beyond the bbox. `AX_Bauteil` includes building parts such as basements and passages and is excluded. `lag` street codes are not positionally aligned to streets in `namlag`; pseudonumbers are not the building's own addresses. Parcel association is a future sibling contract with synthetic-fixture coverage only.

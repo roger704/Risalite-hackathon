@@ -56,6 +56,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `berlin_kitas` | Berlin WFS | `Facility` | Next | Weekly |
 | `berlin_households` | Tabular file | `AreaObservation` | Next | Monthly check for new period |
 | `berlin_addresses` | Berlin WFS | `Address` | Next | Monthly |
+| `berlin_alkis_buildings` | Berlin WFS | `Building` | Next | Monthly |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
 | `berlin_centers` | Berlin WFS | `Area` | Next | Monthly |
 | `berlin_population_forecast` | Tabular file | `AreaObservation` with scenario | Next | Monthly check for new edition |
@@ -101,6 +102,7 @@ Use typed domain records; use Pydantic at JSON/API boundaries. Every record carr
 |---|---|---|
 | `Place` | Geometry, canonical category, original category, optional name | Include category-mapping version; unmapped categories remain explicit |
 | `Business` | Coordinates, industry code and code system, optional employee range, business age, supplied LOR code | Preserve anonymous records; employee ranges are not exact headcounts |
+| `Building` | WGS84 Polygon/MultiPolygon, ALKIS object type, optional cadastral function, recorded storeys, address references, provider footprint area | Cadastral function is not current use; null storeys are unknown; footprint × storeys is not usable floor area |
 | `Area` | Geometry, area code, hierarchy, boundary edition, name | A planning area and a transit catchment are different spatial units |
 | `AreaObservation` | Area code and boundary edition, metric code, value or null, unit, reference period, value status | Preserve counts, rates, denominators, age bands, and forecast scenarios separately |
 | `GridObservation` | Grid-cell identifier, grid definition/CRS, metric, reference period, value status | Suppressed cells and zero-valued cells differ |
@@ -229,6 +231,7 @@ Public servers apply shared-resource limits; cache broad extractions and follow 
 - Use `GetFeature` with the advertised filtering/paging mechanism. Check total counts where available, repeated pages, missing pages, and provider exception documents, including those returned with HTTP 200.
 - Handle WFS axis order explicitly. Validate known Berlin features before trusting coordinates; GeoJSON output must be longitude/latitude.
 - Every layer has its own field mapping and version. Preserve provider facility IDs and plan statuses without assuming field names before inspection.
+- `berlin_alkis_buildings` reads the live ALKIS `AX_Gebaeude` WFS layer over a configured, complete bounded extent; `AX_Bauteil` parts are excluded. Preserve Polygon/MultiPolygon footprints and documented cadastral attributes, parse `namlag` only as a reference, and never zip `lag` keys to its street labels. `pnr` is a pseudonumber rather than the building's own address. Address matching may be ambiguous; unmatched nearby buildings are informational only. Parcel overlays are a synthetic-tested contract for the sibling ALKIS parcels dataset and do not imply parcel data is currently available.
 - Kita capacity/vacancies remain null unless the source actually provides a dated, documented value. A facility registry supports provision analysis, not a claim that places are available.
 - Use WMS only as a display/reference layer; do not derive numeric scoring data from rendered map colors.
 

@@ -4,12 +4,16 @@ Geometries are WGS84 GeoJSON. Provider-specific CRS conversion, topology and
 cross-dataset completeness checks belong to adapters and ingestion services.
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
 from math import isfinite
 from typing import Any, Mapping, TypeAlias
+
+from shapely.geometry import shape
 
 from .errors import ConfigError, ValidationError
 
@@ -442,17 +446,6 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
-RECORD_TYPES: dict[str, type] = {
-    "area": Area,
-    "area_observation": AreaObservation,
-    "place": Place,
-    "business": Business,
-    "transit_stop": TransitStop,
-    "stop_service": StopService,
-}
-
-
 @dataclass(frozen=True, kw_only=True)
 class NormalizedBatch:
     records: tuple[NormalizedRecord, ...]
@@ -579,3 +572,88 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class Building(Record):
+    """An official ALKIS building footprint (WGS84 Polygon/MultiPolygon). Function is the cadastral
+    building function, not current use; storeys are recorded counts; no floor-area claim."""
+
+    geometry: dict[str, Any]
+    alkis_object_type: str
+    function_code: str | None = None
+    function_label: str | None = None
+    storeys_above_ground: int | None = None
+    storeys_below_ground: int | None = None
+    building_name: str | None = None
+    footprint_area_m2: float | None = None
+    street_codes: tuple[str, ...] = ()
+    address_labels: tuple[str, ...] = ()
+    address_reference_kind: str | None = None
+    source_url: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="building", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("alkis_object_type", self.alkis_object_type)
+        for name in ("function_code", "function_label", "building_name", "address_reference_kind"):
+            _optional_text(name, getattr(self, name))
+        _optional_text("source_url", self.source_url)
+        for name in ("storeys_above_ground", "storeys_below_ground"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValidationError(f"{name} must be a nonnegative integer or null")
+        area = self.footprint_area_m2
+        if area is not None and (
+            isinstance(area, bool)
+            or not isinstance(area, (int, float))
+            or not isfinite(area)
+            or area < 0
+        ):
+            raise ValidationError("footprint_area_m2 must be finite and nonnegative or null")
+        for name in ("street_codes", "address_labels"):
+            values = getattr(self, name)
+            if not isinstance(values, (tuple, list)) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValidationError(f"{name} must contain nonempty strings")
+            object.__setattr__(self, name, tuple(values))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Building geometry must be a Polygon or MultiPolygon")
+        try:
+            geometry = shape(self.geometry)
+        except Exception as exc:
+            raise ValidationError("Building geometry is invalid") from exc
+        if (
+            geometry.is_empty
+            or not geometry.is_valid
+            or geometry.geom_type
+            not in {
+                "Polygon",
+                "MultiPolygon",
+            }
+        ):
+            raise ValidationError("Building geometry must be a valid nonempty polygon")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord: TypeAlias = (
+    Area | AreaObservation | Place | Business | TransitStop | StopService | Building
+)
+RECORD_TYPES: dict[str, type] = {
+    "area": Area,
+    "area_observation": AreaObservation,
+    "place": Place,
+    "business": Business,
+    "transit_stop": TransitStop,
+    "stop_service": StopService,
+    "building": Building,
+}

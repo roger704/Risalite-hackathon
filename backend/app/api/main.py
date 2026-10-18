@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.buildings import create_buildings_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
@@ -145,6 +146,8 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    application.include_router(create_buildings_router(get_service))
 
     @application.get("/api/v1/datasets", response_model=list[DatasetResponse])
     def datasets(data: Annotated[DataService, Depends(get_service)]):
