@@ -34,6 +34,7 @@ from app.research import (
     write_report,
 )
 from app.research.events import Events
+from app.research.fit import derive_fit
 from app.research.locality import address_street, address_terms, cell_terms
 from app.research.toolkit import BUDGET_MESSAGE, Toolkit, match_quote, quote_numbers
 
@@ -170,6 +171,33 @@ def test_research_config_defaults_model_roles_to_nemotron(monkeypatch):
     cfg = ResearchConfig()
     expected = "nvidia/nemotron-3-super-120b-a12b"
     assert cfg.model == cfg.writer_model == cfg.skeptic_model == expected
+
+
+async def test_derive_fit_ignores_area_localized_findings():
+    finding = Finding(
+        finding_id="f_area",
+        claim="A location-independent space concern.",
+        quote="A location-independent space concern.",
+        evidence_ids=["ev_area"],
+        claim_type="fact",
+        localization="area",
+        agent="researcher",
+        status="accepted",
+        verification="verified",
+        hypothesis_id="cafe",
+        dimension="space_fit",
+        stance="against",
+    )
+
+    fit = await derive_fit(
+        "Should a cafe open?",
+        {"hypotheses": [{"id": "cafe", "name": "Café"}]},
+        [finding],
+        Recorder(),
+        ResearchConfig(fake=True),
+    )
+
+    assert fit == {}
 
 
 async def test_fake_research_area(tmp_path, fake_cfg):
@@ -314,6 +342,7 @@ def toolkit(tmp_path) -> tuple[Toolkit, Recorder, str]:
         role="future",
         localizations=["02010101", "area"],
         default_localization="area",
+        place_terms={"02010101": cell_terms("Moritzplatz")},
     )
     return kit, emit, entry["evidence_id"]
 
@@ -489,6 +518,30 @@ async def test_address_localization_requires_house_number(tmp_path, passage, exp
     )
 
     assert kit.accepted[0].localization == expected
+
+
+async def test_empty_address_terms_downgrade_address_localization(tmp_path):
+    passage = "A local business is being discussed."
+    kit, emit, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {"address": address_terms(""), "02010101": ["Askanischer Platz"]},
+        ["address", "02010101", "area"],
+    )
+
+    await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="address",
+    )
+
+    finding = kit.accepted[0]
+    assert finding.localization == "area"
+    assert finding.localization_requested == "address"
+    assert finding.localization_check == "downgraded"
+    assert "localization_downgraded" in emit.types()
 
 
 @pytest.mark.parametrize(

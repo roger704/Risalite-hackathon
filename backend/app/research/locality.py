@@ -11,15 +11,28 @@ _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _DIRECTION = re.compile(
     r"\s+(?:Nordost|Nordwest|Südost|Südwest|Nord|Süd|Ost|West)\s*$", re.IGNORECASE
 )
-_HOUSE_NUMBER = re.compile(r"(?:^|\s)(?P<number>\d+[A-Za-z]?)\s*$")
+_HOUSE_NUMBER = re.compile(r"(?:^|\s)(?P<number>\d+(?:\s*[A-Za-z])?)\s*$")
 
 
 def _tokens(text: str) -> tuple[str, ...]:
+    raw_tokens = _TOKEN.findall(text)
     normalized = []
-    for token in _TOKEN.findall(text):
-        value = normalize_street(token).replace("straße", "strasse")
+    index = 0
+    while index < len(raw_tokens):
+        value = normalize_street(raw_tokens[index]).replace("straße", "strasse")
         if value:
+            if (
+                value.isdigit()
+                and index + 1 < len(raw_tokens)
+                and len(raw_tokens[index + 1]) == 1
+                and raw_tokens[index + 1].isalpha()
+            ):
+                suffix = normalize_street(raw_tokens[index + 1]).replace("straße", "strasse")
+                normalized.append(f"{value}{suffix}")
+                index += 2
+                continue
             normalized.append(value)
+        index += 1
     return tuple(normalized)
 
 
@@ -63,10 +76,13 @@ def _address_parts(address: str | None) -> tuple[str, str | None]:
     if not address:
         return "", None
     street = address.split(",", 1)[0].strip()
+    street = re.sub(r"(?:^|\s+)Berlin\s*$", "", street, flags=re.IGNORECASE).strip()
+    street = re.sub(r"\s+\d{5}\s*$", "", street).strip()
     match = _HOUSE_NUMBER.search(street)
     if match is None:
         return street, None
-    return street[: match.start()].strip(" ,"), match.group("number")
+    number = re.sub(r"\s+", "", match.group("number"))
+    return street[: match.start()].strip(" ,"), number
 
 
 def address_street(address: str | None) -> str | None:
@@ -76,9 +92,10 @@ def address_street(address: str | None) -> str | None:
 
 def address_terms(address: str | None) -> list[str]:
     street, number = _address_parts(address)
-    if not street or not number:
+    if not street:
         return []
-    return _dedupe([f"{street} {number}"], minimum_length=0)
+    term = f"{street} {number}" if number else street
+    return _dedupe([term], minimum_length=0)
 
 
 def mentioned(text: str, terms: Sequence[str]) -> str | None:

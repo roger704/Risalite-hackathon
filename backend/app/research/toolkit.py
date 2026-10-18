@@ -485,13 +485,13 @@ class Toolkit:
         downgrade: tuple[str, str, str] | None = None
         source_text = self._source_text(match.matched)
         terms = self.place_terms.get(loc, ())
-        if loc != "area" and terms:
-            term = mentioned(source_text, terms)
+        if loc != "area":
+            term = mentioned(source_text, terms) if terms else None
             if term is not None:
                 fields["localization_check"] = f"mentioned:{term}"
             else:
                 requested = loc
-                label = terms[0]
+                label = terms[0] if terms else requested
                 new_loc = "area"
                 if loc == "address":
                     cell_id = next(

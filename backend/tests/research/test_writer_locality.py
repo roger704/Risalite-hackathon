@@ -77,6 +77,45 @@ def test_t1_item_accepts_matching_hypothesis_address_finding():
     assert "Address finding [ev_address]." in rendered
 
 
+def test_area_only_finding_cannot_be_cited_in_hypothesis_section():
+    finding = _finding(
+        "area",
+        "ev_area",
+        hypothesis_id="cafe",
+        dimension="space_fit",
+    )
+    result = {
+        "space": {"cell_id": "02010101"},
+        "candidates": {
+            "hypotheses": [
+                {
+                    "id": "cafe",
+                    "name": "Café",
+                    "fit": {"Space fit": {"evidence_ids": ["ev_area"]}},
+                }
+            ]
+        },
+    }
+    report = Report(
+        cells=[
+            CellSection(
+                cell_id="cafe",
+                reasons=[Sentence(text="Area-derived fit claim.", evidence_ids=["ev_area"])],
+            )
+        ]
+    )
+
+    rendered = render(
+        report,
+        result,
+        {"ev_area"},
+        "Test report",
+        findings=[finding],
+    )
+
+    assert "Area-derived fit claim." not in rendered
+
+
 def test_dataset_citations_are_limited_to_item_cell_or_global():
     result = {
         "cells": {

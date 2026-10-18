@@ -107,18 +107,25 @@ def _item_allowed(
     if space_cell:
         item_cells.add(str(space_cell))
     item_citations = _cited_ids(item) & allowed
+    area_citations: set[str] = set()
+    item_finding_citations: set[str] = set()
     allowed_ids = {evidence_id for evidence_id in allowed if evidence_id.startswith("ds_")}
-    allowed_ids.update(item_citations)
     for finding in findings:
         if finding.status == "rejected" or finding.verification == "unsupported":
             continue
         localization = finding.localization
+        finding_citations = set(finding.evidence_ids) & allowed
+        if localization == "area":
+            area_citations.update(finding_citations)
         cell_finding = localization in {cell_id, f"plr:{cell_id}"}
         hypothesis_finding = getattr(
             finding, "hypothesis_id", None
         ) == cell_id and localization in {"address", str(space_cell) if space_cell else None}
         if cell_finding or hypothesis_finding:
-            allowed_ids.update(set(finding.evidence_ids) & allowed)
+            item_finding_citations.update(finding_citations)
+            allowed_ids.update(finding_citations)
+    item_citations -= area_citations - item_finding_citations
+    allowed_ids.update(item_citations)
 
     entries_by_id = {entry.get("evidence_id"): entry for entry in entries}
     known_cells = {

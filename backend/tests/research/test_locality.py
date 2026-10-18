@@ -22,6 +22,23 @@ def test_address_terms_require_the_exact_house_number():
     assert mentioned("Wiener Straße 120 is available.", terms) is None
 
 
+def test_spaced_house_number_suffix_matches_attached_suffix_both_ways():
+    assert (
+        mentioned("Wiener Straße 12 A is available.", ["Wiener Straße 12A"]) == "Wiener Straße 12A"
+    )
+    assert (
+        mentioned("Wiener Straße 12A is available.", ["Wiener Straße 12 A"]) == "Wiener Straße 12 A"
+    )
+    assert mentioned("Wiener Straße 12 Alt is available.", ["Wiener Straße 12A"]) is None
+
+
+def test_address_terms_strip_postcode_and_trailing_city_without_comma():
+    assert address_terms("Wiener Straße 12 10999 Berlin") == ["Wiener Straße 12"]
+    assert address_terms("Wiener Straße 12 Berlin") == ["Wiener Straße 12"]
+    assert address_terms("Wiener Straße") == ["Wiener Straße"]
+    assert address_terms("Berlin") == []
+
+
 def test_cell_terms_include_name_without_trailing_direction():
     terms = cell_terms("Graefekiez Nord")
 
