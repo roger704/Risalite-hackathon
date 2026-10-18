@@ -1,6 +1,6 @@
 # Location intelligence backend
 
-The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, OpenStreetMap points of interest, and bounded ALKIS building footprints. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
+The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, OpenStreetMap points of interest, bounded ALKIS building footprints, and bounded ALKIS parcel data. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
 ## Setup
 
@@ -142,6 +142,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
+| `berlin_alkis_parcels` | [ALKIS Berlin Flurstücke](https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7), WFS `alkis_flurstuecke:flurstuecke` | Reviewed source edition `2026-09-22`; bounded EPSG:25833 extent and monthly updates. `afl` is official source area; geometry area is derived separately. DL-DE-Zero 2.0. |
 | `berlin_bicycle_counts` | [Berlin bicycle-counts page](https://daten.berlin.de/datensaetze/radzahldaten-in-berlin), [hourly workbook](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx) | Reviewed edition `2026-06-25`; hourly values from 35 fixed bicycle counters are normalized to daily totals and configured time-window means. Counts measure bicycle traffic only at those counters, not pedestrian footfall, customers, or revenue, and are not projected onto unobserved streets. Attribution: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin; [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0). |
 
 ### Berlin address points
@@ -433,6 +434,73 @@ The download is about 125 MB. The CSV is streamed; the full October 2026 edition
 IHK records keep `opendata_id` as `record_id`, the supplied `planungsraum_id` as `area_code` (a string, leading zeros kept), the most specific IHK branch code as `industry_code`, the supplied size class as `employees_label`, and `business_age` as `business_age_label`. Size classes become inclusive bounds (`1 - 3 Beschäftigte` → 1–3; `0 Beschäftigte` → 0–0; `10000 und mehr Beschäftigte` → 10,000 with an open upper bound). `unbekannt`, missing, or unrecognized classes give null bounds and a quality flag. The IHK-supplied PLR code is checked against the pinned LOR snapshot and polygon in EPSG:25833 and reported in the manifest coverage; it is never replaced from coordinates.
 
 Categories come from the versioned mapping [`config/categories/ihk_v1.json`](config/categories/ihk_v1.json). `coffee_shop` means IHK branches `56114` (Cafés) and `561141` (Stehcafés). NACE 56.30 *Ausschank von Getränken* is mapped to `bar` (and `56302` to `nightclub`), because its IHK subclasses are pubs, bars, discos and shisha lounges, not cafés. Records classified only as `56`, `561` or `5611` may be cafés, but stay `food_service_unspecified`. Bakeries, coffee retail, coffee roasting, catering and other hospitality and retail classes are separate categories; the remaining codes stay unmapped (`canonical_category` null).
+
+## ALKIS parcels (`berlin_alkis_parcels`)
+
+The reviewed provider layer is the Berlin ALKIS WFS `alkis_flurstuecke:flurstuecke`, licensed [DL-DE-Zero 2.0](https://www.govdata.de/dl-de/zero-2-0). The configuration requests only the fixed EPSG:25833 extent `[387500, 5816500, 392500, 5821500]` (5 × 5 km), 5,000 features per page, at most 10 pages, and 40 MB cumulative raw response bytes. The 11,434 features intersecting this extent are returned as whole parcel geometries; edge parcels can extend beyond the box. Do not change the request to citywide coverage: the service reports 403,526 parcels (approximately 420 MB raw), which needs a tiled/streaming ingestion design. ALKIS ingestion does not accept `--file`.
+
+Each `Parcel` is identified by provider `uuid` (`source_record_id`, with `record_id` `flurstueck:{uuid}`) and exposes the cadastral `fsko` as `parcel_id`. `uuid` is the object identity; `fsko` may change after parcel splits or merges. Identifier and code fields remain strings, preserving leading zeros. `official_area_m2` is the source-provided `afl` (Amtliche Fläche); blank, zero, invalid, or missing values stay null and are flagged. `geometry_area_m2` is computed separately from the source geometry in EPSG:25833. The two measures differ for some parcels (observed `geometry_area_m2 / afl` ratio p50 approximately 0.9995, with outliers from approximately 0.29 to 3.38); the derived area never replaces the official area.
+
+```json
+{
+  "record_type": "parcel",
+  "source_record_id": "DEBE00YY11p000zH",
+  "record_id": "flurstueck:DEBE00YY11p000zH",
+  "parcel_id": "11000102100383____",
+  "cadastral_district_code": "0001",
+  "parcel_numerator": "383",
+  "official_area_m2": 1065.0,
+  "geometry_area_m2": 1064.17,
+  "area_unit": "m2"
+}
+```
+
+Parcel APIs require an explicit `snapshot_id`, expose provenance and quality warnings, and reject unknown query parameters:
+
+```sh
+PARCEL_SNAPSHOT_ID='replace-with-alkis-snapshot_id'
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/at \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'lon=13.4034' \
+  --data-urlencode 'lat=52.4986'
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/in-bbox \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'bbox=13.40,52.49,13.41,52.50' \
+  --data-urlencode 'limit=100'
+curl --fail "http://127.0.0.1:8000/api/v1/parcels/11000102100383____?snapshot_id=$PARCEL_SNAPSHOT_ID"
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/11000102100383____/relations \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'related_dataset_id=berlin_lor' \
+  --data-urlencode 'related_snapshot_id=replace-with-lor-snapshot_id'
+```
+
+The point endpoint returns all parcel matches: shared-boundary points can match multiple features. Polygon relationships are EPSG:25833 geometric intersections; boundary-only touches have no area share. Building, address, and planning records may relate to multiple parcels, and related responses pin both snapshots. This does not assign legal parcel ownership or imply ownership, use, development permission, available premises, commercial tenancy, or an acquisition offer. An address can be looked up by passing its WGS84 point to `/api/v1/parcels/at`; no address-search endpoint is added.
+
+Frontend callers can request the same read API without introducing a frontend integration in this backend change:
+
+```js
+const url = new URL("/api/v1/parcels/at", window.location.origin);
+url.search = new URLSearchParams({
+  snapshot_id: parcelSnapshotId,
+  lon: String(longitude),
+  lat: String(latitude),
+});
+const response = await fetch(url);
+if (!response.ok) throw new Error(`Parcel lookup failed: ${response.status}`);
+const result = await response.json();
+```
+
+Import LOR first and pin its returned snapshot when ingesting the bounded parcel extent:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_alkis_parcels --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+The manifest coverage records the pinned LOR snapshot, extent, parcel count, PLR codes intersecting the extent, and parcels whose representative points fall outside all PLRs. The source is monthly-updated, edition `2026-09-22`; per-feature `beg` dates do not provide a complete historical edition.
+
+Real bounded imports checked **2026-10-18**: LOR published 542 records with 0 rejected in 4.89 seconds (peak RSS 286,892 KB; 812 KB raw and 7.3 MB normalized). ALKIS published 11,434 records, matching `numberMatched=11,434`, with 0 rejected in 16.61 seconds (peak RSS 366,976 KB; 11 MB raw and 10 MB normalized). ALKIS quality counts were 1 missing or invalid official area, 0 geometries repaired after reprojection, and 87 official-to-derived area ratios outside 0.9–1.1.
 
 ## Adding a connector
 

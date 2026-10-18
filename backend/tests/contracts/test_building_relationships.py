@@ -1,8 +1,8 @@
-"""Synthetic-only spatial association tests for ALKIS buildings and future parcels."""
+"""Synthetic-only spatial association tests for ALKIS buildings, addresses, and parcels."""
 
 from shapely.geometry import Point, box, mapping
 
-from app.domain import Address, Building
+from app.domain import Address, Building, Parcel
 from app.geo.buildings import (
     BuildingIndex,
     address_to_buildings,
@@ -28,11 +28,17 @@ def building(record_id, bounds, **changes):
 
 
 def parcel(record_id, bounds):
-    return type(
-        "Parcel",
-        (),
-        {"record_id": record_id, "geometry": mapping(box(*bounds))},
-    )()
+    return Parcel(
+        source_id="berlin_alkis_parcels",
+        snapshot_id="synthetic-parcels",
+        source_record_id=record_id,
+        record_id=f"flurstueck:{record_id}",
+        geometry=mapping(box(*bounds)),
+        parcel_id=f"parcel-{record_id}",
+        cadastral_district_code="11000000",
+        parcel_numerator=record_id,
+        geometry_area_m2=1.0,
+    )
 
 
 def address(record_id, point, street_name, house_number, suffix=None, street_code=None):
@@ -226,21 +232,25 @@ def test_unmatched_address_returns_nearby_candidates_only_as_information():
     assert result["nearby_candidates"][0]["relation"] == "nearby"
 
 
-def test_building_to_parcels_reports_all_overlaps_and_thresholds():
+def test_building_to_parcels_reports_real_parcel_overlaps_and_thresholds():
     footprint = building("b", (13.4, 52.5, 13.401, 52.501))
     first = parcel("p1", (13.4, 52.5, 13.4008, 52.501))
     second = parcel("p2", (13.4008, 52.5, 13.401, 52.501))
     outside = parcel("p3", (13.402, 52.5, 13.403, 52.501))
 
+    assert all(isinstance(item, Parcel) for item in (first, second, outside))
     unique = building_to_parcels(footprint, [first], min_overlap_share=0.01, min_overlap_m2=0.5)
     assert unique["status"] == "unique"
-    assert unique["matches"][0]["record_id"] == "p1"
+    assert unique["matches"][0]["record_id"] == first.record_id
     assert unique["matches"][0]["overlap_m2"] > 0
     assert 0.79 < unique["matches"][0]["share_of_footprint"] < 0.81
 
     multiple = building_to_parcels(footprint, [first, second])
     assert multiple["status"] == "multiple"
-    assert [item["record_id"] for item in multiple["matches"]] == ["p1", "p2"]
+    assert [item["record_id"] for item in multiple["matches"]] == [
+        first.record_id,
+        second.record_id,
+    ]
     assert building_to_parcels(footprint, [outside])["status"] == "none"
     assert (
         building_to_parcels(footprint, [first, second], min_overlap_share=0.5, min_overlap_m2=1)[
