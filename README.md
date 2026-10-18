@@ -19,7 +19,7 @@
 | [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
 
-**Implementation status:** the backend implements the LOR and population connectors, ingestion CLI, snapshots, the read API, the research dashboard over fixture-backed runs, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`). The live research runtime (S1) is planned.
+**Implementation status:** the backend implements Berlin data ingestion and snapshots, the read API, the live S1 deep-research runtime, the research dashboard, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`).
 
 ## Run it
 
@@ -29,6 +29,47 @@ cp .env.example .env            # TAVILY_API_KEY, NEBIUS_API_KEY, NEBIUS_MODEL (
 cd backend && uv sync
 uv run uvicorn app.api.main:app --reload   # dashboard + API on http://127.0.0.1:8000/
 ```
+
+## Live deep research (S1)
+
+### Prerequisites and Berlin snapshots
+
+Install `uv`, use Python 3.11, and provide `NEBIUS_API_KEY` and `TAVILY_API_KEY` through your secret manager for live model and search calls. From the repository root:
+
+```sh
+export LOCATION_DATA_DIR=/home/ubuntu/data/risalite
+cd backend
+LOR_SNAPSHOT_ID=berlin_lor-099dc691163b4bdf82567d4e643fbeee
+uv run --python 3.11 location-data ingest berlin_lor
+uv run --python 3.11 location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_population
+uv run --python 3.11 location-data ingest zensus_grid
+uv run --python 3.11 location-data ingest osm_pois
+uv run --python 3.11 location-data ingest vbb_gtfs
+uv run --python 3.11 location-data ingest ihk_businesses
+uv run --python 3.11 location-data ingest berlin_population_density_blocks --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_addresses
+uv run --python 3.11 location-data ingest berlin_kitas --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_centers --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+### Start and run
+
+Start the dashboard and live API from `backend/`; replace the two secret placeholders with secret-manager references:
+
+```sh
+LOCATION_DATA_DIR=/home/ubuntu/data/risalite RISALITE_RUNS=live \
+RISALITE_AREA_DATA=summary RISALITE_RUNS_DIR=/home/ubuntu/data/risalite/runs \
+NEBIUS_API_KEY='<NEBIUS_API_KEY secret reference>' \
+TAVILY_API_KEY='<TAVILY_API_KEY secret reference>' \
+uv run --python 3.11 uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000/>, ask **“Wo in Kreuzberg sollte ich ein Café eröffnen?”**, review the proposed area and research plan, then approve it to start the run. The planner resolves the area; data and scoring v2 prepare PLR cells; wave-1 and wave-2 researchers gather evidence; fact-checking verifies findings; the skeptic challenges risks; ranking scores the cells; and the writer produces the report. Citations use evidence-ledger IDs (`[ev_…]` for web sources and `[ds_…]` for datasets).
+
+Each `RISALITE_RUNS_DIR/<run_id>/` contains the report, result, plan, cells, evidence ledger, findings, fact-check output, event and trace logs, metrics, and run metadata (for example, `report.md`, `result.json`, `plan.json`, `cells.json`, `evidence.jsonl`, `findings.jsonl`, `factcheck.json`, `events.jsonl`, `trace.jsonl`, `metrics.json`, and `run.json`).
+
+For an offline run with local snapshots, set `RISALITE_RESEARCH_FAKE=1`; this uses deterministic fake research instead of Nebius or Tavily calls.
 
 Check the citations of a run (report marker → ledger entry → URL resolves → quote re-matches):
 
