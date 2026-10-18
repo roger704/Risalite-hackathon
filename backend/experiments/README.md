@@ -1,6 +1,6 @@
 # Deep research experiment
 
-A minimal, portable research loop: a [DeepAgents](https://github.com/langchain-ai/deepagents) agent reasons with a model on **Nebius Token Factory** (`langchain-nebius`) and searches the live web with **Tavily** (`langchain-tavily`). It has no Risalite business logic yet.
+A minimal, portable research loop: a [DeepAgents](https://github.com/langchain-ai/deepagents) agent reasons with a model on **Nebius Token Factory** (`langchain-nebius`) and searches the live web with **Tavily** (`langchain-tavily`). The agent runs as **Spotwise** (`SYSTEM_PROMPT` in `deep_research.py`): it classifies a question as POINT, LOCATION or GAP and returns a sourced recommendation with counter-evidence, unknowns and provisional 0–10 scores. For now it uses web search only; structured Berlin datasets and a defined scoring model will come later.
 
 ```
 question ─▶ Deep Agent ─▶ Nebius Token Factory (reasoning) ─▶ Tavily (web_search) ─▶ sourced markdown report
@@ -16,7 +16,7 @@ Copy `.env.example` to `.env` in this directory and fill in the keys. `.env` is 
 | --- | --- |
 | `NEBIUS_API_KEY` | required |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` |
-| `NEBIUS_MODEL` | `MiniMaxAI/MiniMax-M3` |
+| `NEBIUS_MODEL` | `nvidia/Nemotron-3.5-Super-VL` |
 | `TAVILY_API_KEY` | required |
 
 ## Run locally
@@ -49,6 +49,19 @@ docker run --rm --env-file .env risalite-research \
 ```
 
 The image is `python:3.12-slim`, installs only the locked runtime dependencies, runs as a non-root user, and contains no credentials; they are supplied at run time with `--env-file`.
+
+## Web UI
+
+`ui.py` serves a single page, `ui.html` (titled *Spotwise · by Risalite*), using the Python standard library HTTP server. You type a question and watch the Tavily searches as they run. The result shows three scored hypothesis cards (score, per-criterion bars, why it fits, risks, and source links), a Sources card, the verification result, and the full report in a collapsible section. It uses the same `run_research()` as the CLI and has no extra dependencies.
+
+```sh
+uv run python ui.py                         # http://127.0.0.1:8000
+
+docker run --rm --env-file .env -p 127.0.0.1:8000:8000 \
+  --entrypoint python risalite-research ui.py --host 0.0.0.0
+```
+
+The UI has no authentication and runs one research job at a time; a second request gets `409`. Keep it bound to localhost. On a Nebius VM, use the Docker command above and open it from your machine through an SSH tunnel (`ssh -L 8000:127.0.0.1:8000 <user>@<vm-public-ip>`, then browse to http://127.0.0.1:8000) instead of opening the port to the internet.
 
 ## Deploy on a CPU-only Nebius Cloud VM
 

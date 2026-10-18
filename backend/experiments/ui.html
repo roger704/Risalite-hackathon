@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spotwise · by Risalite</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f3ff; --bg2: #ecfeff; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #7c3aed; --accent2: #06b6d4; --ok: #059669; --warn: #d97706; --bad: #dc2626;
+    --chip: #f3f0ff; --track: #ede9fe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1b2e; --bg2: #0f1f24; --card: #262338; --text: #f3f4f6; --muted: #a1a1aa;
+            --border: #3f3a56; --chip: #332e4a; --track: #3b3556; }
+  }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 2.5rem 1rem 4rem;
+         color: var(--text); background: linear-gradient(160deg, var(--bg), var(--bg2)) fixed; min-height: 100vh; }
+  main { max-width: 920px; margin: 0 auto; }
+  a { color: var(--accent); }
+  header { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.4rem; }
+  .logo { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center;
+          background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 8px 20px -8px var(--accent); }
+  h1 { font-size: 1.7rem; margin: 0; letter-spacing: -.02em; }
+  .by { color: var(--muted); font-size: .9rem; margin: 0; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 1rem 1.2rem;
+           box-shadow: 0 10px 30px -18px rgba(76, 29, 149, .35); }
+  form { display: flex; gap: .6rem; }
+  input { flex: 1; padding: .8rem 1rem; font: inherit; color: inherit; background: transparent;
+          border: 1px solid var(--border); border-radius: 999px; outline: none; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--track); }
+  button { padding: .8rem 1.4rem; font: inherit; font-weight: 600; border: 0; border-radius: 999px; color: #fff; cursor: pointer;
+           background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  button:disabled { opacity: .55; cursor: progress; }
+  .hint { color: var(--muted); font-size: .85rem; margin: .6rem .3rem 0; }
+  #status { display: inline-block; margin: 1.2rem 0 .6rem; padding: .35rem .9rem; border-radius: 999px; font-weight: 600;
+            font-size: .9rem; background: var(--chip); }
+  #status:empty { display: none; }
+  #status.ok { color: var(--ok); } #status.fail { color: var(--bad); }
+  details { margin-top: .8rem; }
+  summary { cursor: pointer; font-weight: 600; }
+  #log { font: 12.5px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 240px; overflow: auto; margin: .6rem 0 0; color: var(--muted); }
+  h2.section { font-size: 1.15rem; margin: 1.8rem 0 .8rem; }
+  #hypotheses { display: grid; gap: 1rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 1.1rem 1.3rem;
+          box-shadow: 0 10px 30px -20px rgba(76, 29, 149, .4); }
+  .card-head { display: flex; gap: 1rem; align-items: center; }
+  .rank { flex: none; width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; font-weight: 700;
+          color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .card-title { flex: 1; min-width: 0; }
+  .card h3 { margin: 0; font-size: 1.1rem; line-height: 1.3; }
+  .where { color: var(--muted); font-size: .88rem; margin-top: .15rem; }
+  .ring { flex: none; width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center;
+          background: conic-gradient(var(--accent) calc(var(--v) * 1%), var(--track) 0); }
+  .ring span { width: 52px; height: 52px; border-radius: 50%; background: var(--card); display: grid; place-items: center;
+               font-weight: 800; font-size: 1.15rem; line-height: 1; }
+  .ring small { display: block; font-size: .62rem; font-weight: 500; color: var(--muted); }
+  .summary { margin: .8rem 0 .9rem; }
+  .bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .45rem 1rem; margin-bottom: .9rem; }
+  .bar { font-size: .8rem; color: var(--muted); }
+  .bar .track { height: 7px; border-radius: 999px; background: var(--track); margin-top: .2rem; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } form { flex-direction: column; } }
+  .cols h4 { margin: 0 0 .3rem; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; }
+  .cols ul { margin: 0; padding-left: 1.1rem; font-size: .92rem; }
+  .fit h4 { color: var(--ok); } .risk h4 { color: var(--warn); }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .9rem; }
+  .chip { font-size: .8rem; padding: .25rem .65rem; border-radius: 999px; background: var(--chip); text-decoration: none;
+          max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note { color: var(--muted); font-size: .85rem; margin: .8rem .2rem 0; }
+  #sources ol { margin: 0; padding-left: 1.3rem; }
+  #sources li { margin: .35rem 0; }
+  #sources .domain { color: var(--muted); font-size: .82rem; margin-left: .35rem; }
+  #report { margin-top: .8rem; }
+  #report a { word-break: break-word; }
+  #report h1, #report h2, #report h3 { margin: 1.2em 0 .4em; line-height: 1.25; }
+  #report table { border-collapse: collapse; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>
+      </svg>
+    </div>
+    <div><h1>Spotwise</h1><p class="by">by Risalite &middot; evidence-backed business opportunities in Berlin</p></div>
+  </header>
+  <div class="panel">
+    <form id="form">
+      <input id="question" required maxlength="2000" autocomplete="off"
+             value="I have a vacant 60 m² shop on Weserstraße in Neukölln. What business fits there? I'm a trained barista with an 80k EUR budget.">
+      <button id="run" type="submit">Find opportunities</button>
+    </form>
+    <p class="hint">Describe a place, a business idea, or a gap you want to fill. Spotwise searches the web and scores three hypotheses.</p>
+  </div>
+  <div id="status"></div>
+  <details id="progress" class="panel" hidden open><summary>Research progress</summary><pre id="log"></pre></details>
+  <section id="results" hidden>
+    <h2 class="section">Top business hypotheses</h2>
+    <div id="hypotheses"></div>
+    <p class="note" id="scorenote"></p>
+    <h2 class="section">Sources</h2>
+    <div id="sources" class="card"></div>
+    <details class="panel"><summary>Full research report</summary><article id="report"></article></details>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function formatText(s) {
+  return escapeHtml(s)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function linkHtml(url, labelHtml) {
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${labelHtml}</a>`;
+}
+
+// End index of a URL starting at i; parentheses must balance, an unmatched ")" ends it.
+function scanUrl(s, i) {
+  let depth = 0;
+  for (; i < s.length; i++) {
+    const c = s[i];
+    if (/[\s"<>]/.test(c)) break;
+    if (c === "(") depth++;
+    else if (c === ")") { if (!depth) break; depth--; }
+  }
+  return i;
+}
+
+function inline(text) {
+  const re = /\[([^\[\]]+)\]\((?=https?:\/\/)|https?:\/\//g;
+  let out = "", last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m[1] !== undefined) {
+      const start = m.index + m[0].length, end = scanUrl(text, start);
+      if (text[end] !== ")") continue;
+      out += formatText(text.slice(last, m.index)) + linkHtml(text.slice(start, end), formatText(m[1]));
+      last = re.lastIndex = end + 1;
+    } else {
+      if (m.index > 0 && /[\w\/]/.test(text[m.index - 1])) continue;
+      let end = scanUrl(text, m.index);
+      while (end > m.index && /[.,;:!?]/.test(text[end - 1])) end--;
+      const url = text.slice(m.index, end);
+      out += formatText(text.slice(last, m.index)) + linkHtml(url, escapeHtml(url));
+      last = re.lastIndex = end;
+    }
+  }
+  return out + formatText(text.slice(last));
+}
+
+function renderMarkdown(md) {
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of md.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+      closeList();
+      const level = Math.min(m[1].length + 1, 4);
+      out.push(`<h${level}>${inline(m[2])}</h${level}>`);
+    } else if ((m = line.match(/^\s*[-*+]\s+(.*)$/)) || (m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      const tag = /^\s*\d/.test(line) ? "ol" : "ul";
+      if (list !== tag) { closeList(); out.push(`<${tag}>`); list = tag; }
+      out.push(`<li>${inline(m[1])}</li>`);
+    } else if (!line.trim()) {
+      closeList();
+    } else {
+      closeList();
+      out.push(`<p>${inline(line)}</p>`);
+    }
+  }
+  closeList();
+  return out.join("\n");
+}
+
+const LABELS = { demand: "Demand", competition_gap: "Competition gap", location_fit: "Location fit",
+                 operator_fit: "Operator fit", cost_risk: "Cost/risk" };
+
+function safeUrl(u) {
+  return typeof u === "string" && /^https?:\/\//i.test(u) ? u : null;
+}
+
+function domainOf(u) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; }
+}
+
+function list(items) {
+  return (items || []).length ? `<ul>${items.map(x => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`
+                              : `<p class="note">Not stated in the report.</p>`;
+}
+
+function renderHypotheses(items, weights, titles) {
+  const keys = Object.keys(LABELS);
+  return (items || []).map((h, i) => {
+    const total = Number(h.total) || 0;
+    const bars = keys.map(k => {
+      const v = Number((h.scores || {})[k]) || 0;
+      return `<div class="bar">${LABELS[k]} · ${v}/10 <span>(${Math.round(Number((weights || {})[k]) * 100)}%)</span>
+        <div class="track"><div class="fill" style="width:${v * 10}%"></div></div></div>`;
+    }).join("");
+    const chips = (h.evidence || []).map(safeUrl).filter(Boolean).map(u =>
+      `<a class="chip" href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(titles[u] || u)}">${escapeHtml(domainOf(u))}</a>`).join("");
+    return `<div class="card">
+      <div class="card-head">
+        <div class="rank">${i + 1}</div>
+        <div class="card-title"><h3>${escapeHtml(String(h.title || ""))}</h3>
+          ${h.location ? `<div class="where">${escapeHtml(String(h.location))}</div>` : ""}</div>
+        <div class="ring" style="--v:${Math.min(100, Math.max(0, total))}"><span>${total}<small>/100</small></span></div>
+      </div>
+      <p class="summary">${escapeHtml(String(h.summary || ""))}</p>
+      <div class="bars">${bars}</div>
+      <div class="cols"><div class="fit"><h4>Why it fits</h4>${list(h.why_it_fits)}</div>
+        <div class="risk"><h4>Risks &amp; unknowns</h4>${list(h.risks)}</div></div>
+      ${chips ? `<div class="chips">${chips}</div>` : ""}
+    </div>`;
+  }).join("") || `<div class="card"><p class="note">No scored hypotheses: the report did not pass the citation check, so nothing was scored.</p></div>`;
+}
+
+function renderSources(sources) {
+  const items = (sources || []).filter(s => safeUrl(s.url)).map(s =>
+    `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.title || domainOf(s.url))}</a>
+      <span class="domain">${escapeHtml(domainOf(s.url))}</span></li>`).join("");
+  return items ? `<ol>${items}</ol>` : `<p class="note">No sources cited.</p>`;
+}
+
+function setStatus(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+
+$("form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("run").disabled = true;
+  $("log").textContent = "";
+  $("report").innerHTML = "";
+  $("results").hidden = true;
+  $("progress").hidden = false;
+  $("progress").open = true;
+  setStatus("Researching… this usually takes about a minute.");
+  try {
+    const response = await fetch("/api/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", result = null;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const event = JSON.parse(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
+        if (event.type === "log") {
+          $("log").textContent += event.message + "\n";
+          $("log").scrollTop = $("log").scrollHeight;
+        } else if (event.type === "result") {
+          result = event;
+        }
+      }
+    }
+    if (!result) throw new Error("connection closed before a result was returned");
+    if (result.error) {
+      setStatus(`Error: ${result.error}`, "fail");
+    } else {
+      setStatus(result.ok ? "Verified: Nebius inference, Tavily searches and inline citations"
+                          : "Verification failed: report lacks inline Tavily citations", result.ok ? "ok" : "fail");
+      const titles = Object.fromEntries((result.sources || []).map(s => [s.url, s.title]));
+      $("hypotheses").innerHTML = renderHypotheses(result.hypotheses, result.weights, titles);
+      $("scorenote").textContent = (result.ranking_note ? `Note: ${result.ranking_note} ` : "") +
+        "Score = weighted 0–10 ratings × 10. Decision support, not a probability of success.";
+      $("sources").innerHTML = renderSources(result.sources);
+      $("report").innerHTML = renderMarkdown(result.report || "");
+      $("results").hidden = false;
+      $("progress").open = false;
+    }
+  } catch (err) {
+    setStatus(`Error: ${err.message}`, "fail");
+  } finally {
+    $("run").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
