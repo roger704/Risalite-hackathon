@@ -12,6 +12,9 @@ ADAPTERS: dict[str, str] = {
     "ihk": "app.connectors.ihk:IHKConnector",
     "gtfs": "app.connectors.gtfs:GTFSConnector",
     "berlin_wfs": "app.connectors.berlin_wfs:BerlinWFSConnector",
+    "berlin_environment": "app.connectors.berlin_environment:BerlinEnvironmentConnector",
+    "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
+    "households": "app.connectors.households:HouseholdsConnector",
     "berlin_alkis_buildings": "app.connectors.berlin_alkis_buildings:BerlinALKISBuildingsConnector",
 }
 
