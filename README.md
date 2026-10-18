@@ -96,7 +96,7 @@ cd backend && uv run python ../scripts/verify_citations.py ../frontend/fixtures 
 | `matching.py` | Shared quote matcher: verified ≥ 0.85, partial ≥ 0.60 |
 | `factcheck.py` | Re-fetch per source (Tavily extract / HTTP with per-hop SSRF checks / allow-listed WFS + Overpass re-query / snapshot re-read); writes `factcheck.json`, `findings.jsonl` verification, `fact_check` trace events, strips uncited markers from `report.md` and appends "Could not verify" |
 | `judge.py` | Score used by `scripts/verify_citations.py` |
-## Data connectors
+
 ## Data connectors
 
 The backend imports each dataset into an immutable local snapshot with provenance (source URL, retrieval time, licence, attribution, quality report). Nothing is downloaded at query time. Configurations live in [`backend/config/datasets/`](backend/config/datasets/); design rules are in the [connector blueprint](CONNECTOR_BLUEPRINT.md).
@@ -149,6 +149,7 @@ All `records` commands also exist as `GET /api/v1/datasets/{dataset_id}/records?
 - Straight-line distances are never walking times.
 - Development plans, addresses, buildings and parcels say nothing about vacancy, tenants, permitted use or rentable area. Wohnlage is not income or rent.
 - Census grid (`zensus_grid`) and register population (`berlin_population`) must not be mixed.
+
 ## Input flow (Gemini-Deep-Research-style)
 
 1. **Free question** in a text box (+ optional role).
