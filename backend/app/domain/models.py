@@ -866,6 +866,61 @@ class GridObservation(Record):
         _optional_text("area_code", self.area_code)
 
 
+@dataclass(frozen=True, kw_only=True)
+class Facility(Record):
+    """A registered facility at a WGS84 point. Capacity and vacancies are nullable;
+    a present value needs its own definition and ISO reference date."""
+
+    geometry: dict[str, Any]
+    facility_type: str
+    provider_facility_id: str
+    original_category: str
+    category_mapping_version: str
+    canonical_category: str | None = None
+    name: str | None = None
+    capacity: int | None = None
+    capacity_definition: str | None = None
+    capacity_reference_date: str | None = None
+    vacancies: int | None = None
+    vacancies_reference_date: str | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="facility", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "facility_type",
+            "provider_facility_id",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("canonical_category", "name", "capacity_definition", "area_code"):
+            _optional_text(name, getattr(self, name))
+        for value, reference in (
+            ("capacity", "capacity_reference_date"),
+            ("vacancies", "vacancies_reference_date"),
+        ):
+            _optional_count(value, getattr(self, value))
+            reference_date = getattr(self, reference)
+            if reference_date is not None:
+                try:
+                    date.fromisoformat(reference_date)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{reference} must be an ISO calendar date") from exc
+            if getattr(self, value) is not None and reference_date is None:
+                raise ValidationError(f"{value} requires {reference}")
+        if self.capacity is not None and self.capacity_definition is None:
+            raise ValidationError("capacity requires capacity_definition")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
 NormalizedRecord: TypeAlias = (
     Area
     | AreaObservation
@@ -877,6 +932,7 @@ NormalizedRecord: TypeAlias = (
     | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
+    | Facility
     | Building
     | ResidentialLocationClass
 )
@@ -892,6 +948,7 @@ RECORD_TYPES: dict[str, type] = {
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
+    "facility": Facility,
     "building": Building,
 }
 
