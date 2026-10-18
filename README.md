@@ -2,6 +2,12 @@
 
 **Challenge:** Agentic Deep Research with Nebius Token Factory & Tavily
 
+## Demo video
+
+▶ **[SpotWise_demo.mp4](docs/video/SpotWise_demo.mp4)** (1:57, captions) · [version without captions](docs/video/SpotWise_demo_nocaptions.mp4) · [timing of each section](docs/video/README.md)
+
+A run of "Where is it smart to open a coffee place in Kreuzberg?" from plan and approval through the research trace to the cited dashboard, then slides on how the deep research flow works ([deep research flow spec, PR #16](https://github.com/roger704/Risalite-hackathon/pull/16)).
+
 **Risalite** (formerly PlotScout) is an agentic deep-research tool for Berlin. The user types a free question about a place or an area; the planner classifies it, proposes a research plan and sources, waits for approval, runs parallel researchers over Berlin open geodata (WFS/Overpass) and the web (Tavily), fact-checks every claim, and returns a one-page dashboard: summary, ranked findings, an interactive map, sources, and trace.
 
 **"Don't just research a location. Discover where opportunity exists."**
@@ -19,7 +25,7 @@
 | [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
 
-**Implementation status:** the backend implements Berlin data ingestion and snapshots, the read API, the live S1 deep-research runtime, the research dashboard, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`).
+**Implementation status:** the backend implements 21 data connectors, walking routing, research clients, Berlin data ingestion and snapshots, the read API, the live S1 deep-research runtime, the research dashboard, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`).
 
 ## Run it
 
@@ -31,6 +37,8 @@ uv run uvicorn app.api.main:app --reload   # dashboard + API on http://127.0.0.1
 ```
 
 ## Live deep research (S1)
+
+Spec: [Deep Research Spec](docs/01_Architecture/Deep_Research_Spec.md).
 
 ### Prerequisites and Berlin snapshots
 
@@ -89,6 +97,7 @@ cd backend && uv run python ../scripts/verify_citations.py ../frontend/fixtures 
 | `factcheck.py` | Re-fetch per source (Tavily extract / HTTP with per-hop SSRF checks / allow-listed WFS + Overpass re-query / snapshot re-read); writes `factcheck.json`, `findings.jsonl` verification, `fact_check` trace events, strips uncited markers from `report.md` and appends "Could not verify" |
 | `judge.py` | Score used by `scripts/verify_citations.py` |
 ## Data connectors
+## Data connectors
 
 The backend imports each dataset into an immutable local snapshot with provenance (source URL, retrieval time, licence, attribution, quality report). Nothing is downloaded at query time. Configurations live in [`backend/config/datasets/`](backend/config/datasets/); design rules are in the [connector blueprint](CONNECTOR_BLUEPRINT.md).
 
@@ -140,7 +149,6 @@ All `records` commands also exist as `GET /api/v1/datasets/{dataset_id}/records?
 - Straight-line distances are never walking times.
 - Development plans, addresses, buildings and parcels say nothing about vacancy, tenants, permitted use or rentable area. Wohnlage is not income or rent.
 - Census grid (`zensus_grid`) and register population (`berlin_population`) must not be mixed.
-
 ## Input flow (Gemini-Deep-Research-style)
 
 1. **Free question** in a text box (+ optional role).
