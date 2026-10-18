@@ -78,6 +78,57 @@ Frozen contracts (see the spec): HTTP API (`POST /research`, `POST /runs/{id}/ap
 | 17:45–18:30 | Phase 4 — record and **submit video by 18:30** |
 | 18:30–20:00 | Phase 5 — grand-final prep (final at 20:00) |
 
+## Run the demo
+
+```sh
+git clone https://github.com/roger704/Risalite-hackathon.git && cd Risalite-hackathon
+cp .env.example .env          # fill in TAVILY_API_KEY, NEBIUS_API_KEY, NEBIUS_MODEL (never commit .env)
+cd backend && uv sync
+uv run uvicorn app.api.main:app --reload   # one command: API (+ dashboard once S1/S3 land)
+```
+
+Then open the dashboard at `http://localhost:8000`. Until the S1 API and S3 dashboard are integrated, the clickable mockup is served with `python3 -m http.server 8765 --directory frontend/mockup` (see [frontend/mockup/README.md](frontend/mockup/README.md)). Data snapshots are imported with `uv run location-data ingest <dataset>` ([backend README](backend/README.md)).
+
+Example questions:
+
+- **Area (T2):** "Where is it smart to open a coffee place in Kreuzberg?"
+- **Point (T1):** "This storefront at Wiener Straße 12 just became available — what is the best use?" (optional operator profile, e.g. "6 years bakery experience")
+
+Judge a finished run for citation integrity (every `[n]` maps to a ledger entry, every URL resolves, every quote is found on re-fetch; exits non-zero below the threshold):
+
+```sh
+cd backend && uv run python ../scripts/verify_citations.py ../runs/<id> --threshold 0.9
+```
+
+### Architecture
+
+```mermaid
+flowchart LR
+  Q[Free question] --> C[Classifier] --> P[Planner] --> A{User approves plan}
+  A --> DR[Data researcher<br/>gdi.berlin WFS · OSM · IHK · VBB snapshots]
+  A --> WR[Web researchers<br/>Tavily search + extract]
+  DR --> L[(evidence.jsonl<br/>ledger e1, e2, …)]
+  WR --> L
+  L --> S[Skeptic] --> F[Fact-checker<br/>re-fetch · fuzzy quote ≥ 0.85]
+  F -->|verified / partial| W[Writer] --> R[report.md + cells.json / candidates.json]
+  F -->|unsupported| X[Could not verify appendix]
+  R --> D[Dashboard: summary · top-3 · heatmap · sources · trace]
+  P & DR & WR & S & F & W -.-> T[(trace.jsonl)]
+```
+
+### Model per role (configurable)
+
+| Role | Default model | Notes |
+|---|---|---|
+| Classifier / Planner | `gpt-oss-120b` | Nebius Token Factory; set via `NEBIUS_MODEL` / config |
+| Data researcher | — | deterministic tool calls (WFS, local snapshots), no LLM |
+| Web researcher | Nemotron Lightning | Tavily `search` (domain-restricted first) + `extract` |
+| Skeptic | `gpt-oss-120b` | risks with quote, severity, `claim_type` |
+| Fact-checker | — | Tavily `extract` / WFS re-query / snapshot re-read + `difflib` fuzzy match |
+| Writer | Beam | ledger ids only; post-processor strips `[n]` not in the ledger |
+
+Model IDs are configuration, not code: change them in the backend config / `.env` without touching the agents.
+
 ## Two-minute demo storyboard
 
 0:00 type "Where is it smart to open a coffee place in Kreuzberg?" → 0:10 planner classifies `location`, shows the plan with layers, web sources, and skipped hystreet/Google Places slots → 0:25 click *Approve* → 0:30 trace streams WFS calls and Tavily searches with *why* → 1:00 fact-checker rejects one web claim, planner re-plans → 1:15 dashboard: summary, top-3, heatmap → 1:30 toggle *Present + future*, untick *competition*, ranking changes → 1:45 click three citations (WFS URL, IHK/berlin.de page, news page) → 2:00 self-grade. Closing switch: point path or Kita.
