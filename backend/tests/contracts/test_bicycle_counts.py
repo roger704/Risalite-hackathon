@@ -81,6 +81,15 @@ def test_normalizes_station_identity_status_dst_and_duplicate_periods():
     assert quality.valid
     assert batch.rejected_rows == 0
     assert len({record.location_id for record in batch.records}) == 5
+    assert not any(
+        record.aggregation == "day" and 2020 <= int(record.interval_start[:4]) <= 2022
+        for record in batch.records
+    )
+    assert any(
+        warning.startswith("configured years without source rows:")
+        and all(year in warning for year in ("2020", "2021", "2022"))
+        for warning in batch.warnings
+    )
     assert _record(batch, "day:17-SK-BRE-O:2024-01-01").value == 191
     assert _record(batch, "day:17-SK-BRE-O:2024-01-01").direction == "east"
     conflict = _record(batch, "day:17-SK-BRE-O:2024-01-01")

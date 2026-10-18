@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.mobility import station_layer
 from app.application.service import DataService
-from app.domain import ConnectorError, NotFoundError, SnapshotManifest
+from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
+from app.domain.models import MobilityObservation
 from app.export import EXPORT_FORMATS, Mix, load_run
 
 
@@ -35,7 +36,7 @@ class RecordsResponse(BaseModel):
     coverage: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     attribution: list[dict[str, Any]] = Field(default_factory=list)
-    records: list[dict[str, Any]]
+    records: list[NormalizedRecord | MobilityObservation]
     count: int = Field(ge=0)
     next_cursor: str | None = None
 

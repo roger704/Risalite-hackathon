@@ -60,6 +60,18 @@ async def test_ingestion_records_and_counter_layer_api(tmp_path):
         assert properties["window_label"] == "All hours"
         assert "not footfall or customers" in properties["label"]
 
+        service.configs["berlin_bicycle_counts"].parser_options["windows"] = []
+        historical_layer = client.get(
+            "/api/v1/datasets/berlin_bicycle_counts/layers/counters",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "window_id": "all_hours",
+                "year": 2025,
+            },
+        )
+        assert historical_layer.status_code == 200
+        assert historical_layer.json()["features"][0]["properties"]["window_label"] == "All hours"
+
         invalid_window = client.get(
             "/api/v1/datasets/berlin_bicycle_counts/layers/counters",
             params={

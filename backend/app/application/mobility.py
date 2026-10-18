@@ -12,16 +12,6 @@ def station_layer(service, dataset_id: str, snapshot_id: str, window_id: str, ye
     config = service._config(dataset_id)
     if config.adapter != "bicycle_counts":
         raise ConnectorError("INVALID_FILTER", "Counter layers require a mobility dataset")
-    window = next(
-        (
-            item
-            for item in config.parser_options.get("windows", [])
-            if item.get("window_id") == window_id
-        ),
-        None,
-    )
-    if window is None:
-        raise ConnectorError("INVALID_FILTER", "Unknown bicycle-count window")
     manifest = service.catalog.get(dataset_id, snapshot_id)
     table = pq.read_table(
         service._snapshot_path(manifest),
@@ -33,9 +23,17 @@ def station_layer(service, dataset_id: str, snapshot_id: str, window_id: str, ye
             pc.ends_with(table["record_id"], f":{year}"),
         )
     )
+    selected_records = [
+        json.loads(encoded) for encoded in selected.column("record_json").to_pylist()
+    ]
+    if not selected_records or any(
+        record.get("record_type") != "mobility_observation" for record in selected_records
+    ):
+        raise ConnectorError(
+            "INVALID_FILTER", "No counter records for window/year in this snapshot"
+        )
     features = []
-    for encoded in selected.column("record_json").to_pylist():
-        record = json.loads(encoded)
+    for record in selected_records:
         expected = record["expected_intervals"]
         usable = record["observed_intervals"] + record["reconstructed_intervals"]
         features.append(
@@ -56,8 +54,8 @@ def station_layer(service, dataset_id: str, snapshot_id: str, window_id: str, ye
                     "implausible_intervals": record["implausible_intervals"],
                     "missing_intervals": record["missing_intervals"],
                     "quality_flags": record["quality_flags"],
-                    "window_id": window_id,
-                    "window_label": window["label"],
+                    "window_id": record["window_id"],
+                    "window_label": record["attributes"]["label"],
                     "label": (
                         "Observed bicycle counts at this counter only — not footfall or customers"
                     ),

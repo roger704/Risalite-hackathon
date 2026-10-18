@@ -388,6 +388,13 @@ class BicycleCountsConnector(FileConnector):
             if any(self._autumn_change_day(day, zone) for day in all_dates):
                 warnings.append("Autumn repeated-hour handling is undocumented by the source.")
 
+            missing_years = sorted(set(years) - set(year_dates))
+            if missing_years:
+                warnings.append(
+                    "configured years without source rows: "
+                    + ", ".join(str(year) for year in missing_years)
+                )
+
             records = []
             data_years = sorted(year_dates)
             if first_date is not None and last_date is not None:
@@ -397,7 +404,7 @@ class BicycleCountsConnector(FileConnector):
                     if start > last_date:
                         continue
                     for day in self._date_range(start, last_date):
-                        if day.year not in years:
+                        if day.year not in years or day.year not in year_dates:
                             continue
                         totals = day_totals[(station_id, day)]
                         expected = 24 - int(self._spring_gap_day(day, zone))
