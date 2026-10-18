@@ -114,11 +114,6 @@ def canonicalize_url(url: str) -> str:
     except ValueError as exc:
         raise ValidationError("URL has an invalid port") from exc
     netloc = hostname
-    if parsed.username is not None:
-        auth = parsed.username
-        if parsed.password is not None:
-            auth += f":{parsed.password}"
-        netloc = f"{auth}@{netloc}"
     if port is not None and not (
         (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
     ):

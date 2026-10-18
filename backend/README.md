@@ -107,9 +107,11 @@ The backend includes offline-testable Tavily search/extraction and Nebius struct
 
 Configure provider credentials in the runtime environment; keys are never included in URLs, logs, or config representations:
 
-| Variable | Required | Default / purpose |
+| Setting | Required | Default / purpose |
 |---|---|---|
 | `TAVILY_API_KEY` | Yes to use Tavily | Tavily bearer credential |
+| `TavilyConfig.timeout_seconds` | No | HTTP client timeout in seconds (default 30; finite and positive; must exceed extraction timeout when configured) |
+| `TavilyConfig.extract_timeout_seconds` | No | Optional provider-side extraction timeout in seconds (unset by default and omitted from requests; range 1–60) |
 | `NEBIUS_API_KEY` | Yes to use Nebius | Nebius Token Factory bearer credential |
 | `NEBIUS_MODEL` | Yes to use Nebius | Account-enabled model identifier; there is no hard-coded model |
 | `NEBIUS_BASE_URL` | No | `https://api.tokenfactory.nebius.com/v1/` |

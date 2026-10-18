@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from app.connectors.tavily import TavilyClient, TavilyConfig, validate_public_url
-from app.domain.errors import ConnectorError, SourceUnavailableError
+from app.domain.errors import ConfigError, ConnectorError, SourceUnavailableError
 from app.domain.research import (
     BudgetExceededError,
     ExtractionStatus,
@@ -27,6 +27,17 @@ async def public_resolver(host, port):
 
 def response(data, status=200, headers=None):
     return httpx.Response(status, json=data, headers=headers)
+
+
+def test_config_separates_http_and_extract_timeouts():
+    assert config(timeout_seconds=90).timeout_seconds == 90
+    assert config(timeout_seconds=10, extract_timeout_seconds=9.5).extract_timeout_seconds == 9.5
+    for invalid in (0.5, 60.1, float("inf"), True):
+        with pytest.raises(ConfigError):
+            config(timeout_seconds=90, extract_timeout_seconds=invalid)
+    for http_timeout, extract_timeout in ((0, None), (30, 30), (30, 40)):
+        with pytest.raises(ConfigError):
+            config(timeout_seconds=http_timeout, extract_timeout_seconds=extract_timeout)
 
 
 @pytest.mark.asyncio
@@ -115,12 +126,67 @@ async def test_extract_maps_partial_provider_results_and_missing_urls():
     assert page.evidence[0].passage == "Full page"
     assert page.evidence[0].snippet is None
     assert page.evidence[0].extraction_status is ExtractionStatus.OK
+    assert page.evidence[0].passage_locator == {
+        "type": "char_range",
+        "start": 0,
+        "end": 9,
+        "source_length": 9,
+    }
     assert page.evidence[1].failure_reason == "provider says no"
     assert page.evidence[2].failure_reason == "missing_from_provider_response"
     assert {item["reason"] for item in page.failures} == {
         "provider says no",
         "missing_from_provider_response",
     }
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_matches_provider_result_by_canonical_url():
+    async def handler(request):
+        return response({"results": [{"url": "https://example.com/page", "raw_content": "page"}]})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    connector = TavilyClient(
+        config(), ResearchBudget(0, 1, 0, 0), client=http, resolver=public_resolver
+    )
+    page = await connector.extract(ResearchExtract(("https://example.com/page?utm_source=x",)))
+    assert page.status == "complete"
+    assert page.evidence[0].extraction_status is ExtractionStatus.OK
+    assert page.evidence[0].passage == "page"
+    assert page.evidence[0].passage_locator == {
+        "type": "char_range",
+        "start": 0,
+        "end": 4,
+        "source_length": 4,
+    }
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_payload_uses_only_explicit_provider_timeout():
+    payloads = []
+
+    async def handler(request):
+        payload = json.loads(request.content)
+        payloads.append(payload)
+        return response({"results": [{"url": payload["urls"][0], "raw_content": "page"}]})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 2, 0, 0)
+    default_timeout = TavilyClient(
+        config(timeout_seconds=90), budget, client=http, resolver=public_resolver
+    )
+    explicit_timeout = TavilyClient(
+        config(timeout_seconds=90, extract_timeout_seconds=12.5),
+        budget,
+        client=http,
+        resolver=public_resolver,
+    )
+    await default_timeout.extract(ResearchExtract(("https://example.com/default",)))
+    await explicit_timeout.extract(ResearchExtract(("https://example.com/explicit",)))
+    assert "timeout" not in payloads[0]
+    assert payloads[1]["timeout"] == 12.5
     await http.aclose()
 
 

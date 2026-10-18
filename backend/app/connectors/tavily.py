@@ -17,7 +17,13 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.domain.errors import ConfigError, ConnectorError, SchemaError, SourceUnavailableError
+from app.domain.errors import (
+    ConfigError,
+    ConnectorError,
+    SchemaError,
+    SourceUnavailableError,
+    ValidationError,
+)
 from app.domain.research import (
     EvidenceKind,
     EvidencePage,
@@ -45,6 +51,7 @@ class TavilyConfig:
     extract_depth: str = "basic"
     extract_format: str = "markdown"
     timeout_seconds: float = 30.0
+    extract_timeout_seconds: float | None = None
     max_retries: int = 3
     backoff_seconds: float = 0.5
     max_retry_after_seconds: int = 30
@@ -79,9 +86,19 @@ class TavilyConfig:
             isinstance(self.timeout_seconds, bool)
             or not isinstance(self.timeout_seconds, (int, float))
             or not math.isfinite(self.timeout_seconds)
-            or not 1 <= self.timeout_seconds <= 60
+            or self.timeout_seconds <= 0
         ):
-            raise ConfigError("Tavily timeout_seconds must be between 1 and 60")
+            raise ConfigError("Tavily timeout_seconds must be finite and positive")
+        if self.extract_timeout_seconds is not None:
+            if (
+                isinstance(self.extract_timeout_seconds, bool)
+                or not isinstance(self.extract_timeout_seconds, (int, float))
+                or not math.isfinite(self.extract_timeout_seconds)
+                or not 1 <= self.extract_timeout_seconds <= 60
+            ):
+                raise ConfigError("Tavily extract_timeout_seconds must be between 1 and 60")
+            if self.timeout_seconds <= self.extract_timeout_seconds:
+                raise ConfigError("Tavily HTTP timeout_seconds must exceed extract_timeout_seconds")
         for name in ("max_retries", "max_retry_after_seconds", "max_passage_chars"):
             value = getattr(self, name)
             if type(value) is not int or value < 0:
@@ -337,6 +354,13 @@ class TavilyClient:
             score=score,
         )
 
+    @staticmethod
+    def _canonical_result_url(url: str) -> str | None:
+        try:
+            return canonicalize_url(url)
+        except (TypeError, ValueError, ValidationError):
+            return None
+
     async def search(self, request: ResearchSearch) -> EvidencePage:
         payload = {
             "query": request.query,
@@ -464,9 +488,10 @@ class TavilyClient:
             "urls": list(urls),
             "extract_depth": request.extract_depth or self.config.extract_depth,
             "format": self.config.extract_format,
-            "timeout": int(self.config.timeout_seconds),
             "include_usage": True,
         }
+        if self.config.extract_timeout_seconds is not None:
+            payload["timeout"] = self.config.extract_timeout_seconds
         if request.query is not None:
             payload["query"] = request.query
             if self.config.chunks_per_source is not None:
@@ -499,20 +524,36 @@ class TavilyClient:
         if not isinstance(failed_results, list):
             raise SchemaError("Tavily failed_results is not a list")
         result_by_url = {}
+        result_by_canonical_url = {}
         for result in provider_results:
             if not isinstance(result, dict) or not isinstance(result.get("url"), str):
                 raise SchemaError("Tavily extraction result is not an object")
-            result_by_url[result["url"]] = result
+            result_url = result["url"]
+            result_by_url[result_url] = result
+            canonical_url = self._canonical_result_url(result_url)
+            if canonical_url is not None:
+                result_by_canonical_url.setdefault(canonical_url, result)
         failed_by_url = {}
+        failed_by_canonical_url = {}
         for item in failed_results:
             if not isinstance(item, dict) or not isinstance(item.get("url"), str):
                 raise SchemaError("Tavily failed result is not an object")
-            failed_by_url[item["url"]] = item
+            failed_url = item["url"]
+            failed_by_url[failed_url] = item
+            canonical_url = self._canonical_result_url(failed_url)
+            if canonical_url is not None:
+                failed_by_canonical_url.setdefault(canonical_url, item)
         evidence: list[WebEvidence] = []
         failures: list[dict[str, str]] = []
         for url in urls:
-            if url in result_by_url:
-                result = result_by_url[url]
+            result = result_by_url.get(url)
+            failed_result = failed_by_url.get(url)
+            if result is None and failed_result is None:
+                canonical_url = self._canonical_result_url(url)
+                if canonical_url is not None:
+                    result = result_by_canonical_url.get(canonical_url)
+                    failed_result = failed_by_canonical_url.get(canonical_url)
+            if result is not None:
                 raw_content = result.get("raw_content")
                 if not isinstance(raw_content, str):
                     raise SchemaError("Tavily extraction result is missing raw_content")
@@ -533,14 +574,12 @@ class TavilyClient:
                             "start": 0,
                             "end": len(passage),
                             "source_length": len(raw_content),
-                        }
-                        if truncated
-                        else None,
+                        },
                         content_hash=hashlib.sha256(raw_content.encode()).hexdigest(),
                     )
                 )
-            elif url in failed_by_url:
-                reason = str(failed_by_url[url].get("error", "provider_error"))
+            elif failed_result is not None:
+                reason = str(failed_result.get("error", "provider_error"))
                 failures.append({"url": url, "reason": reason})
                 evidence.append(
                     self._failed_evidence(url, reason, request, data.get("request_id"))  # type: ignore[arg-type]
@@ -635,17 +674,3 @@ class TavilyClient:
             cached=all(batch_cached),
             credits=sum(credit_values) if credit_values else None,
         )
-
-    def _extract_payload(self, request: ResearchExtract, urls: tuple[str, ...]) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "urls": list(urls),
-            "extract_depth": request.extract_depth or self.config.extract_depth,
-            "format": self.config.extract_format,
-            "timeout": int(self.config.timeout_seconds),
-            "include_usage": True,
-        }
-        if request.query is not None:
-            payload["query"] = request.query
-            if self.config.chunks_per_source is not None:
-                payload["chunks_per_source"] = self.config.chunks_per_source
-        return payload

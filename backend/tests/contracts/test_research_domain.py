@@ -64,6 +64,7 @@ def test_canonicalize_url_and_id_are_deterministic():
         canonicalize_url("HTTPS://Example.COM:443/path?utm_source=news&x=1&gclid=abc#section")
         == "https://example.com/path?x=1"
     )
+    assert canonicalize_url("https://user:password@example.com/path") == "https://example.com/path"
     args = ("search_result", "https://example.com", "q", "c1", "a1")
     assert make_evidence_id(*args) == make_evidence_id(*args)
 
