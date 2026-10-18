@@ -22,6 +22,8 @@ Our system autonomously analyzes public datasets, discovers promising locations,
 
 See [Data sources research](DATA_SOURCES.md) for free datasets, access methods, licensing, limitations, and the recommended integration order.
 
+See the [Connector blueprint](CONNECTOR_BLUEPRINT.md) for adapter designs, shared data contracts, caching, provenance, and implementation handoffs.
+
 **AI & Research**
 
 - **Nebius Token Factory:** LLM inference, planning, reasoning, and agent orchestration.
