@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from app.domain import (
     PUBLIC_REDISTRIBUTION_STATUSES,
@@ -395,6 +396,63 @@ class DataService:
     def manifest(self, dataset_id: str, snapshot_id: str):
         self._config(dataset_id)
         return manifest_to_dict(self.catalog.get(dataset_id, snapshot_id))
+
+    def legend(self, dataset_id: str) -> dict:
+        config = self._config(dataset_id)
+        layers = config.parser_options.get("layers")
+        if not isinstance(layers, list) or not any(
+            isinstance(layer, dict) and layer.get("indicators") for layer in layers
+        ):
+            raise NotFoundError("Dataset has no legend", "NOT_FOUND")
+        try:
+            latest_snapshot_id = self.catalog.get(dataset_id).snapshot_id
+        except NotFoundError:
+            latest_snapshot_id = None
+        indicators = []
+        for layer in layers:
+            for indicator in layer.get("indicators", []):
+                legend_url = indicator["legend_graphic_url"]
+                parts = urlsplit(legend_url)
+                indicators.append(
+                    {
+                        key: indicator[key]
+                        for key in (
+                            "indicator_code",
+                            "title_de",
+                            "title_en",
+                            "description_en",
+                            "does_not_measure_en",
+                            "reference_period",
+                            "value_status",
+                            "rank_direction",
+                            "data_basis_en",
+                            "method_url",
+                            "data_basis_url",
+                            "wms_layer",
+                        )
+                    }
+                    | {
+                        "source_layer": layer["typename"].split(":")[-1],
+                        "source_field": indicator["source_field"],
+                        "wms_url": urlunsplit((parts.scheme, parts.netloc, parts.path, "", "")),
+                        "legend_graphic_url": legend_url,
+                        "classes": indicator["classes"],
+                        "missing": indicator.get("missing_markers", {}),
+                    }
+                )
+        return {
+            "dataset_id": config.dataset_id,
+            "provider": config.provider,
+            "landing_url": config.landing_url,
+            "license_id": config.license_id,
+            "license_url": config.license_url,
+            "attribution": config.attribution,
+            "source_edition": config.source_edition,
+            "reference_period": config.reference_period,
+            "limitations": config.parser_options.get("limitations", []),
+            "latest_snapshot_id": latest_snapshot_id,
+            "indicators": indicators,
+        }
 
     def records(
         self,
