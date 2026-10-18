@@ -226,8 +226,8 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .gs-btn:hover{background:rgba(255,255,255,.88)}.gs-btn.set{color:var(--ink);font-weight:500}
 .gs-btn:focus-visible{outline:0;border-color:rgba(0,122,255,.6);box-shadow:0 0 0 4px rgba(0,122,255,.15)}
 .gs-car{opacity:.55;font-size:11px;transition:transform .3s var(--ease)}.gsel.open .gs-car{transform:rotate(180deg)}
-.gs-menu{position:fixed;z-index:200;min-width:230px;padding:6px;border-radius:16px;background:rgba(250,251,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 14px 44px rgba(31,38,135,.18),inset 0 1px 0 rgba(255,255,255,.9);opacity:0;visibility:hidden;transform:translateY(-6px) scale(.96);transform-origin:top left;transition:opacity .2s var(--ease),transform .3s var(--ease),visibility 0s .3s}
-.gs-menu.open{opacity:1;visibility:visible;transform:none;transition:opacity .2s var(--ease),transform .3s var(--ease)}
+.gs-menu{position:fixed;z-index:200;overflow-y:auto;overscroll-behavior:contain;min-width:230px;padding:6px;border-radius:16px;background:rgba(250,251,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 14px 44px rgba(31,38,135,.18),inset 0 1px 0 rgba(255,255,255,.9);opacity:0;visibility:hidden;transform:translateY(-6px) scale(.96);transform-origin:top left;transition:opacity .2s var(--ease),transform .3s var(--ease),visibility 0s .3s}
+.gs-menu.up{transform-origin:bottom left;transform:translateY(6px) scale(.96)}.gs-menu.open{opacity:1;visibility:visible;transform:none;transition:opacity .2s var(--ease),transform .3s var(--ease)}
 .gs-menu button{display:flex;width:100%;align-items:center;gap:10px;font:inherit;font-size:14px;text-align:left;padding:9px 12px;border:0;border-radius:10px;background:transparent;color:var(--ink);cursor:pointer;transition:background .2s}
 .gs-menu button:hover,.gs-menu button:focus{background:rgba(0,122,255,.1);outline:0}
 .gs-menu [aria-selected=true]{font-weight:600;color:var(--acc)}.gs-ck{margin-left:auto;opacity:0}.gs-menu [aria-selected=true] .gs-ck{opacity:1}
@@ -648,11 +648,11 @@ function glassSelect(sel){
   m.innerHTML=[...sel.options].map((o,i)=>`<button type="button" role="option" data-i="${i}"><span>${ROLE_ICO[o.value]||'•'}</span>${esc(o.value?o.text:'No role')}<span class="gs-ck">✓</span></button>`).join('');
   sel.after(w);document.body.append(m);
   const b=w.firstChild,items=[...m.children];
-  const sync=()=>{b.innerHTML=`<span>${ROLE_ICO[sel.value]||'👤'}</span><span>${esc(sel.options[sel.selectedIndex].text)}</span><span class="gs-car">⌄</span>`;
+  const sync=()=>{if(sel.selectedIndex<0)sel.selectedIndex=0;b.innerHTML=`<span>${ROLE_ICO[sel.value]||'👤'}</span><span>${esc(sel.options[sel.selectedIndex].text)}</span><span class="gs-car">⌄</span>`;
     b.classList.toggle('set',!!sel.value);items.forEach((x,i)=>x.setAttribute('aria-selected',i===sel.selectedIndex))};
   const open=on=>{if(on===w.classList.contains('open'))return;
     w.classList.toggle('open',on);m.classList.toggle('open',on);b.setAttribute('aria-expanded',on);
-    if(on){const r=b.getBoundingClientRect();m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-8))+'px';m.style.top=(r.bottom+8)+'px';items[sel.selectedIndex].focus({preventScroll:true})}};
+    if(on){const r=b.getBoundingClientRect();m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-8))+'px';m.style.maxHeight='';const h=m.scrollHeight,below=innerHeight-r.bottom-16,above=r.top-16,up=h>below&&above>below;m.style.maxHeight=Math.min(h,up?above:below)+'px';m.style.top=(up?r.top-8-Math.min(h,above):r.bottom+8)+'px';m.classList.toggle('up',up);items[sel.selectedIndex].focus({preventScroll:true})}};
   b.onclick=()=>open(!w.classList.contains('open'));
   b.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true)}};
   m.onclick=e=>{const x=e.target.closest('[data-i]');if(!x)return;sel.selectedIndex=+x.dataset.i;sel.dispatchEvent(new Event('change',{bubbles:true}));open(false);b.focus()};
@@ -660,7 +660,7 @@ function glassSelect(sel){
     if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();items[(i+(e.key==='ArrowDown'?1:items.length-1))%items.length].focus()}
     else if(e.key==='Escape'||e.key==='Tab'){open(false);if(e.key==='Escape')b.focus()}};
   document.addEventListener('click',e=>{if(!w.contains(e.target)&&!m.contains(e.target))open(false)});
-  ['scroll','resize'].forEach(ev=>addEventListener(ev,()=>open(false),{passive:true,capture:true}));
+  ['scroll','resize'].forEach(ev=>addEventListener(ev,e=>{if(e.target!==m)open(false)},{passive:true,capture:true}));
   sel.addEventListener('change',sync);sel.gsSync=sync;sync()}
 $('#p-role').innerHTML=$('#role').innerHTML;
 glassSelect($('#role'));glassSelect($('#p-role'));
