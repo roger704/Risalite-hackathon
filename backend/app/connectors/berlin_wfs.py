@@ -340,12 +340,14 @@ class BerlinWFSConnector(FileConnector):
             from app.connectors.berlin_wfs_facility import EDITION_METADATA_NAME
 
             urls.append(options["edition_metadata_url"])
-            assets.append(
-                await self.fetcher.download(
-                    replace(config, resource_url=options["edition_metadata_url"]),
-                    Path(request.staging_dir) / EDITION_METADATA_NAME,
-                )
+            metadata = await self.fetcher.download(
+                replace(config, resource_url=options["edition_metadata_url"]),
+                Path(request.staging_dir) / EDITION_METADATA_NAME,
             )
+            total_bytes += metadata.size_bytes
+            if total_bytes > max_total_bytes:
+                raise SchemaError("WFS cumulative download exceeded max_total_bytes")
+            assets.append(metadata)
 
         fingerprint = hashlib.sha256(
             json.dumps(

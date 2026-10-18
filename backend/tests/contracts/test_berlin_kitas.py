@@ -199,7 +199,7 @@ def test_source_edition_is_verified_against_provider_metadata(tmp_path):
     assert any("Source edition 2025-12-31 verified" in warning for warning in batch.warnings)
     with pytest.raises(SchemaError, match="differs from the reviewed source_edition"):
         BerlinWFSConnector().normalize(bundle(tmp_path, revision="2026-12-31"), configuration())
-    with pytest.raises(SchemaError, match="could not be verified"):
+    with pytest.raises(SchemaError, match="Local --file imports are not supported"):
         BerlinWFSConnector().normalize(bundle(tmp_path, revision=None), configuration())
 
 
@@ -319,3 +319,36 @@ def test_parent_check_reports_area_counts_and_rejects_mismatches(tmp_path):
         )
     with pytest.raises(IncompatibleSnapshotError, match="no planungsraum"):
         connector.check_parent(config, facilities, (area("01", 13.35, 52.5, hierarchy="bezirk"),))
+
+
+async def test_fetch_counts_metadata_against_total_byte_limit(tmp_path):
+    import httpx
+
+    from app.domain import FetchRequest
+    from app.infrastructure.http import HTTPFetcher
+
+    async def handler(request):
+        if request.url.host == "datenregister.berlin.de":
+            body = (FIXTURES / "edition-metadata.json").read_bytes()
+        else:
+            start = int(request.url.params["STARTINDEX"])
+            body = (FIXTURES / f"page-{start // 2:04d}.json").read_bytes()
+        return httpx.Response(
+            200, headers={"content-type": "application/json"}, content=body, request=request
+        )
+
+    pages = sum((FIXTURES / f"page-{index:04d}.json").stat().st_size for index in range(2))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        connector = BerlinWFSConnector(HTTPFetcher(client))
+        raw = await connector.fetch(
+            FetchRequest(config=configuration(), staging_dir=str(tmp_path), snapshot_id="s")
+        )
+        assert raw.assets[-1].path.endswith("edition-metadata.json")
+        with pytest.raises(SchemaError, match="max_total_bytes"):
+            await connector.fetch(
+                FetchRequest(
+                    config=configuration(max_total_bytes=pages + 10),
+                    staging_dir=str(tmp_path),
+                    snapshot_id="s",
+                )
+            )

@@ -114,7 +114,11 @@ def verify_edition(raw: RawBundle, config: DatasetConfig, options: dict) -> str 
     reference_type = options.get("edition_reference_type", "revision")
     assets = [asset for asset in raw.assets if asset.path.endswith(EDITION_METADATA_NAME)]
     if len(assets) != 1:
-        raise SchemaError("WFS facility source edition could not be verified: no provider metadata")
+        raise SchemaError(
+            "WFS facility source edition could not be verified: no provider metadata asset. "
+            "Local --file imports are not supported for datasets with edition_metadata_url; "
+            "use the provider download"
+        )
     try:
         result = json.loads(Path(assets[0].path).read_bytes())["result"]
         extras = {item["key"]: item["value"] for item in result["extras"]}
