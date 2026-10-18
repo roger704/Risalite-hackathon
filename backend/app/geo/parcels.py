@@ -25,6 +25,7 @@ EXCLUDED_CLAIMS = (
     "acquisition_offer",
 )
 AREA_CRS = "EPSG:25833"
+BOUNDARY_TOLERANCE_M = 0.05
 RELATIONSHIP_METHOD = (
     "Geometric intersection of WGS84 GeoJSON reprojected with always_xy to EPSG:25833; "
     "no legal assignment is inferred."
@@ -77,6 +78,10 @@ class ParcelIndex:
         self._metric_geometries = tuple(
             transform(self._to_metric.transform, shape(parcel.geometry)) for parcel in self.parcels
         )
+        self._metric_by_id = {
+            parcel.parcel_id: geometry
+            for parcel, geometry in zip(self.parcels, self._metric_geometries, strict=True)
+        }
         self._tree = STRtree(self._metric_geometries) if self._metric_geometries else None
 
     def get(self, parcel_id: str) -> Parcel | None:
@@ -85,8 +90,16 @@ class ParcelIndex:
     def get_record(self, record_id: str) -> Parcel | None:
         return self._by_record_id.get(record_id)
 
+    def prefilter_geometry_intersects_parcel_envelope(self, parcel_id: str, geometry) -> bool:
+        parcel_geometry = self._metric_by_id.get(parcel_id)
+        if parcel_geometry is None or geometry.is_empty:
+            return False
+        metric_geometry = transform(self._to_metric.transform, geometry)
+        search_envelope = parcel_geometry.envelope.buffer(BOUNDARY_TOLERANCE_M)
+        return metric_geometry.intersects(search_envelope)
+
     def at_point(
-        self, lon: float, lat: float, boundary_tolerance_m: float = 0.05
+        self, lon: float, lat: float, boundary_tolerance_m: float = BOUNDARY_TOLERANCE_M
     ) -> list[ParcelPointMatch]:
         if (
             isinstance(lon, bool)
@@ -150,7 +163,14 @@ class ParcelIndex:
             if self._metric_geometries[index].intersects(metric_bbox)
         ][:limit]
 
-    def relate_geometries(self, dataset_id: str, snapshot_id: str, records):
+    def relate_geometries(
+        self,
+        dataset_id: str,
+        snapshot_id: str,
+        records,
+        *,
+        touch_parcel_id: str | None = None,
+    ):
         relations: list[ParcelRelation] = []
         touches_only = 0
         if self._tree is None:
@@ -194,7 +214,8 @@ class ParcelIndex:
                 intersection = parcel_geometry.intersection(related)
                 area = intersection.area
                 if area <= 0:
-                    touches_only += 1
+                    if touch_parcel_id is None or parcel.parcel_id == touch_parcel_id:
+                        touches_only += 1
                     continue
                 relations.append(
                     ParcelRelation(

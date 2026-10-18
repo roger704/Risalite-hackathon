@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Annotated, Any, Callable
 
 from fastapi import APIRouter, Depends, Query, Request
-from shapely.geometry import box, shape
+from shapely.geometry import shape
 
 from app.application.service import DataService
 from app.domain import ConnectorError, NotFoundError, Parcel, record_to_dict
@@ -199,8 +199,6 @@ def parcels_router(get_service: Callable[[], DataService]) -> APIRouter:
                 f"Related snapshot exceeds the {_MAX_RELATED_RECORDS}-record relationship cap",
             )
 
-        west, south, east, north = shape(parcel.geometry).bounds
-        parcel_bbox = box(west, south, east, north)
         related_records = []
         cursor = None
         while True:
@@ -218,7 +216,7 @@ def parcels_router(get_service: Callable[[], DataService]) -> APIRouter:
                     geometry = shape(geometry_data)
                 except Exception:
                     continue
-                if geometry.intersects(parcel_bbox):
+                if index.prefilter_geometry_intersects_parcel_envelope(parcel_id, geometry):
                     related_records.append(
                         SimpleNamespace(record_id=value["record_id"], geometry=geometry_data)
                     )
@@ -230,9 +228,15 @@ def parcels_router(get_service: Callable[[], DataService]) -> APIRouter:
             cursor = page["next_cursor"]
             if cursor is None:
                 break
-        relation_rows, touches_only = ParcelIndex((parcel,)).relate_geometries(
-            related_dataset_id, related_snapshot_id, related_records
+        all_relation_rows, touches_only = index.relate_geometries(
+            related_dataset_id,
+            related_snapshot_id,
+            related_records,
+            touch_parcel_id=parcel_id,
         )
+        relation_rows = [
+            relation for relation in all_relation_rows if relation.parcel_id == parcel_id
+        ]
         related_meta = {
             "dataset_id": related_manifest.dataset_id,
             "snapshot_id": related_manifest.snapshot_id,
@@ -243,7 +247,7 @@ def parcels_router(get_service: Callable[[], DataService]) -> APIRouter:
             "meta": meta,
             "relations": [relation_to_dict(relation) for relation in relation_rows],
             "touches_only": touches_only,
-            "summaries_by_related": summarize_by_related(relation_rows),
+            "summaries_by_related": summarize_by_related(all_relation_rows),
             "pinned_inputs": {
                 "parcels": snapshot_id,
                 "related": related_meta,

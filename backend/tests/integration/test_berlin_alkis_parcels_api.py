@@ -5,13 +5,17 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
-from shapely.geometry import box, mapping, shape
+from pyproj import Transformer
+from shapely.geometry import Point, box, mapping, shape
+from shapely.ops import transform, unary_union
 
 from app.api.main import create_app
 from app.application.service import DataService
 from app.connectors.berlin_alkis_parcels import BerlinALKISParcelsConnector
 from app.connectors.lor import LORConnector
+from app.connectors.osm import OSMConnector
 from app.infrastructure.http import HTTPFetcher
 
 BACKEND = Path(__file__).parents[2]
@@ -34,8 +38,20 @@ def service_fixture(tmp_path):
         max_pages=10,
         expected_count_range=[12, 12],
     )
+    osm = json.loads((BACKEND / "config/datasets/osm_pois_overpass.json").read_text())
+    osm.update(
+        resource_url="https://example.org/synthetic/osm",
+        allowed_hosts=["example.org"],
+        access_validation="validated",
+    )
+    osm["parser_options"].update(
+        allowed_bbox=[13.0, 52.3, 13.9, 52.8],
+        node_bbox=[13.0, 52.3, 13.9, 52.8],
+        min_expected_counts={},
+    )
     (configs / "berlin_lor.json").write_text(json.dumps(lor))
     (configs / "berlin_alkis_parcels.json").write_text(json.dumps(alkis))
+    (configs / "osm_pois_overpass.json").write_text(json.dumps(osm))
 
     parent_geometry = mapping(box(13.38, 52.45, 13.46, 52.55))
     parent_source = {
@@ -73,6 +89,7 @@ def service_fixture(tmp_path):
         connectors={
             "lor": LORConnector(),
             "berlin_alkis_parcels": BerlinALKISParcelsConnector(HTTPFetcher(client)),
+            "osm": OSMConnector(),
         },
     )
     return service, parent_file, client
@@ -168,9 +185,142 @@ async def test_publishes_parcels_and_serves_pinned_spatial_apis(tmp_path):
         assert body["relations"][0]["crs"] == "EPSG:25833"
         assert all(relation["parcel_id"] == first["parcel_id"] for relation in body["relations"])
         assert all(
-            summary["parcel_ids"] == [first["parcel_id"]]
+            first["parcel_id"] in summary["parcel_ids"]
             for summary in body["summaries_by_related"].values()
         )
+
+
+async def test_relation_summaries_include_all_intersected_parcels(tmp_path):
+    service, parent_file, http_client = service_fixture(tmp_path)
+    async with http_client:
+        parent = await service.ingest("berlin_lor", local_file=parent_file)
+        parcels = await service.ingest(
+            "berlin_alkis_parcels", parent_snapshot_id=parent.snapshot_id
+        )
+
+    parcel_records = service.records("berlin_alkis_parcels", parcels.snapshot_id, limit=1000)[
+        "records"
+    ]
+    parcel_by_id = {record["parcel_id"]: record for record in parcel_records}
+    parcel_ids = ("11000192100498____", "11000192100499____")
+    spanning_geometry = unary_union(
+        [shape(parcel_by_id[parcel_id]["geometry"]) for parcel_id in parcel_ids]
+    )
+    related_source = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"PLR_ID": "01011101", "PLR_NAME": "Spanning fixture parcels"},
+                "geometry": mapping(spanning_geometry),
+            },
+            {
+                "type": "Feature",
+                "properties": {"PLR_ID": "01011102", "PLR_NAME": "Synthetic elsewhere"},
+                "geometry": mapping(box(13.7, 52.7, 13.71, 52.71)),
+            },
+        ],
+    }
+    related_file = tmp_path / "related-areas.geojson"
+    related_file.write_text(json.dumps(related_source))
+    related_manifest = await service.ingest("berlin_lor", local_file=related_file)
+
+    api = TestClient(create_app(service=service))
+    with api:
+        response = api.get(
+            f"/api/v1/parcels/{parcel_ids[0]}/relations",
+            params={
+                "snapshot_id": parcels.snapshot_id,
+                "related_dataset_id": "berlin_lor",
+                "related_snapshot_id": related_manifest.snapshot_id,
+            },
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [relation["parcel_id"] for relation in body["relations"]] == [parcel_ids[0]]
+    related_record = service.records("berlin_lor", related_manifest.snapshot_id, limit=1000)[
+        "records"
+    ][0]["record_id"]
+    assert body["summaries_by_related"][related_record] == {
+        "parcel_ids": sorted(parcel_ids),
+        "multiple_parcels": True,
+    }
+    assert body["touches_only"] == 0
+
+
+async def test_relation_prefilter_keeps_points_just_outside_parcel_boundary(tmp_path):
+    service, parent_file, http_client = service_fixture(tmp_path)
+    async with http_client:
+        parent = await service.ingest("berlin_lor", local_file=parent_file)
+        parcels = await service.ingest(
+            "berlin_alkis_parcels", parent_snapshot_id=parent.snapshot_id
+        )
+
+    parcel = next(
+        record
+        for record in service.records("berlin_alkis_parcels", parcels.snapshot_id, limit=1000)[
+            "records"
+        ]
+        if record["parcel_id"] == "11000192100498____"
+    )
+    geometry_wgs84 = shape(parcel["geometry"])
+    west, south, east, north = geometry_wgs84.bounds
+    to_metric = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
+    to_wgs84 = Transformer.from_crs("EPSG:25833", "EPSG:4326", always_xy=True)
+    geometry_metric = transform(to_metric.transform, geometry_wgs84)
+    rightmost_wgs84 = max(
+        (
+            coordinate
+            for polygon in (
+                tuple(geometry_wgs84.geoms)
+                if geometry_wgs84.geom_type == "MultiPolygon"
+                else (geometry_wgs84,)
+            )
+            for coordinate in polygon.exterior.coords
+        ),
+        key=lambda coordinate: coordinate[0],
+    )
+    rightmost_metric = transform(to_metric.transform, Point(*rightmost_wgs84))
+    point_metric = Point(rightmost_metric.x + 0.02, rightmost_metric.y)
+    assert geometry_metric.distance(point_metric) == pytest.approx(0.02, abs=0.001)
+    point_wgs84 = transform(to_wgs84.transform, point_metric)
+    longitude, latitude = point_wgs84.x, point_wgs84.y
+    assert not (west <= longitude <= east and south <= latitude <= north)
+
+    related_file = tmp_path / "related-point.json"
+    related_file.write_text(
+        json.dumps(
+            {
+                "elements": [
+                    {
+                        "type": "node",
+                        "id": 987654321,
+                        "lon": longitude,
+                        "lat": latitude,
+                        "tags": {"amenity": "cafe", "name": "Boundary fixture"},
+                    }
+                ]
+            }
+        )
+    )
+    related_manifest = await service.ingest("osm_pois_overpass", local_file=related_file)
+
+    api = TestClient(create_app(service=service))
+    with api:
+        response = api.get(
+            f"/api/v1/parcels/{parcel['parcel_id']}/relations",
+            params={
+                "snapshot_id": parcels.snapshot_id,
+                "related_dataset_id": "osm_pois_overpass",
+                "related_snapshot_id": related_manifest.snapshot_id,
+            },
+        )
+    assert response.status_code == 200, response.text
+    relation_rows = response.json()["relations"]
+    assert len(relation_rows) == 1
+    assert relation_rows[0]["parcel_id"] == parcel["parcel_id"]
+    assert relation_rows[0]["related_record_id"] == "node/987654321"
+    assert relation_rows[0]["relation"] == "on_boundary"
 
 
 def test_parcel_api_does_not_claim_legal_relationships_or_source_area(tmp_path):
