@@ -1,0 +1,60 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 3,
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[390000, 5819000], [390100, 5819000]]
+      },
+      "properties": {
+        "link_id": "00000001_00000002",
+        "str_name": "Synthetic Road A",
+        "meter": 100,
+        "herkunft": "Verkehrsmengenkarte 2019",
+        "dtv": 1000,
+        "pkw": 800,
+        "lkw": 50,
+        "lieferwagen": 100,
+        "krad": 20,
+        "reisebusse": 10,
+        "linienbusse": 20,
+        "schluessel": "00000001_00000002"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[390000, 5819100], [390200, 5819100]]
+      },
+      "properties": {
+        "link_id": "00000003_00000004",
+        "str_name": "Synthetic Road B",
+        "meter": 200,
+        "herkunft": "VISUM VStrom",
+        "dtv": 2000,
+        "pkw": 1600,
+        "lkw": 100,
+        "lieferwagen": 200,
+        "krad": 40,
+        "reisebusse": 20,
+        "linienbusse": 40,
+        "schluessel": "00000003_00000004"
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "next",
+      "href": "https://gdi.berlin.de/services/wfs/ua_verkehrsmengen_2019?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ua_verkehrsmengen_2019:verkehrsmengen_2019&OUTPUTFORMAT=application/json&SORTBY=schluessel&COUNT=2&STARTINDEX=2"
+    }
+  ]
+}
