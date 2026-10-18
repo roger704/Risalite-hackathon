@@ -355,3 +355,46 @@ A judge can:
 3. See real public data influence the ranking.
 4. Click and verify randomly selected citations (`verify_citations.py` passes 100 % on demo runs).
 5. Understand why the recommendation was made — and what evidence could change it.
+
+## Live deep research (S1)
+
+Spec: [Deep Research Spec](docs/01_Architecture/Deep_Research_Spec.md).
+
+### Prerequisites and Berlin snapshots
+
+Install `uv`, use Python 3.11, and provide `NEBIUS_API_KEY` and `TAVILY_API_KEY` through your secret manager for live model and search calls. From the repository root:
+
+```sh
+export LOCATION_DATA_DIR=/home/ubuntu/data/risalite
+cd backend
+LOR_SNAPSHOT_ID=berlin_lor-099dc691163b4bdf82567d4e643fbeee
+uv run --python 3.11 location-data ingest berlin_lor
+uv run --python 3.11 location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_population
+uv run --python 3.11 location-data ingest zensus_grid
+uv run --python 3.11 location-data ingest osm_pois
+uv run --python 3.11 location-data ingest vbb_gtfs
+uv run --python 3.11 location-data ingest ihk_businesses
+uv run --python 3.11 location-data ingest berlin_population_density_blocks --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_addresses
+uv run --python 3.11 location-data ingest berlin_kitas --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_centers --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+### Start and run
+
+Start the dashboard and live API from `backend/`; replace the two secret placeholders with secret-manager references:
+
+```sh
+LOCATION_DATA_DIR=/home/ubuntu/data/risalite RISALITE_RUNS=live \
+RISALITE_AREA_DATA=summary RISALITE_RUNS_DIR=/home/ubuntu/data/risalite/runs \
+NEBIUS_API_KEY='<NEBIUS_API_KEY secret reference>' \
+TAVILY_API_KEY='<TAVILY_API_KEY secret reference>' \
+uv run --python 3.11 uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000/>, ask **“Wo in Kreuzberg sollte ich ein Café eröffnen?”**, review the proposed area and research plan, then approve it to start the run. The planner resolves the area; data and scoring v2 prepare PLR cells; wave-1 and wave-2 researchers gather evidence; fact-checking verifies findings; the skeptic challenges risks; ranking scores the cells; and the writer produces the report. Citations use evidence-ledger IDs (`[ev_…]` for web sources and `[ds_…]` for datasets).
+
+Each `RISALITE_RUNS_DIR/<run_id>/` contains the report, result, plan, cells, evidence ledger, findings, fact-check output, event and trace logs, metrics, and run metadata (for example, `report.md`, `result.json`, `plan.json`, `cells.json`, `evidence.jsonl`, `findings.jsonl`, `factcheck.json`, `events.jsonl`, `trace.jsonl`, `metrics.json`, and `run.json`).
+
+For an offline run with local snapshots, set `RISALITE_RESEARCH_FAKE=1`; this uses deterministic fake research instead of Nebius or Tavily calls.

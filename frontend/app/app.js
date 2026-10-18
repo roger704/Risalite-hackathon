@@ -384,7 +384,7 @@ function renderInline(text) {
       const evidence = (R.evidence || [])[Number(n) - 1];
       return evidence ? cite(evidence.evidence_id) : match;
     })
-    .replace(/\[(e[\w.-]*)\]/g, (match, id) => CITE[id] ? cite(id) : '');
+    .replace(/\[((?:e|ds_)[\w:.-]*)\]/g, (match, id) => CITE[id] ? cite(id) : '');
 }
 function renderMarkdown(markdown) {
   const blocks = [];

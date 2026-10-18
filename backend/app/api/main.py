@@ -1,5 +1,6 @@
 """Public local-snapshot reads. Acquisition is deliberately a CLI operation."""
 
+import json
 import os
 import re
 from datetime import date, datetime
@@ -7,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
@@ -155,6 +156,21 @@ def create_app(
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
     application.state.routing_client = routing_client
+    runs_mode = os.environ.get("RISALITE_RUNS", "").casefold()
+    configured_runs_dir = os.environ.get("RISALITE_RUNS_DIR", "").strip()
+    default_runs_dir = (
+        Path("data/runs") if runs_mode == "live" else Path(__file__).resolve().parents[3] / "runs"
+    )
+    resolved_runs_dir = (
+        Path(runs_dir).expanduser()
+        if runs_dir is not None
+        else Path(configured_runs_dir).expanduser()
+        if configured_runs_dir
+        else default_runs_dir
+    )
+    application.state.runs_dir = resolved_runs_dir
+    application.state.live_runs_dir = resolved_runs_dir if runs_mode == "live" else None
+    application.state.live_run_service = None
 
     def get_service() -> DataService:
         if application.state.data_service is None:
@@ -185,14 +201,7 @@ def create_app(
             await client.__aexit__(None, None, None)
 
     def get_runs_dir() -> Path:
-        configured = os.environ.get("RISALITE_RUNS_DIR", "").strip()
-        return (
-            Path(runs_dir).expanduser()
-            if runs_dir is not None
-            else Path(configured).expanduser()
-            if configured
-            else Path(__file__).resolve().parents[3] / "runs"
-        )
+        return application.state.runs_dir
 
     @application.middleware("http")
     async def request_context(request: Request, call_next):
@@ -624,7 +633,22 @@ def create_app(
             else None
         )
         mix = Mix(layers_on=layers, mode=mode)
-        bundle = load_run(get_runs_dir() / run_id)
+        run_dir = get_runs_dir() / run_id
+        try:
+            persisted_run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            persisted_run = {}
+        if isinstance(persisted_run, dict) and "token_hash" in persisted_run:
+            from app.api.runs_live import service as live_run_service
+            from app.application.runs import RunError
+
+            try:
+                live_run_service(request).authorize_export(
+                    run_id, request.headers.get("authorization")
+                )
+            except RunError as exc:
+                raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+        bundle = load_run(run_dir)
         media_type, renderer = EXPORT_FORMATS[fmt]
         if fmt.startswith("report."):
             body = renderer(bundle, mix=mix)
@@ -637,7 +661,11 @@ def create_app(
         return Response(content=body, media_type=media_type, headers=headers)
 
     application.include_router(planning_router(get_service))
-    if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
+    if runs_mode == "live":
+        from app.api.runs_live import router as live_runs_router
+
+        application.include_router(live_runs_router)
+    elif runs_mode != "off":
         application.include_router(fixture_runs_router)
 
     application.include_router(parcels_router(get_service))

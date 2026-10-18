@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from time import perf_counter
 
 from app.application.service import DataService
 from app.domain import ConnectorError, manifest_to_dict
@@ -55,6 +56,11 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("--mode", choices=("present", "future"))
     export.add_argument("--share-url")
     export.add_argument("-o", "--output", type=Path)
+
+    subcommands.add_parser(
+        "precompute-berlin-reference",
+        help="Precompute the coffee_v2 Berlin-wide scoring reference cache",
+    )
     return command
 
 
@@ -120,6 +126,19 @@ def main(argv: list[str] | None = None) -> int:
                 args.lat,
                 args.radius_m,
             )
+        elif args.command == "precompute-berlin-reference":
+            from app.application.area_data import SummaryAreaData
+            from app.scoring import v2
+
+            port = SummaryAreaData.from_data_service(service)
+            started = perf_counter()
+            cells = port.berlin_reference(v2.load_template("coffee_v2"))
+            result = {
+                "template_id": "coffee_v2",
+                "cells": len(cells),
+                "elapsed_seconds": round(perf_counter() - started, 3),
+                "cache_dir": str(port._reference_cache_dir),
+            }
         else:
             result = manifest_to_dict(
                 asyncio.run(
