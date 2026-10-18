@@ -1,0 +1,88 @@
+{
+  "dataset_id": "berlin_parks",
+  "provider": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Grünflächeninformationssystem); WFS by Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_green_spaces",
+  "landing_url": "https://daten.berlin.de/datensaetze/grunanlagenbestand-berlin-einschliesslich-der-offentlichen-spielplatze-wfs-737fd0a4",
+  "resource_url": "https://gdi.berlin.de/services/wfs/gruenanlagen?SERVICE=WFS&REQUEST=GetCapabilities",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "DL-DE-ZERO-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Geoportal Berlin / Grünanlagenbestand Berlin (einschließlich der öffentlichen Spielplätze), WFS gruenanlagen, Datenlizenz Deutschland – Zero – Version 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2026-04-09",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "metadata_url": "https://gdi.berlin.de/geonetwork/srv/ger/csw?service=CSW&request=GetRecordById&version=2.0.2&outputschema=http://www.isotc211.org/2005/gmd&elementsetname=full&id=737fd0a4-3811-34ef-bbca-f26b93fd4326",
+    "format_description_url": "https://gdi.berlin.de/data/gruenanlagen/docs/Datenformatbeschreibung_Gruenanlagen_Spielplaetze.pdf",
+    "page_size": 200,
+    "max_pages": 20,
+    "max_total_bytes": 60000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [360000, 5790000, 420000, 5850000],
+    "allowed_bbox": [13.0, 52.3, 13.9, 52.8],
+    "id_field": "pitid",
+    "id_pattern": "^[0-9a-f]{8}:[0-9a-f]{8}$",
+    "category_field": "objartname",
+    "category_mapping_version": "berlin_green_spaces_v1",
+    "category_mapping": {
+      "Grünanlage": "green_space",
+      "Spielplatz": "playground"
+    },
+    "name_field": "namenr",
+    "area_code_field": "plannr",
+    "area_code_pattern": "^\\d{8}$",
+    "hierarchy": "planungsraum",
+    "source_area_field": "katasterfl",
+    "attribute_fields": [
+      "kennzeich",
+      "bezirkname",
+      "ortstlname",
+      "namezusatz",
+      "baujahr",
+      "sanierjahr",
+      "widmung",
+      "planname"
+    ],
+    "adjacency_tolerance_m": 1.0,
+    "display_point_method": "representative_point_epsg25833",
+    "layers": [
+      {
+        "feature_type": "green_space",
+        "typename": "gruenanlagen:gruenanlagen",
+        "resource_url": "https://gdi.berlin.de/services/wfs/gruenanlagen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=gruenanlagen:gruenanlagen&OUTPUTFORMAT=application/json&SORTBY=pitid",
+        "expected_count_range": [2000, 3200],
+        "expected_properties": [
+          "pitid", "kennzeich", "bezirkname", "ortstlname", "objartname", "namenr", "namezusatz",
+          "baujahr", "sanierjahr", "katasterfl", "widmung", "plannr", "planname"
+        ]
+      },
+      {
+        "feature_type": "playground",
+        "typename": "gruenanlagen:spielplaetze",
+        "resource_url": "https://gdi.berlin.de/services/wfs/gruenanlagen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=gruenanlagen:spielplaetze&OUTPUTFORMAT=application/json&SORTBY=pitid",
+        "expected_count_range": [1500, 2400],
+        "net_play_area_field": "nettospfl",
+        "expected_properties": [
+          "pitid", "kennzeich", "bezirkname", "ortstlname", "objartname", "namenr", "namezusatz",
+          "baujahr", "sanierjahr", "katasterfl", "widmung", "plannr", "planname", "nettospfl"
+        ]
+      }
+    ],
+    "limitations": [
+      "Official inventory of dedicated public green spaces (objartname 'Grünanlage') and public playgrounds ('Spielplatz') maintained by the Berlin districts; it does not include private, courtyard, school, cemetery, allotment or forest areas unless they are part of the inventory. Dataset revision 2026-04-09 (CSW metadata); source access, CRS, paging and field mapping checked 2026-10-18.",
+      "Polygons are the source geometry reprojected EPSG:25833 -> EPSG:4326. display_point is a derived marker (representative point computed in EPSG:25833), not an entrance or access point.",
+      "Green-space and playground polygons are separate inventory objects (playgrounds are mostly adjacent to, not inside, green-space polygons). adjacent_record_ids links them; do not add playground area to green-space area as one figure without checking overlaps.",
+      "area_code is the provider-supplied plannr (one LOR Planungsraum per feature); features crossing PLR boundaries are still assigned to one code. Codes are reported against the pinned LOR snapshot, never reassigned.",
+      "katasterfl (cadastral area) and nettospfl (net play area) values of 0 are treated as missing, not as zero area; geometry_area_m2 is computed from the polygon in EPSG:25833 and may differ from the cadastral figure.",
+      "Proximity from this dataset is straight-line distance in EPSG:25833 to the polygon edge; it is not walking distance or walking time and ignores entrances, fences and barriers.",
+      "Official records are not matched or deduplicated against OSM leisure features; never add counts from both sources for the same area."
+    ]
+  }
+}

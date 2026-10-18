@@ -1,4 +1,4 @@
-/* Risalite dashboard. Run data is always loaded through the research API. */
+/* SpotWise dashboard. Run data is always loaded through the research API. */
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const safeUrl = u => { try { const p = new URL(u); return p.protocol === 'http:' || p.protocol === 'https:' ? p.href : null; } catch (_) { return null; } };
@@ -170,7 +170,7 @@ async function exportRun(fmt, print = false) {
     } else {
       const anchor = document.createElement('a');
       anchor.href = objectUrl;
-      anchor.download = `risalite-${RUN.run_id}-${fmt}`;
+      anchor.download = `spotwise-${RUN.run_id}-${fmt}`;
       document.body.append(anchor);
       anchor.click();
       anchor.remove();
@@ -578,7 +578,7 @@ function dash() {
       if (RESTORE_DASH.mode === 'future' && R.cells.cells.some(cell => (cell.modifiers || []).length)) state.mode = 'future';
     }
     RESTORE_DASH = null;
-    R.defaultRank = RisaliteScoring.scoreCells(R.cells, R.defaultOn, R.defaultW, 'present');
+    R.defaultRank = SpotWiseScoring.scoreCells(R.cells, R.defaultOn, R.defaultW, 'present');
     renderLayers(); renderArea();
   } else { $('#d-find').innerHTML = '<p class="mut">The run returned no cells or candidates.</p>'; }
   bindCites(); syncShareHash();
@@ -724,7 +724,7 @@ function renderArea() {
     syncShareHash();
     return;
   }
-  const ranked = RisaliteScoring.scoreCells(R.cells, state.on, state.w, state.mode), byId = {};
+  const ranked = SpotWiseScoring.scoreCells(R.cells, state.on, state.w, state.mode), byId = {};
   ranked.forEach((r, i) => byId[r.cell.id] = { ...r, rank: i + 1 });
   CURRENT_RANK = { ranked, byId };
   const defRank = {}; R.defaultRank.forEach((r, i) => defRank[r.cell.id] = i + 1);

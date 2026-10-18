@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build synthetic Risalite demo fixtures around real PLR boundaries."""
+"""Build synthetic SpotWise demo fixtures around real PLR boundaries."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# Risalite landing page
+# SpotWise landing page
 
 Single self-contained `index.html` (no build step, no external requests). The hero is a 10-second loop:
 

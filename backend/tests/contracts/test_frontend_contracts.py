@@ -35,7 +35,7 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
 
     response = client.get("/")
     assert response.status_code == 200
-    assert "Risalite" in response.text
+    assert "SpotWise" in response.text
     landing_response = client.get("/landing/")
     assert landing_response.status_code == 200
     assert "Try the demo" in landing_response.text

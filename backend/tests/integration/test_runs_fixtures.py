@@ -339,7 +339,7 @@ def test_result_status_sse_replay_and_result_contract(client):
 def test_root_serves_dashboard_index(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "Risalite" in response.text
+    assert "SpotWise" in response.text
     assert "app.js" in response.text
 
 
