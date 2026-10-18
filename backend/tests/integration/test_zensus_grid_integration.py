@@ -144,9 +144,9 @@ async def test_ingests_zensus_against_lor_supports_catchment_cli_and_rolls_back(
     )
     outside_error = json.loads(capsys.readouterr().err)
     assert outside_exit_code == 1
-    assert "catchment extends beyond the imported extract extent" in outside_error["error"][
-        "message"
-    ]
+    assert (
+        "catchment extends beyond the imported extract extent" in outside_error["error"]["message"]
+    )
 
     corrupted = tmp_path / "corrupt.zip"
     corrupted.write_bytes(b"not a valid ZIP")

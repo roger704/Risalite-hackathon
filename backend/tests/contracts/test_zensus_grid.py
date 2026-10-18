@@ -372,9 +372,7 @@ def test_aggregate_grid_whole_cells_estimate_coverage_and_null_values():
 
 def test_aggregate_grid_marks_missing_bounds_incomplete_and_excludes_missing_area():
     first = grid_observation(GridCell(100, 3270900, 4548500), 10)
-    suppressed = grid_observation(
-        GridCell(100, 3270900, 4548600), None, status="suppressed"
-    )
+    suppressed = grid_observation(GridCell(100, 3270900, 4548600), None, status="suppressed")
     first_polygon = cell_polygon(parse_grid_id(first.grid_id), "EPSG:25833")
     suppressed_polygon = cell_polygon(parse_grid_id(suppressed.grid_id), "EPSG:25833")
     catchment = unary_union([first_polygon, suppressed_polygon])

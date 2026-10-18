@@ -185,9 +185,7 @@ def snapshot_catchment(
         or extract_extent.get("rule") != "cells intersecting bbox"
         or not _valid_bbox(extract_extent.get("bbox"))
     ):
-        raise ValueError(
-            "snapshot has no recorded extract extent; re-import with adapter 1.1.0"
-        )
+        raise ValueError("snapshot has no recorded extract extent; re-import with adapter 1.1.0")
     bbox = tuple(extract_extent["bbox"])
     catchment = circle_catchment(lon, lat, radius_m)
     to_3035 = Transformer.from_crs("EPSG:25833", "EPSG:3035", always_xy=True)
@@ -231,9 +229,7 @@ def _valid_bbox(value) -> bool:
         isinstance(value, (list, tuple))
         and len(value) == 4
         and all(
-            isinstance(item, (int, float))
-            and not isinstance(item, bool)
-            and math.isfinite(item)
+            isinstance(item, (int, float)) and not isinstance(item, bool) and math.isfinite(item)
             for item in value
         )
         and value[0] < value[2]
