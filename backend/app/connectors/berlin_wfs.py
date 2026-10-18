@@ -254,8 +254,8 @@ def _options(config: DatasetConfig) -> dict:
     if options["record_type"] not in {
         "area",
         "facility",
-        "road_traffic_segment",
         "population_block",
+        "road_traffic_segment",
     }:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
     if options["record_type"] == "facility":

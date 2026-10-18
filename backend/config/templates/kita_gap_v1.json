@@ -1,0 +1,42 @@
+{
+  "id": "kita_gap_v1",
+  "label": "Kita place gap (T3)",
+  "spec": "Deep_Research_Spec §5.8.3, §6",
+  "min_population": 2000,
+  "tie_band": 0.02,
+  "bonus_cap": 0.15,
+  "max_completion_year": 2031,
+  "params": {
+    "coverage_target": 0.9,
+    "coverage_target_sourced": false,
+    "imputation_percentile": 0.75,
+    "incomplete_imputed_share": 0.2,
+    "demand": {"id": "children_0_6", "label": "Children aged 0–6", "source": "berlin_population; forecast (#48) for future mode"},
+    "supply": {"id": "permitted_places_known_sum", "label": "Approved Kita places", "source": "berlin_kitas (#38, childcare_areas())"}
+  },
+  "layers": [
+    {
+      "id": "kita_gap",
+      "label": "Kita place gap (children 0–6 × coverage target − approved places) / children 0–6",
+      "direction": "+",
+      "weight": 1.0,
+      "transform": "identity",
+      "required": true,
+      "unit": "share of children 0–6",
+      "source": "berlin_population + berlin_kitas (#38)",
+      "why": "Ranked on the conservative gap_low when facility capacities are missing."
+    }
+  ],
+  "future_effects": {
+    "kita_opening": {"direction": "-", "unit": "kita_places"},
+    "bplan_kita_site": {"direction": "-", "unit": "kita_places"},
+    "kita_closure": {"direction": "+", "unit": "kita_places"},
+    "children_forecast_increase": {"direction": "+", "unit": "children_0_6"}
+  },
+  "unknowns": {
+    "incomplete": {
+      "text": "Imputed Kita places exceed 20 % of the estimated supply; the gap is uncertain.",
+      "suggested_validation": "Confirm capacity with the Jugendamt."
+    }
+  }
+}

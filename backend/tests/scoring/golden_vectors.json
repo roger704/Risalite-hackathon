@@ -1,0 +1,293 @@
+{
+  "version": 1,
+  "spec": "Deep_Research_Spec §9.7 (D8), §5.5, §5.8.4, §5.8.6",
+  "conventions": {
+    "values": "directional percentiles 0..1 within the area (direction already applied: 1 = good); do not flip '-' layers again",
+    "score_present": "sum(weight * value) / sum(weight) over layers with weight > 0 and a non-null value; missing layers are dropped and weights re-normalized (no mean imputation); no final rescale",
+    "score_future": "clamp01(score_present + clamp(sum(modifier.bonus), -bonus_cap, +bonus_cap))",
+    "bonus": "signed: effect '+' → +magnitude, '-' → -magnitude; magnitude small 0.03, medium 0.06, large 0.10; no number → small",
+    "bonus_size_thresholds": {
+      "dwellings": "small < 200, medium 200–999, large ≥ 1000",
+      "kita_places": "small < 50, medium 50–150, large > 150",
+      "children_0_6": "small < 50, medium 50–199, large ≥ 200"
+    },
+    "base_order": "sort by (eligible desc, score desc, id asc); eligible = not incomplete; score = score_present or score_future per mode",
+    "rank": "§5.5 on base order, applied separately to the eligible and the incomplete group: a demoted cell gets key j + 0.5 where j is the position of the next non-demoted cell in its group (none → own position); stable sort by key",
+    "tier": "on base order: a cell within tie_band of the previous cell (|Δ| ≤ tie_band + 1e-9) shares its tier; the first incomplete cell always opens a new tier; tiers start at 1",
+    "top3": "first three cells of the ranked list that are not incomplete",
+    "tolerance": 1e-9
+  },
+  "cases": [
+    {
+      "id": "missing_optional_layer",
+      "description": "B is missing optional layer b: excluded from its weighted mean, weights re-normalized over a and c",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [
+        {"id": "a", "direction": "+", "weight": 0.5},
+        {"id": "b", "direction": "+", "weight": 0.3},
+        {"id": "c", "direction": "-", "weight": 0.2}
+      ],
+      "cells": [
+        {"id": "A", "values": {"a": 0.8, "b": null, "c": 0.5}},
+        {"id": "B", "values": {"a": 0.6, "b": 0.6, "c": 0.6}},
+        {"id": "C", "values": {"a": 0.2, "b": 0.9, "c": 0.4}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.7142857142857143, "score_future": 0.7142857142857143, "tier": 1},
+          "B": {"score_present": 0.6, "score_future": 0.6, "tier": 2},
+          "C": {"score_present": 0.45, "score_future": 0.45, "tier": 3}
+        },
+        "order": ["A", "B", "C"],
+        "top3": ["A", "B", "C"]
+      }
+    },
+    {
+      "id": "tie_band",
+      "description": "Chained ties within 0.02 of the previous cell share a tier; exactly 0.02 apart (0.50 vs 0.48) is tied",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "A", "values": {"x": 0.62}},
+        {"id": "B", "values": {"x": 0.605}},
+        {"id": "C", "values": {"x": 0.59}},
+        {"id": "D", "values": {"x": 0.5}},
+        {"id": "E", "values": {"x": 0.48}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.62, "score_future": 0.62, "tier": 1},
+          "B": {"score_present": 0.605, "score_future": 0.605, "tier": 1},
+          "C": {"score_present": 0.59, "score_future": 0.59, "tier": 1},
+          "D": {"score_present": 0.5, "score_future": 0.5, "tier": 2},
+          "E": {"score_present": 0.48, "score_future": 0.48, "tier": 2}
+        },
+        "order": ["A", "B", "C", "D", "E"],
+        "top3": ["A", "B", "C"]
+      }
+    },
+    {
+      "id": "demotion_single",
+      "description": "A*,B,C → B,A,C; scores and tiers unchanged",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "A", "values": {"x": 0.9}, "demoted_by": ["f_risk_a"]},
+        {"id": "B", "values": {"x": 0.8}},
+        {"id": "C", "values": {"x": 0.7}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.9, "score_future": 0.9, "tier": 1},
+          "B": {"score_present": 0.8, "score_future": 0.8, "tier": 2},
+          "C": {"score_present": 0.7, "score_future": 0.7, "tier": 3}
+        },
+        "order": ["B", "A", "C"],
+        "top3": ["B", "A", "C"]
+      }
+    },
+    {
+      "id": "demotion_adjacent",
+      "description": "A*,B*,C → C,A,B; the demoted block keeps its internal order",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "A", "values": {"x": 0.9}, "demoted_by": ["f_risk_a"]},
+        {"id": "B", "values": {"x": 0.8}, "demoted_by": ["f_risk_b"]},
+        {"id": "C", "values": {"x": 0.7}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.9, "score_future": 0.9, "tier": 1},
+          "B": {"score_present": 0.8, "score_future": 0.8, "tier": 2},
+          "C": {"score_present": 0.7, "score_future": 0.7, "tier": 3}
+        },
+        "order": ["C", "A", "B"],
+        "top3": ["C", "A", "B"]
+      }
+    },
+    {
+      "id": "demotion_last",
+      "description": "A,B,C* → A,B,C; a demoted cell without a non-demoted successor stays",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "A", "values": {"x": 0.9}},
+        {"id": "B", "values": {"x": 0.8}},
+        {"id": "C", "values": {"x": 0.7}, "demoted_by": ["f_risk_c"]}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.9, "score_future": 0.9, "tier": 1},
+          "B": {"score_present": 0.8, "score_future": 0.8, "tier": 2},
+          "C": {"score_present": 0.7, "score_future": 0.7, "tier": 3}
+        },
+        "order": ["A", "B", "C"],
+        "top3": ["A", "B", "C"]
+      }
+    },
+    {
+      "id": "negative_t3_bonus_kita_opening_100",
+      "description": "kita_gap_v1: a 100-place Kita opening is medium and shrinks the gap: −0.06; future mode reorders",
+      "template": "kita_gap_v1",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "future",
+      "layers": [{"id": "kita_gap", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {
+          "id": "K",
+          "values": {"kita_gap": 0.7},
+          "modifiers": [
+            {"kind": "kita_opening", "unit": "kita_places", "amount": 100, "effect": "-", "size": "medium", "bonus": -0.06}
+          ]
+        },
+        {"id": "L", "values": {"kita_gap": 0.66}}
+      ],
+      "expected": {
+        "cells": {
+          "K": {"score_present": 0.7, "score_future": 0.64, "tier": 1},
+          "L": {"score_present": 0.66, "score_future": 0.66, "tier": 1}
+        },
+        "present_tiers": {"K": 1, "L": 2},
+        "present_order": ["K", "L"],
+        "order": ["L", "K"],
+        "top3": ["L", "K"]
+      }
+    },
+    {
+      "id": "bonus_cap",
+      "description": "Σ bonus capped at ±0.15 per cell, then clamp01",
+      "template": "coffee_v2",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "future",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {
+          "id": "H",
+          "values": {"x": 0.5},
+          "modifiers": [
+            {"kind": "housing_growth", "unit": "dwellings", "amount": 1200, "effect": "+", "size": "large", "bonus": 0.10},
+            {"kind": "housing_growth", "unit": "dwellings", "amount": 1500, "effect": "+", "size": "large", "bonus": 0.10},
+            {"kind": "bplan_housing", "unit": "dwellings", "amount": 1000, "effect": "+", "size": "large", "bonus": 0.10}
+          ]
+        },
+        {
+          "id": "N",
+          "values": {"x": 0.5},
+          "modifiers": [
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03},
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03},
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03},
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03},
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03},
+            {"kind": "cafe_opening", "unit": null, "amount": null, "effect": "-", "size": "small", "bonus": -0.03}
+          ]
+        },
+        {
+          "id": "M",
+          "values": {"x": 0.95},
+          "modifiers": [
+            {"kind": "housing_growth", "unit": "dwellings", "amount": 250, "effect": "+", "size": "medium", "bonus": 0.06},
+            {"kind": "housing_growth", "unit": "dwellings", "amount": 150, "effect": "+", "size": "small", "bonus": 0.03}
+          ]
+        }
+      ],
+      "expected": {
+        "cells": {
+          "M": {"score_present": 0.95, "score_future": 1.0, "tier": 1},
+          "H": {"score_present": 0.5, "score_future": 0.65, "tier": 2},
+          "N": {"score_present": 0.5, "score_future": 0.35, "tier": 3}
+        },
+        "order": ["M", "H", "N"],
+        "top3": ["M", "H", "N"]
+      }
+    },
+    {
+      "id": "incomplete_high_scorer",
+      "description": "An incomplete cell with the best score sorts after all eligible cells and never enters the top-3",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "kita_gap", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "I", "values": {"kita_gap": 0.95}, "incomplete": true},
+        {"id": "A", "values": {"kita_gap": 0.7}},
+        {"id": "B", "values": {"kita_gap": 0.6}},
+        {"id": "C", "values": {"kita_gap": 0.5}},
+        {"id": "D", "values": {"kita_gap": 0.4}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.7, "score_future": 0.7, "tier": 1},
+          "B": {"score_present": 0.6, "score_future": 0.6, "tier": 2},
+          "C": {"score_present": 0.5, "score_future": 0.5, "tier": 3},
+          "D": {"score_present": 0.4, "score_future": 0.4, "tier": 4},
+          "I": {"score_present": 0.95, "score_future": 0.95, "tier": 5}
+        },
+        "order": ["A", "B", "C", "D", "I"],
+        "top3": ["A", "B", "C"]
+      }
+    },
+    {
+      "id": "demoted_last_eligible_before_incomplete",
+      "description": "Demotion never moves an eligible cell behind an incomplete one (that would pull the incomplete cell into the top-3)",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [{"id": "x", "direction": "+", "weight": 1.0}],
+      "cells": [
+        {"id": "A", "values": {"x": 0.8}},
+        {"id": "B", "values": {"x": 0.7}},
+        {"id": "C", "values": {"x": 0.6}, "demoted_by": ["f_risk_c"]},
+        {"id": "I", "values": {"x": 0.9}, "incomplete": true}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.8, "score_future": 0.8, "tier": 1},
+          "B": {"score_present": 0.7, "score_future": 0.7, "tier": 2},
+          "C": {"score_present": 0.6, "score_future": 0.6, "tier": 3},
+          "I": {"score_present": 0.9, "score_future": 0.9, "tier": 4}
+        },
+        "order": ["A", "B", "C", "I"],
+        "top3": ["A", "B", "C"]
+      }
+    },
+    {
+      "id": "weight_change_recomputes_rank",
+      "description": "Same cells, layer b unticked (weight 0): scores recomputed, demotion re-applied on the new base order",
+      "tie_band": 0.02,
+      "bonus_cap": 0.15,
+      "mode": "present",
+      "layers": [
+        {"id": "a", "direction": "+", "weight": 0.5},
+        {"id": "b", "direction": "+", "weight": 0.0}
+      ],
+      "cells": [
+        {"id": "A", "values": {"a": 0.3, "b": 1.0}},
+        {"id": "B", "values": {"a": 0.9, "b": 0.1}, "demoted_by": ["f_risk_b"]},
+        {"id": "C", "values": {"a": 0.6, "b": 0.5}}
+      ],
+      "expected": {
+        "cells": {
+          "A": {"score_present": 0.3, "score_future": 0.3, "tier": 3},
+          "B": {"score_present": 0.9, "score_future": 0.9, "tier": 1},
+          "C": {"score_present": 0.6, "score_future": 0.6, "tier": 2}
+        },
+        "order": ["C", "B", "A"],
+        "top3": ["C", "B", "A"]
+      }
+    }
+  ]
+}
