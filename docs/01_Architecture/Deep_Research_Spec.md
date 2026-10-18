@@ -28,6 +28,16 @@ Hard rules:
 | E6 | Ownership | S1 owns the complete research flow incl. ledger, fact-checker, writer, events, HTTP API. S2 owns connectors/scoring/`cells.json` builder, S3 owns the frontend | confirmed |
 | E7 | Contracts | Event, ledger, finding, plan, data port as in §9; frozen after review | proposed |
 | E8 | Models | Configurable per role; default routing from the bake-off in §10 | proposed |
+| D1 | Contracts | S3 contracts (`backend/app/contracts`, PR #19) are the source of truth; this spec's additions (§9.6, M1–M6) are added there | confirmed (C), 2026-10-18 |
+| D2 | Data input | Data stage reads the area-summary API (PR #36) plus ports for Kitas (#38), centres (#41), B-Pläne (#43), forecast (#48) | confirmed (C) |
+| D3 | T2 layers | Cleaned `coffee_v1`: IHK only as cross-check, transit fix, plus block density (#37) and centre proximity (#41); mockup adopts real layer names | confirmed (B) |
+| D4 | Future modifiers | Structured first (B-Pläne, forecast), web supplements | confirmed (B) |
+| D5 | T3 | Second template `kita_gap_v1` if #38 exposes approved places, otherwise mockup preview only | confirmed (B, conditional) |
+| D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data) | confirmed (B); owner to confirm |
+| D7 | T1 dimension scores | Data-backed dimensions deterministic; operator/space fit by LLM with mandatory evidence ids; weak-tier-only dimensions capped | confirmed (B) |
+| D8 | Score rule | One rule in Python (S2) and JS (S3), guarded by shared golden test vectors | confirmed (C) |
+| D9 | Events | `events.ResearchEvent` (PR #19) + `replan`, `skip`, `rescore`, `role` | confirmed (C) |
+| D10 | Models | Configurable; second bake-off incl. gpt-oss-120b before fixing defaults | confirmed |
 
 ## 3. Flow
 
@@ -136,6 +146,10 @@ IHK (`56114`, `561141`) is not a scored layer; it feeds the cross-check in 5.2. 
 
 - Runs immediately after approval, in parallel with wave 1.
 - For each approved layer: `DataPort.layer_values(area, layer_id)` → raw value per PLR + `dataset_id`, `snapshot_id`, `source_url`. Each layer becomes one ledger entry (`method: "dataset"`), so numbers are cited exactly like web pages.
+- **Source (D2):** values come from the area-summary API (PR #36), which returns per value `status`, `unit`, `sources`, `reference_period` and `calculation{id, version, method}` from pinned snapshots; these fields are copied into the dataset ledger entry. Template-specific ports add Kitas (#38), centres (#41), B-Pläne (#43) and the population forecast (#48).
+- **T2 layers (D3):** density (block-based, #37, aggregated to PLR), share 18–45, competition = OSM cafés (IHK only for the cross-check below), transit departures (all-zero fixture must be fixed before use), centre proximity (#41). Weights are set in the template; there is no cost layer (no land-value connector), so cost stays a web topic.
+- **Structured future modifiers (D4):** B-Pläne and forecast growth localized to a PLR become `future` modifiers before any web research, with the dataset entry as evidence (no web fact-check needed).
+- **Dependency status (2026-10-18):** the S2 scoring engine (`backend/app/scoring/{scoring,build,layers,locate}.py`, `coffee_v1`) exists only on `devin/1792330050-s2-scoring`; PR #14 was closed unmerged with 6 open review findings, and `main` has only `backend/app/scoring/__init__.py`. Landing it (with D3/D8 applied) is a prerequisite for this flow; owner to confirm.
 - Normalization and score v0 are S2's `build_cells` (min–max within area, percentile if skewed; `score = Σ w·dir·value`, re-normalized).
 - **OSM ↔ IHK cross-check** per cell: if both counts ≥ 3 and `max/min > 2`, add an unknown `"café coverage: OSM {n} vs IHK {m}"` to the cell. Threshold is a proposal for review.
 - Output: `cells.json` (v0) and the **top-3 profiles**: for each top cell the layer values, ranks within the area, and the two layers that put it on top.
@@ -178,9 +192,10 @@ Each researcher gets the PLR list (`id`, `name`, Ortsteil) to localize findings.
 
 Merge runs **after** fact-check (1) and only reads the **accepted set**: findings with `verification = verified`, plus `partial` findings restricted to their matching evidence ids. Unverified claims therefore never reach modifiers, risks, unknowns or scores. The same accepted set (extended by verified skeptic risks) is used for `cells.json` v1, the final `cells.json` and the writer, so no modifier appears in one and vanishes in another.
 
-- `future` findings localized to a PLR → modifier `{type: "future", bonus: 0.10, magnitude?}` on that cell; `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
+- `future` findings localized to a PLR (web findings that duplicate a structured B-Plan modifier are merged into it) → modifier `{type: "future", bonus: 0.10, magnitude?}` on that cell; `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
 - `risk` findings → `risks[]` on the cell (severity assigned later).
-- A web finding that contradicts a layer (e.g. "café scene saturated" for a low-competition cell) → `unknowns[]` with a validation suggestion.
+- A web finding that contradicts a layer (e.g. "café scene saturated" for a low-competition cell) → `unknowns[]` as `{text, suggested_validation}`.
+- Every finding, modifier and risk carries its `subquestion_id`; unticking a sub-question at approval removes the linked layers, modifiers and risks (M1).
 - `score_future` is recomputed by S2 `build_cells` → `cells.json` v1. Final `cells.json` is rebuilt after rescore from the accepted set.
 
 ### 5.5 Skeptic (E4 = C, pending confirmation)
@@ -218,8 +233,14 @@ Runs twice: (1) on all research findings and dataset entries before merge, (2) o
 
 ## 6. T1 / T3
 
-- **T3 (gap)** uses the same flow with a different layer catalog (supply vs. demand) and wave-2 questions about planned facilities.
-- **T1 (point, S1b)** reuses ledger, tools, events and API; its hypothesis researchers replace waves 1/2 and its result is `candidates.json`. Not specified further here.
+- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures (closures → risks, openings → negative future modifiers on the gap). **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
+- **T1 (point, LocalLens, D6/D7)** reuses ledger, tools, events, approval and API; result is `candidates.json` (PR #19 contract):
+  1. Parse space (address) and operator profile; `berlin_addresses` (#47) → coordinates → PLR.
+  2. Plan: location sub-questions + 3–4 business hypotheses with *why* (operator experience × neighbourhood gaps); user approves/edits as in E3.
+  3. Ground: PLR values (area-summary API), competitors per hypothesis within the radius (OSM points; IHK as cross-check), catchment (Zensus grid #42 or walking isochrone #45), centre proximity (#41), B-Pläne nearby (#43).
+  4. Per hypothesis: FOR researcher and skeptic AGAINST (same tools, budgets and ledger) → `for[]`, `against[]`, `unknowns[{text, suggested_validation}]`.
+  5. Dimensions 0–10 (D7): *Demand*, *Competition gap*, *Regulation / risk* computed by rule from grounded data and accepted findings; *Operator fit*, *Space fit*, *Cost* by a structured LLM call that must cite evidence ids (no id → dimension neutral 5); a dimension backed only by weak-tier evidence is capped at 6. Recommendation score = weighted mean; `rank_initial` from data dimensions, `rank_final` after skeptic findings.
+  6. Fact-check and writer as in §5.6–§5.7. Owner per Execution Plan: S1b (to confirm).
 
 ## 7. Fallback mode (E5)
 
@@ -281,11 +302,29 @@ class AreaDataPort(Protocol):
     def build_cells(self, area, layers, weights, modifiers, risks, unknowns) -> CellsDocument: ...
 ```
 
-Backed by the existing dataset API (`GET /api/v1/datasets/{id}/records?snapshot_id&area_code&metric_code`). Until S2 delivers, S1 uses a mock port with fixtures in the same format.
+Backed by the area-summary API (PR #36, D2) and, for template-specific data, the Kita/centres/B-Plan/forecast endpoints; the port is a thin adapter, not a second data layer. Until those are merged, S1 uses a mock port with fixtures in the same format.
 
 ### 9.5 What S3 consumes
 
 SSE events (§9.1), `GET /runs/{id}/result`, and the files in §8. The plan object in `awaiting_approval` is the editable approval form.
+
+Per D1 the Pydantic models in `backend/app/contracts` (PR #19: `api.Plan`/`ResearchResponse`, `cells.CellsDocument`, `candidates.CandidatesDocument`, `events.ResearchEvent`, `evidence`) are authoritative; §9.1–§9.3 describe the payloads at the level this flow needs and must be kept consistent with them.
+
+### 9.6 Additions to the S3 contracts (D1, D9)
+
+| # | Where | Addition |
+|---|---|---|
+| M1 | plan, findings, modifiers, risks | `plan.sub_questions[].layer_ids`; `subquestion_id` on findings, modifiers and risks |
+| M2 | evidence | `tier ∈ {official, institutional, press, weak}` and `confidence ∈ {high, medium, low}`; datasets → official/high; web by a deterministic domain list (berlin.de, *.berlin.de → official; ihk.de, statistik-berlin-brandenburg.de → institutional; listed press domains → press; else weak) |
+| M3 | cells | `unknowns[]` as `{text, suggested_validation}` (as already in `candidates`) |
+| M4 | `factcheck.json` | per rejected finding: `best_score`, `threshold`, `reason` |
+| M5 | `metrics.json` | per role: model, calls, tokens_in/out, seconds; self-grade: citations verified/partial/total, unsupported count, uncited numbers count |
+| M6 | plan, events | `paid_sources[]` (already in `api.Plan`) and a `skip` event |
+| D9 | events | event types `replan`, `skip`, `rescore`; field `role` (Classifier, Planner, Data researcher, Web researcher, Scorer, Skeptic, Fact-checker, Writer) next to `agent` |
+
+### 9.7 One score rule (D8)
+
+S2 (`scoring.py`) and S3 (`frontend/app/scoring.js`) implement the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → bonus added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers, `demoted_by` → expected scores and order) is run by both test suites.
 
 ## 10. Models (bake-off, 2026-10-18)
 
@@ -519,7 +558,7 @@ Proposed additions (undecided):
 | M8 | specify the T1 flow (hypothesis researchers, dimension scoring, radius competitors) |
 | M9 | data requests to the data team (land value, NACE businesses with coordinates, Kita, MSS, addresses) or align the mockup with `coffee_v1` |
 
-### 13.9 Merging flow, frontend and data — decisions (for team discussion)
+### 13.9 Merging flow, frontend and data — decisions (adopted 2026-10-18, see §2 D1–D10)
 
 Context: open data PRs #36 (area-summary API with per-value `status`/`sources`/`calculation`), #37 block density, #38 `berlin_kitas`, #41 `berlin_centers`, #42 Zensus grid catchment, #43 `berlin_planning` (B-Pläne), #45 Valhalla isochrones, #47 `berlin_addresses`, #48 population forecast; S3 contracts in PR #19. No branch provides land value (BRW), MSS, NACE business points, ALKIS parcels or Wohnlage.
 
