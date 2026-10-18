@@ -125,19 +125,19 @@ function renderMarkdown(md) {
 const LABELS = { demand: "Demand", competition_gap: "Competition gap", location_fit: "Location fit",
                  operator_fit: "Operator fit", cost_risk: "Cost/risk" };
 
-function renderHypotheses(items, weights) {
+function renderHypotheses(items, weights, note) {
   if (!items || !items.length) return "";
-  const legend = Object.entries(weights || {})
-    .map(([k, w]) => `${LABELS[k] || k} ${Math.round(w * 100)}%`).join(" · ");
+  const keys = Object.keys(LABELS);
+  const legend = keys.map(k => `${LABELS[k]} ${Math.round(Number((weights || {})[k]) * 100)}%`).join(" · ");
   const cards = items.map((h, i) => {
-    const criteria = Object.entries(h.scores)
-      .map(([k, v]) => `${LABELS[k] || k} ${v}`).join(" · ");
+    const criteria = keys.map(k => `${LABELS[k]} ${Number((h.scores || {})[k])}`).join(" · ");
     return `<div class="card"><div class="card-head"><h3>${i + 1}. ${escapeHtml(h.title)}</h3>
-      <span class="score">${h.total}<small>/100</small></span></div>
+      <span class="score">${Number(h.total)}<small>/100</small></span></div>
       ${h.location ? `<div class="where">${escapeHtml(h.location)}</div>` : ""}
       <p>${escapeHtml(h.summary)}</p><div class="criteria">${criteria}</div></div>`;
   }).join("");
   return `<h2>Top business hypotheses</h2>${cards}
+    ${note ? `<div class="note"><strong>Note:</strong> ${escapeHtml(note)}</div>` : ""}
     <div class="note">Score = weighted 0–10 ratings × 10 (${legend}). Decision support, not a probability of success.</div>`;
 }
 
@@ -186,7 +186,7 @@ $("form").addEventListener("submit", async (event) => {
     } else {
       setStatus(result.ok ? "Verified: Nebius inference, Tavily searches and inline citations"
                           : "Verification failed: report lacks inline Tavily citations", result.ok ? "ok" : "fail");
-      $("hypotheses").innerHTML = renderHypotheses(result.hypotheses, result.weights);
+      $("hypotheses").innerHTML = renderHypotheses(result.hypotheses, result.weights, result.ranking_note);
       $("report").innerHTML = renderMarkdown(result.report);
       $("progress").open = false;
     }

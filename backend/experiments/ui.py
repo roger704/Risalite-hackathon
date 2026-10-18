@@ -120,6 +120,7 @@ class Handler(BaseHTTPRequestHandler):
                 "verify": result.verify_line(),
                 "searches": result.stats.searches,
                 "hypotheses": result.hypotheses,
+                "ranking_note": result.ranking_note,
                 "weights": SCORE_WEIGHTS,
             }
         )

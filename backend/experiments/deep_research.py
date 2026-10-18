@@ -33,6 +33,11 @@ SOURCES_HEADING = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
+META_LEAD_IN = re.compile(
+    r"(?:(?:i (?:now )?have enough (?:evidence|information|data)|let me (?:write|synthesi[sz]e|compile)"
+    r"|now i (?:will|can|'ll) write|i(?:'ll| will) now write)[^.\n]*[.!:]?\s*)+",
+    re.IGNORECASE,
+)
 SCORE_WEIGHTS = {
     "demand": 0.25,
     "competition_gap": 0.25,
@@ -99,8 +104,10 @@ location), ranked best first, whatever the request type.
   location_fit: footfall, access and neighbourhood fit; operator_fit: fit with the operator's \
 skills and budget (5 if no operator details are given); cost_risk: affordable rent and set-up \
 cost, low risk.
-- Base every rating on cited evidence; when evidence is missing, use 5 and say it is unknown. \
-Do not compute a total; the application weights the ratings.
+- Base every rating on cited evidence; when evidence is missing, use 5 and say it is unknown.
+- Rank the hypotheses by the weighted total the application computes: demand 25%, \
+competition_gap 25%, location_fit 20%, operator_fit 15%, cost_risk 15% (total = weighted \
+ratings × 10, out of 100).
 - Include a "Hypotheses" markdown table with one row per hypothesis: title, location, a \
 one-sentence summary, and the five ratings.
 
@@ -134,6 +141,7 @@ class ResearchResult:
     cited: set[str] = field(default_factory=set)
     inline: set[str] = field(default_factory=set)
     hypotheses: list[dict] = field(default_factory=list)
+    ranking_note: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -323,9 +331,12 @@ def redact(text: str) -> str:
 
 
 def strip_preamble(report: str) -> str:
-    """Drop a short lead-in such as "I have enough evidence..." before the first heading."""
+    """Drop a meta lead-in such as "I have enough evidence... Let me write" before the first heading."""
     match = re.search(r"^#{1,6}[ \t]", report, re.MULTILINE)
-    if match and 0 < match.start() <= 400 and "](" not in report[: match.start()]:
+    if not match or not 0 < match.start() <= 300:
+        return report
+    lead = report[: match.start()].strip().strip("-").strip()
+    if META_LEAD_IN.fullmatch(lead):
         return report[match.start() :]
     return report
 
@@ -359,8 +370,22 @@ def score_hypotheses(items: list[dict]) -> list[dict]:
                 "evidence": evidence,
             }
         )
-    scored.sort(key=lambda h: h["total"], reverse=True)
+    scored.sort(key=lambda h: h["total"], reverse=True)  # stable: ties keep report order
     return scored[:3]
+
+
+def ranking_note(extracted: list[dict], scored: list[dict]) -> str | None:
+    """Flag when the application's score ranking puts a different hypothesis first than the report."""
+    if (
+        scored
+        and extracted
+        and normalize(extracted[0].get("title", "")) != normalize(scored[0]["title"])
+    ):
+        return (
+            f'Ranking by computed score differs from the report: "{scored[0]["title"]}" scores '
+            f'highest, while the report lists "{extracted[0].get("title")}" first.'
+        )
+    return None
 
 
 def hypotheses_table(hypotheses: list[dict]) -> str:
@@ -422,18 +447,17 @@ def run_research(
     report = strip_preamble(message_text(result["messages"][-1]))
     cited, inline = cited_urls(report, stats.result_urls)
     try:
-        hypotheses = score_hypotheses(extract_hypotheses(build_model(), report, callbacks))
-        if inline:
-            hypotheses = [h for h in hypotheses if normalize(h["title"]) in normalize(report)]
-        else:
-            hypotheses = []  # nothing verifiable to score
+        extracted = extract_hypotheses(build_model(), report, callbacks) if inline else []
+        extracted = [h for h in extracted if normalize(h["title"]) in normalize(report)]
+        hypotheses = score_hypotheses(extracted)
+        note = ranking_note(extracted, hypotheses)
     except ResearchCancelled:
         return ResearchResult(stats, time.monotonic() - started, error="cancelled")
     except Exception as exc:
         log(f"[score] could not extract hypotheses: {type(exc).__name__}: {redact(str(exc))}")
-        hypotheses = []
+        hypotheses, note = [], None
     return ResearchResult(
-        stats, time.monotonic() - started, report, None, cited, inline, hypotheses
+        stats, time.monotonic() - started, report, None, cited, inline, hypotheses, note
     )
 
 
@@ -459,6 +483,8 @@ def main() -> int:
     print(result.report)
     if result.hypotheses:
         print("\n" + hypotheses_table(result.hypotheses))
+        if result.ranking_note:
+            print(f"\n> Note: {result.ranking_note}")
     log("\n" + result.verify_line())
     if not result.ok:
         log(
