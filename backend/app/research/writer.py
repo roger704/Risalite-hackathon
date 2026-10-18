@@ -35,7 +35,9 @@ class CellSection(BaseModel):
 
 class Report(BaseModel):
     summary: list[Sentence] = Field(default_factory=list)
+    recommendation: list[Sentence] = Field(default_factory=list)
     cells: list[CellSection] = Field(default_factory=list)
+    what_could_change: list[Sentence] = Field(default_factory=list)
     unknowns: list[Sentence] = Field(default_factory=list)
 
 
@@ -91,6 +93,9 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
     summary = [s for s in (_sentence(x, allowed) for x in report.summary) if s]
     if summary:
         lines += [" ".join(summary), ""]
+    recommendation = [s for s in (_sentence(x, allowed) for x in report.recommendation) if s]
+    if recommendation:
+        lines += ["## Recommendation", "", " ".join(recommendation), ""]
     items = {str(c.get("id")): c for c in top_items(result)}
     sections = {s.cell_id: s for s in report.cells}
     order = list(items) or [s.cell_id for s in report.cells]
@@ -107,6 +112,11 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
             lines += ["**Why**", "", *(f"- {r}" for r in reasons), ""]
         if risks:
             lines += ["**Risks**", "", *(f"- {r}" for r in risks), ""]
+    changes = [
+        s for s in (_sentence(x, allowed, required=False) for x in report.what_could_change) if s
+    ]
+    if changes:
+        lines += ["## What could change the recommendation", "", *(f"- {c}" for c in changes), ""]
     unknowns = [s for s in (_sentence(x, allowed, required=False) for x in report.unknowns) if s]
     if unknowns:
         lines += ["## Unknowns", "", *(f"- {u}" for u in unknowns), ""]

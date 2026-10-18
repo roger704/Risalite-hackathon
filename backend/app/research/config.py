@@ -16,7 +16,7 @@ Emit = Callable[
     [str, dict], None
 ]  # (event type from contracts.events, payload); orchestrator adds seq/ts/run_id
 
-DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+DEFAULT_MODEL = "nvidia/Nemotron-3.5-Super-VL"
 DEFAULT_SKEPTIC_MODEL = DEFAULT_MODEL
 
 

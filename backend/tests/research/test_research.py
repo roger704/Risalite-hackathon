@@ -161,7 +161,7 @@ def test_research_config_defaults_model_roles_to_nemotron(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
     cfg = ResearchConfig()
-    expected = "nvidia/nemotron-3-super-120b-a12b"
+    expected = "nvidia/Nemotron-3.5-Super-VL"
     assert cfg.model == cfg.writer_model == cfg.skeptic_model == expected
 
 
@@ -252,6 +252,44 @@ async def test_writer_strips_unknown_ids_and_uncited_sentences(tmp_path):
     report = await write_report("q", {"cells": [CELL]}, [finding], ledger, Recorder(), cfg)
     assert f"[{good}]" in report
     assert "bogus" not in report and "Invented" not in report and "Uncited" not in report
+
+
+async def test_writer_renders_spotwise_sections_with_citations(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.add_web_evidence(web_evidence("https://www.berlin.de/a", snippet=PASSAGE))
+    good = ledger.entries()[0]["evidence_id"]
+    reply = json.dumps(
+        {
+            "summary": [{"text": "Moritzplatz fits best.", "evidence_ids": [good]}],
+            "recommendation": [
+                {"text": "Open the café at Moritzplatz.", "evidence_ids": [good]},
+                {"text": "Uncited recommendation.", "evidence_ids": []},
+            ],
+            "cells": [],
+            "what_could_change": [
+                {"text": "Rents rising faster than expected.", "evidence_ids": [good]},
+                {"text": "Unsourced change.", "evidence_ids": ["ev_nothere"]},
+            ],
+            "unknowns": [],
+        }
+    )
+    finding = Finding(
+        finding_id="f_1",
+        claim="c",
+        quote="q",
+        evidence_ids=[good],
+        claim_type="fact",
+        localization="02010101",
+        agent="a",
+        status="accepted",
+    )
+    cfg = cfg_with(ScriptedModel(script=[reply]), None)
+    report = await write_report("q", {"cells": [CELL]}, [finding], ledger, Recorder(), cfg)
+    assert f"## Recommendation\n\nOpen the café at Moritzplatz [{good}]." in report
+    assert "## What could change the recommendation" in report
+    assert report.index("## Recommendation") < report.index("## Top locations")
+    assert "Uncited" not in report and "ev_nothere" not in report
+    assert "- Unsourced change." in report  # forward-looking, like unknowns: no citation needed
 
 
 # -- record_finding --------------------------------------------------------------------------
