@@ -487,8 +487,76 @@ class Address(Record):
             raise ValidationError("attributes must map strings to strings")
 
 
+@dataclass(frozen=True, kw_only=True)
+class GridObservation(Record):
+    geometry: dict[str, Any]
+    grid_id: str
+    grid_crs: str
+    resolution_m: int
+    metric_code: str
+    value: float | int | None
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    area_code: str | None = None
+    record_type: str = field(default="grid_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") != "Polygon":
+            raise ValidationError("Grid geometry must be a GeoJSON Polygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("Grid geometry must have coordinates")
+        for ring in coordinates:
+            if not isinstance(ring, (list, tuple)) or not ring:
+                raise ValidationError("Grid geometry must have polygon coordinate rings")
+            for position in ring:
+                if (
+                    not isinstance(position, (list, tuple))
+                    or len(position) != 2
+                    or any(
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not isfinite(value)
+                        for value in position
+                    )
+                ):
+                    raise ValidationError("Grid coordinates must be finite WGS84 positions")
+                longitude, latitude = position
+                if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+                    raise ValidationError("Grid coordinates must be WGS84 longitude/latitude")
+        for name in ("grid_id", "grid_crs", "metric_code", "unit"):
+            _text(name, getattr(self, name))
+        if type(self.resolution_m) is not int or self.resolution_m <= 0:
+            raise ValidationError("resolution_m must be a positive integer")
+        _period(self.reference_period)
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status in {ValueStatus.MISSING, ValueStatus.SUPPRESSED, ValueStatus.NOT_APPLICABLE}:
+            if self.value is not None:
+                raise ValidationError("Missing, suppressed and not-applicable values must be null")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+        ):
+            raise ValidationError("Observed, estimated and forecast values must be finite numbers")
+        _optional_text("area_code", self.area_code)
+
+
 NormalizedRecord: TypeAlias = (
-    Area | AreaObservation | Place | Business | TransitStop | StopService | Address
+    Area
+    | AreaObservation
+    | Place
+    | Business
+    | TransitStop
+    | StopService
+    | GridObservation
+    | Address
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -498,6 +566,7 @@ RECORD_TYPES: dict[str, type] = {
     "transit_stop": TransitStop,
     "stop_service": StopService,
     "address": Address,
+    "grid_observation": GridObservation,
 }
 
 
