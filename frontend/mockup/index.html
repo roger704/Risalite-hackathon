@@ -15,7 +15,7 @@
   --glass-b:rgba(255,255,255,.7);--blur:saturate(180%) blur(28px);--shadow:0 1px 1px rgba(0,0,0,.03),0 8px 32px rgba(31,38,135,.08);--ease:cubic-bezier(.22,.9,.24,1);--r:22px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;min-height:100vh;font:14px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,sans-serif;letter-spacing:-.005em;color:var(--ink);-webkit-font-smoothing:antialiased;
+body{margin:0;min-height:100vh;font:14px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji";letter-spacing:-.005em;color:var(--ink);-webkit-font-smoothing:antialiased;
   background:radial-gradient(1200px 800px at 10% -10%,#dbe4ff 0,transparent 60%),radial-gradient(900px 700px at 100% 0,#fde2f3 0,transparent 55%),radial-gradient(900px 900px at 80% 110%,#d4f4ff 0,transparent 60%),var(--bg);background-attachment:fixed}
 body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(70px);opacity:.55;pointer-events:none;will-change:transform}
 body::before{width:520px;height:520px;left:-120px;top:30vh;background:radial-gradient(circle,#a5b4fc,transparent 70%);animation:drift1 26s ease-in-out infinite alternate}
@@ -37,7 +37,7 @@ main{max-width:1320px;margin:0 auto;padding:28px 24px 60px}
 .card{background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);border-radius:var(--r);padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.8)}
 /* view transitions */
 .view{--dir:1}
-.view .card{animation:cardIn .6s var(--ease) both;animation-delay:calc(var(--i,0)*45ms)}
+.view .card,.view .anim{animation:cardIn .6s var(--ease) both;animation-delay:calc(var(--i,0)*45ms)}
 .view.leave{animation:viewOut .28s cubic-bezier(.4,0,1,1) both;pointer-events:none}
 @keyframes cardIn{from{opacity:0;transform:translate3d(calc(var(--dir)*28px),14px,0) scale(.985);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 @keyframes viewOut{to{opacity:0;transform:translate3d(calc(var(--dir)*-32px),0,0) scale(.98);filter:blur(10px)}}
@@ -54,7 +54,7 @@ select,input[type=text],input[type=password]{font:inherit;padding:8px 12px;borde
 textarea:focus,select:focus,input:focus{outline:0;border-color:rgba(0,122,255,.6);background:rgba(255,255,255,.9);box-shadow:0 0 0 4px rgba(0,122,255,.15)}
 input:disabled{opacity:.55}
 input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px}
-.btn{font:inherit;font-weight:600;background:linear-gradient(180deg,#1a8cff,#007aff);color:#fff;border:0;border-radius:999px;padding:10px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,.3),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .2s var(--ease),box-shadow .3s var(--ease),filter .2s}
+.btn{font:inherit;font-weight:600;white-space:nowrap;background:linear-gradient(180deg,#1a8cff,#007aff);color:#fff;border:0;border-radius:999px;padding:10px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,.3),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .2s var(--ease),box-shadow .3s var(--ease),filter .2s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,122,255,.38)}
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:rgba(255,255,255,.7);color:var(--ink);border:1px solid var(--line);box-shadow:none}
@@ -139,115 +139,169 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .fa h4{margin:0 0 4px;font-size:12px}
 .fa ul{margin:0;padding-left:16px;font-size:12px}
 .grade td:first-child{width:24px}
+.center{text-align:center}.grow{flex:1;min-width:0}
+.hero{text-align:center;margin:30px 0 22px}
+.hero-ico{font-size:50px;line-height:1;margin-bottom:12px;display:inline-block;animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-7px)}}
+.hero h1{font-size:36px}.hero p{margin:6px 0 0;font-size:15px}
+#s-ask{max-width:880px;margin:0 auto}
+.search{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:20px;padding:8px 8px 8px 18px;transition:box-shadow .3s var(--ease),border-color .3s}
+.search:focus-within{border-color:rgba(0,122,255,.5);box-shadow:0 0 0 4px rgba(0,122,255,.14)}
+.search .s-ico{font-size:20px}
+.search textarea{border:0;background:transparent!important;min-height:0;padding:8px 0;resize:none;box-shadow:none!important}
+.opts{margin-top:12px;gap:10px}
+.field{display:flex;align-items:center;gap:6px;font-size:15px}
+.field select,.field input{border-radius:999px!important;padding:7px 14px!important;font-size:13px}
+.field.grow input{width:100%}
+.tpl-h{text-align:center;margin:28px 0 0}
+.tpl .t{text-align:center;padding:22px 16px}
+.tpl .t .emo{display:block;width:auto;font-size:36px;line-height:1;transition:transform .45s var(--ease)}
+.tpl .t:hover .emo{transform:scale(1.18) rotate(-5deg)}
+.eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line)}
+.c-point{background:rgba(175,82,222,.12);color:#8e3dbd;border-color:transparent}.c-location{background:rgba(0,122,255,.11);color:#0062cc;border-color:transparent}.c-gap{background:rgba(255,149,0,.14);color:#b25000;border-color:transparent}
+table.list td{border:0;padding:8px 6px;vertical-align:middle}
+table.list td:first-child{width:28px}
+table.list td.r{text-align:right;white-space:nowrap;font-size:15px}
+.wbar{display:inline-block;width:54px;height:5px;border-radius:999px;background:var(--chip);vertical-align:middle;overflow:hidden}.wbar i{display:block;height:100%;background:var(--acc);border-radius:999px}
+.dirr{display:inline-block;width:18px;text-align:center;font-weight:700;color:var(--mut)}
+.emo{display:inline-block;width:1.4em;text-align:center}
+.actionbar{position:sticky;bottom:18px;z-index:10;display:flex;gap:10px;padding:8px;margin:4px 0 0 auto;width:max-content;border-radius:999px;background:rgba(255,255,255,.62);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:var(--shadow)}
+.live{max-width:880px;margin:0 auto}
+.live-top{display:flex;align-items:center;gap:18px}
+.orb{width:76px;height:76px;flex:0 0 76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;background:radial-gradient(circle at 30% 30%,#fff,rgba(255,255,255,.45));border:1px solid var(--glass-b);animation:ring 2s ease-out infinite}
+.orb.pulse{animation:orbPop .55s var(--ease),ring 2s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(0,122,255,.35)}100%{box-shadow:0 0 0 24px rgba(0,122,255,0)}}
+@keyframes orbPop{0%{transform:scale(.55) rotate(-14deg)}100%{transform:none}}
+.now-t{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.feed{margin-top:16px;display:flex;flex-direction:column;gap:6px;min-height:182px}
+.fi{display:flex;gap:10px;align-items:baseline;padding:9px 13px;border-radius:14px;background:rgba(255,255,255,.6);border:1px solid var(--glass-b);font-size:13px;animation:evIn .45s var(--ease) both;transition:opacity .4s}
+.fi .fe{font-size:16px}.fi b{white-space:nowrap;font-weight:600}.fi .ft{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi.rej{background:rgba(255,59,48,.09)}.fi.re{background:rgba(255,204,0,.14)}
+.fi:not(:last-child){opacity:.55}
+details.log{margin-top:14px}
+details.sect{border-top:1px solid var(--line);padding:12px 0 2px}
+details.sect:first-of-type{border-top:0}
+details.sect>summary{font-size:15px}
+details.sect>div,details.sect>table{margin-top:8px}
+.top-h{display:flex;align-items:center;gap:10px}
+.medal{font-size:28px;line-height:1}
+.hemo{font-size:22px}
+.top .sc small{font-size:12px;color:var(--mut);-webkit-text-fill-color:var(--mut)}
+.lbars{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px 14px;margin:12px 0 4px}
+.lb{display:flex;align-items:center;gap:6px;font-size:14px;transition:opacity .3s;cursor:help}.lb .mini{flex:1;margin:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12px;padding:4px 10px;border-radius:999px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
+.t-fut{background:rgba(0,122,255,.1);color:#0057b8}.t-risk{background:rgba(255,149,0,.14);color:#9a4a00}.t-unk{background:var(--chip);color:var(--mut)}
+.top details{margin-top:10px}.top details summary{font-weight:500}
+.clamp p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.linkbtn{font:inherit;font-size:13px;font-weight:600;color:var(--acc);background:none;border:0;padding:6px 0 0;cursor:pointer}
+.info{font-size:13px;color:var(--mut);cursor:help;font-weight:400}
+.layer{grid-template-columns:26px 1fr auto 44px}
+.layer .emo{font-size:16px}
+input.switch{appearance:none;-webkit-appearance:none;width:40px;height:24px;border-radius:999px;background:rgba(120,120,128,.24);position:relative;cursor:pointer;transition:background .3s var(--ease);margin:0}
+input.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .3s var(--ease)}
+input.switch:checked{background:#34c759}input.switch:checked::after{transform:translateX(16px)}
+.qtitle{font-size:21px;letter-spacing:-.015em}
 @media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}header .tag,.steps{display:none}}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">Risal<span>ite</span></div>
-  <div class="tag">Don't just research a location. Discover where opportunity exists.</div>
   <nav class="steps" id="steps" aria-label="Workflow"><i class="pill"></i><span data-v="s-ask">Ask</span><span data-v="s-plan">Plan</span><span data-v="s-live">Research</span><span data-v="s-dash">Results</span></nav>
-  <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">MOCKUP · synthetic data</div>
-  <button id="restart">New question</button>
+  <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">🧪 Mockup · synthetic data</div>
+  <button id="restart">+ New question</button>
 </header>
 <main>
 
 <!-- 1 · ASK -->
 <section id="s-ask" class="view">
+  <div class="hero anim">
+    <div class="hero-ico">📍</div>
+    <h1>What do you want to know about Berlin?</h1>
+    <p class="mut">Ask a question → approve the plan → get a cited answer.</p>
+  </div>
   <div class="card">
-    <h1>Ask a question about a place in Berlin</h1>
-    <p class="mut" style="margin:0 0 12px">Risalite classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web — every claim is fact-checked and cited.</p>
-    <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
-    <div class="row" style="margin-top:10px">
-      <label class="mut">Role (optional)
-        <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
-      </label>
-      <label class="mut" id="opwrap">Operator profile (point questions)
-        <input type="text" id="op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
-      </label>
-      <button class="btn" id="go" style="margin-left:auto">Research ›</button>
+    <div class="search"><span class="s-ico">🔎</span><textarea id="q" rows="2" placeholder="Where is it smart to open a coffee place in Kreuzberg?"></textarea><button class="btn" id="go">Research ›</button></div>
+    <div class="row opts">
+      <label class="field" title="Optional: who is asking">👤 <select id="role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></label>
+      <label class="field grow" id="opwrap" title="Optional, used for storefront questions">🧑‍🍳 <input type="text" id="op" placeholder="Your experience &amp; budget (optional)"></label>
     </div>
     <div id="clar" class="clar hidden">
-      <b>Clarifying question from the planner</b>
-      <p style="margin:4px 0 8px">Your question doesn't name an area. <b>Which district or neighbourhood?</b> <span class="mut small">(Risalite never guesses an area.)</span></p>
-      <div class="row"><button class="btn ghost" data-area="Kreuzberg">Kreuzberg</button><button class="btn ghost" data-area="Neukölln">Neukölln</button></div>
+      <div style="font-size:16px;margin-bottom:10px">🤔 <b>Which area?</b> <span class="mut small">Risalite never guesses.</span></div>
+      <div class="row"><button class="btn ghost" data-area="Kreuzberg">📍 Kreuzberg</button><button class="btn ghost" data-area="Neukölln">📍 Neukölln</button></div>
     </div>
-    <div class="tpl">
-      <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="badge b-point">T1 · point</span><b>Property / storefront</b><span class="mut small">"This storefront at Wiener Straße 12 just became available — what is the best use?"</span></div>
-      <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="badge b-location">T2 · location</span><b>Business location</b><span class="mut small">"Where is it smart to open a coffee place in Kreuzberg?"</span></div>
-      <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="badge b-gap">T3 · gap</span><b>Kita gap</b><span class="mut small">"Where are Kitas missing in Neukölln?"</span></div>
-    </div>
-    <p class="small mut" style="margin:12px 0 0">Try a question without an area (e.g. "Where should I open a bike repair shop?") to see the clarifying step.</p>
   </div>
+  <div class="tpl-h mut small anim">✨ Or try an example</div>
+  <div class="tpl anim">
+    <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="emo">🏬</span><b>Best use for a storefront</b><span class="mut small">Wiener Straße 12</span></div>
+    <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="emo">☕</span><b>Where to open a café</b><span class="mut small">Kreuzberg</span></div>
+    <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="emo">🧸</span><b>Where Kitas are missing</b><span class="mut small">Neukölln</span></div>
+  </div>
+  <p class="small mut center anim" style="margin-top:18px">💡 Leave out the area and Risalite will ask.</p>
 </section>
 
 <!-- 2 · PLAN -->
 <section id="s-plan" class="view hidden">
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <div><div class="mut small">Question</div><h1 id="p-q"></h1></div>
-    </div>
+    <div class="eyebrow">Your question</div>
+    <h1 id="p-q"></h1>
+    <div class="chips" style="margin-top:10px"><span id="p-class"></span><span id="p-area" class="chips"></span></div>
+    <div id="p-why" class="why small" style="margin-top:8px"></div>
     <div id="p-note" class="demo-note hidden"></div>
-    <div class="grid2" style="margin-top:12px">
-      <div><h3>Classification</h3><div id="p-class"></div></div>
-      <div><h3>Derived area</h3><div id="p-area"></div></div>
-    </div>
   </div>
-  <div class="card">
-    <h2>Research plan <span class="badge">awaiting approval</span></h2>
-    <table id="p-sub"><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody></tbody></table>
-    <div id="p-layers-wrap" style="margin-top:16px"><h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody></tbody></table></div>
-    <div style="margin-top:16px"><h3>Optional paid sources</h3><table id="p-paid"><thead><tr><th>Source</th><th>Used for</th><th>Status</th><th>API key</th></tr></thead><tbody></tbody></table></div>
-    <div class="row" style="margin-top:16px">
-      <button class="btn" id="approve">Approve & start research</button>
-      <button class="btn ghost" id="back">Edit question</button>
-      <span class="mut small">Untick a sub-question or layer to edit the plan before approving.</span>
-    </div>
+  <div class="grid2">
+    <div class="card"><h2>🧭 What we'll research <span class="mut small" style="font-weight:400">untick to skip</span></h2>
+      <table id="p-sub" class="list"><tbody></tbody></table>
+      <div class="chips small mut" style="margin-top:10px">🏛️ open geodata · 🗺️ OSM · 🌐 web <span id="p-paid"></span></div></div>
+    <div class="card"><div id="p-layers-wrap"></div></div>
   </div>
+  <div class="actionbar anim"><button class="btn ghost" id="back">← Edit</button><button class="btn" id="approve">✅ Approve &amp; research</button></div>
 </section>
 
 <!-- 3 · LIVE -->
 <section id="s-live" class="view hidden">
-  <div class="card">
-    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Live investigation</h2><button class="btn ghost" id="skip">Skip to result ›</button></div>
-    <div class="stages" id="stages"></div>
+  <div class="card live">
+    <div class="live-top"><div class="orb" id="l-orb">🧭</div><div class="grow"><div class="eyebrow">Researching</div><div class="now-t" id="l-stage">Understanding your question</div><div class="small mut" id="l-stat"></div></div><button class="btn ghost" id="skip">Skip ›</button></div>
+    <div class="stages" id="stages" style="margin-top:16px"></div>
     <div class="prog"><div id="bar"></div></div>
-    <div class="row small mut" style="margin:8px 0"><span id="l-stat"></span></div>
-    <div class="trace" id="l-trace"></div>
+    <div class="feed" id="l-feed"></div>
+    <details class="log"><summary class="small mut">📜 Full agent log</summary><div class="trace" id="l-trace" style="margin-top:8px"></div></details>
   </div>
 </section>
 
 <!-- 4 · DASHBOARD -->
 <section id="s-dash" class="view hidden">
   <div class="card">
-    <h2><span class="n">1</span> Question & approved plan</h2>
-    <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
-    <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
+    <div class="eyebrow">Your question</div>
+    <div class="row"><b id="d-q" class="qtitle"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
     <div id="d-note" class="demo-note hidden"></div>
+    <details style="margin-top:10px"><summary class="small mut">📋 Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
   </div>
   <div class="dash">
     <div>
-      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
-      <div class="card"><h2><span class="n">3</span> <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
+      <div class="card"><h2>✨ Answer <span id="d-mix" class="badge"></span></h2><div id="d-sum" class="clamp"></div><button class="linkbtn" id="d-more">Read more</button></div>
+      <div class="card"><h2>🏆 <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
       <div class="card" id="battle-card"><h2 id="battle-title"></h2><div id="d-battle"></div></div>
     </div>
     <div>
-      <div class="card"><h2><span class="n">4</span> Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
+      <div class="card"><h2>🗺️ Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
         <div class="map" id="map"><div class="tip" id="tip"></div></div>
         <div class="legend" id="legend"></div>
       </div>
-      <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
-        <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
+      <div class="card" id="layer-card"><h2>🎛️ Tune the ranking <span class="info" title="Score = Σ weight · (direction · value) over switched-on layers, re-normalised 0–1 across cells; future projects add +0.10. Recomputed in the browser; the written answer stays on the default mix.">ℹ️</span></h2>
+        <div class="row" style="margin-bottom:10px"><div class="toggle" id="mode"><button data-m="present" class="on">Today</button><button data-m="future">🚀 + Future</button></div><button class="btn ghost" id="reset" style="padding:6px 12px;font-size:12px">↺ Reset</button></div>
         <div id="layers"></div>
-        <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add +0.10. Recomputed in the browser — the summary stays "default mix".</p>
       </div>
     </div>
   </div>
-  <div class="card"><h2><span class="n">6</span> Sources <span class="mut small" style="font-weight:400">— generated from evidence.jsonl only</span></h2><div id="d-src"></div>
-    <details style="margin-top:10px" open><summary>Could not verify (dropped by the fact-checker)</summary><div id="d-nover" style="margin-top:6px"></div></details></div>
-  <div class="grid2">
-    <div class="card"><h2><span class="n">7</span> Trace</h2><div id="d-models" style="margin-bottom:10px"></div><div class="trace" id="d-trace"></div></div>
-    <div class="card"><h2>Self-grade</h2><table class="grade" id="d-grade"></table></div>
+  <div class="card"><h2>🔎 Evidence &amp; transparency</h2>
+    <details class="sect" id="ev-src"><summary>📚 Sources <span class="badge" id="n-src"></span></summary><div id="d-src"></div></details>
+    <details class="sect"><summary>🚫 Could not verify <span class="badge b-bad" id="n-rej"></span></summary><div id="d-nover"></div></details>
+    <details class="sect"><summary>🧠 Agent trace &amp; models</summary><div id="d-models"></div><div class="trace" id="d-trace"></div></details>
+    <details class="sect"><summary>🎓 Self-grade</summary><table class="grade" id="d-grade"></table></details>
   </div>
 </section>
 </main>
@@ -255,6 +309,16 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 <script>
 const GEO = {"kreuzberg":{"w":600,"h":308,"bbox":[13.36821531,52.4827705,13.45335236,52.50938111],"k":0.6088157644489092,"cells":[{"id":"02100101","name":"Askanischer Platz","bzr":"Südliche  Friedrichstadt","d":"M123.7,23.8L75.6,28.4L66.5,16.4L45.8,73.9L60.3,88.0L69.9,109.0L78.3,116.5L91.2,120.3L115.0,120.5L148.8,133.0L145.5,100.6L147.8,100.0L123.7,23.8Z","cx":97.4,"cy":81.0},{"id":"02100102","name":"Mehringplatz","bzr":"Südliche  Friedrichstadt","d":"M196.4,132.2L196.6,123.6L186.9,96.3L186.7,85.8L218.6,15.1L123.7,23.8L147.8,100.0L145.5,100.6L148.8,133.0L160.8,135.6L185.0,131.5L196.4,132.2Z","cx":167.1,"cy":54.8},{"id":"02100103","name":"Am Berlin Museum","bzr":"Südliche  Friedrichstadt","d":"M255.3,18.6L225.3,0.1L186.8,85.4L186.8,95.8L196.6,123.6L196.4,132.2L219.0,129.3L225.5,115.3L204.0,106.7L208.2,94.0L209.3,90.6L231.9,81.8L242.2,82.0L259.4,49.5L236.0,39.0L255.3,18.6Z","cx":223.3,"cy":65.7},{"id":"02100104","name":"Moritzplatz","bzr":"Südliche  Friedrichstadt","d":"M248.6,70.0L321.4,105.3L328.0,88.4L325.0,87.0L331.3,72.6L327.0,54.4L323.2,61.9L305.2,52.0L294.3,28.4L280.6,37.1L261.2,13.5L236.0,39.0L259.4,49.5L248.6,70.0Z","cx":285.6,"cy":58.1},{"id":"02100105","name":"Prinzenstraße","bzr":"Südliche  Friedrichstadt","d":"M220.5,126.2L322.6,123.7L357.3,117.4L350.5,112.4L348.9,116.0L322.4,103.2L321.4,105.3L248.6,70.0L242.1,82.1L232.9,81.5L209.3,90.6L204.0,106.7L225.5,115.3L220.5,126.2Z","cx":255.6,"cy":96.9},{"id":"02100106","name":"Wassertorplatz","bzr":"Südliche  Friedrichstadt","d":"M220.5,126.2L219.0,129.3L197.8,132.4L229.3,142.8L276.9,150.3L318.4,162.2L338.5,160.6L352.2,154.0L366.5,153.1L356.0,123.0L357.3,117.4L322.6,123.7L220.5,126.2Z","cx":287.3,"cy":137.6},{"id":"02200207","name":"Gleisdreieck","bzr":"Tempelhofer Vorstadt","d":"M0.3,185.9L20.2,190.6L20.1,192.4L57.9,204.9L57.7,207.8L59.0,208.9L61.7,209.2L78.0,200.7L81.0,137.6L84.6,118.8L76.5,115.5L71.1,110.7L61.3,89.5L45.8,73.9L46.3,70.8L42.5,68.1L38.0,60.4L22.3,90.4L18.5,109.8L9.3,121.7L10.7,122.8L9.8,130.5L3.3,138.9L1.4,172.5L2.6,178.6L0.3,185.9Z","cx":44.4,"cy":134.0},{"id":"02200208","name":"Rathaus Yorckstraße","bzr":"Tempelhofer Vorstadt","d":"M78.0,200.7L108.6,185.0L138.8,194.5L145.8,175.3L155.9,157.9L152.2,157.2L148.8,133.0L114.2,120.3L84.6,118.8L81.0,137.6L78.0,200.7Z","cx":115.2,"cy":166.6},{"id":"02200209","name":"Viktoriapark","bzr":"Tempelhofer Vorstadt","d":"M138.8,194.5L108.6,185.0L61.7,209.2L57.7,207.8L51.2,219.1L50.6,230.9L45.9,231.5L37.5,247.7L37.3,250.4L41.9,250.8L40.9,280.3L24.2,280.1L23.6,282.8L127.2,283.8L130.0,234.3L138.8,194.5Z","cx":85.3,"cy":241.0},{"id":"02200210","name":"Urbanstraße","bzr":"Tempelhofer Vorstadt","d":"M261.1,234.8L265.6,220.9L273.9,227.7L289.1,192.9L265.3,185.9L272.7,168.2L261.4,151.9L262.3,147.8L230.7,143.1L196.0,132.1L185.0,131.5L160.8,135.6L148.8,133.0L152.2,157.2L155.9,157.9L145.8,175.3L138.8,194.5L261.1,234.8Z","cx":205.7,"cy":180.6},{"id":"02200211","name":"Chamissokiez","bzr":"Tempelhofer Vorstadt","d":"M269.1,308.0L272.4,276.7L284.1,257.4L278.4,238.8L261.0,239.9L261.1,234.8L138.8,194.5L130.2,232.7L127.4,272.7L183.5,273.3L183.4,292.6L225.6,294.9L269.1,308.0Z","cx":205.3,"cy":248.6},{"id":"02200212","name":"Graefekiez Süd","bzr":"Tempelhofer Vorstadt","d":"M261.0,239.9L279.6,237.5L370.9,257.1L390.9,266.5L399.8,250.0L361.5,225.8L289.1,192.9L273.9,227.7L265.6,220.9L261.1,234.8L261.0,239.9Z","cx":316.1,"cy":231.2},{"id":"02200213","name":"Graefekiez Nord","bzr":"Tempelhofer Vorstadt","d":"M262.3,147.8L261.4,151.9L272.7,168.2L265.3,185.9L291.8,193.9L361.5,225.8L399.8,250.0L403.1,246.5L366.5,153.1L353.4,153.7L339.6,160.4L321.6,162.5L262.3,147.8Z","cx":357.7,"cy":209.8},{"id":"02300314","name":"Oranienplatz","bzr":"Nördliche Luisenstadt","d":"M322.4,103.2L348.9,116.0L350.5,112.4L352.4,113.4L357.3,117.4L356.2,122.8L382.7,120.8L385.8,110.1L390.8,106.6L389.1,102.3L394.6,88.9L400.1,86.2L416.3,44.7L412.2,41.5L399.8,48.6L385.1,50.9L375.8,49.8L360.9,43.2L357.5,50.0L352.4,50.5L348.0,60.3L329.1,51.7L326.8,53.1L327.3,58.0L331.3,72.6L325.0,87.0L328.0,88.4L322.4,103.2Z","cx":365.6,"cy":79.4},{"id":"02300315","name":"Lausitzer Platz","bzr":"Nördliche Luisenstadt","d":"M413.3,54.4L400.1,86.4L394.6,88.9L389.1,102.3L390.8,106.6L385.8,110.1L382.7,120.8L402.6,120.3L410.2,124.3L412.4,120.3L434.3,117.6L439.3,120.7L490.1,108.6L486.0,103.5L413.3,54.4Z","cx":433.1,"cy":95.6},{"id":"02300316","name":"Köpenicker Straße","bzr":"Nördliche Luisenstadt","d":"M431.2,9.4L415.7,43.0L416.3,46.8L413.3,54.4L486.0,103.5L490.1,108.6L512.4,103.2L516.6,105.7L520.1,100.0L525.3,97.6L535.7,100.6L539.4,99.8L542.2,95.5L516.2,74.9L485.7,55.8L474.0,43.2L431.2,9.4Z","cx":465.2,"cy":65.3},{"id":"02300417","name":"Reichenberger Straße West","bzr":"Südliche Luisenstadt","d":"M444.8,119.5L439.3,120.7L434.3,117.6L421.5,119.0L412.4,120.3L410.2,124.3L402.6,120.3L363.7,121.1L356.0,123.0L367.8,156.5L382.5,161.3L424.6,183.7L452.6,137.4L441.9,131.4L446.1,124.1L444.8,119.5Z","cx":405.6,"cy":146.9},{"id":"02300418","name":"Reichenberger Straße Ost","bzr":"Südliche Luisenstadt","d":"M450.0,118.2L444.8,119.5L446.1,124.1L441.9,131.4L452.6,137.4L424.6,183.7L493.7,220.0L500.7,228.9L503.3,228.3L504.2,220.3L506.2,215.9L539.1,175.4L533.7,172.3L538.9,165.7L450.0,118.2Z","cx":483.5,"cy":173.9},{"id":"02300419","name":"Wrangelkiez","bzr":"Südliche Luisenstadt","d":"M600.0,137.2L595.4,131.6L595.5,129.2L588.0,122.0L584.2,121.2L580.6,123.9L577.8,121.9L578.3,118.6L573.8,114.6L542.2,95.5L539.4,99.8L535.7,100.6L525.3,97.6L520.1,100.0L516.6,105.7L512.4,103.2L450.0,118.2L538.9,165.7L533.7,172.3L539.1,175.4L546.5,169.8L559.9,169.7L582.8,142.1L592.2,137.5L600.0,137.2Z","cx":539.0,"cy":134.4}]},"neukoelln":{"w":600,"h":504,"bbox":[13.40606327,52.45876451,13.47854932,52.49586386],"k":0.6090755033220507,"cells":[{"id":"08100101","name":"Hasenheide","bzr":"Schillerpromenade","d":"M13.7,96.7L20.4,118.5L6.6,141.1L2.7,177.9L101.4,212.4L109.8,212.8L155.3,203.7L153.2,164.6L147.5,139.4L148.0,130.2L122.3,118.2L15.1,95.2L13.7,96.7Z","cx":78.0,"cy":152.8},{"id":"08100102","name":"Schillerpromenade Nord","bzr":"Schillerpromenade","d":"M99.1,211.9L2.7,177.9L0.0,202.2L6.1,231.1L4.6,239.6L39.9,246.5L40.4,244.1L61.5,233.1L62.5,228.5L84.1,236.1L85.7,246.0L98.5,245.4L100.8,259.7L103.5,263.1L106.6,282.0L174.2,269.2L165.7,239.0L161.2,215.5L157.7,216.0L155.3,203.7L109.8,212.8L99.1,211.9Z","cx":115.1,"cy":229.8},{"id":"08100103","name":"Schillerpromenade Süd","bzr":"Schillerpromenade","d":"M114.4,323.3L185.9,310.3L174.2,269.2L106.6,282.0L103.5,263.1L100.8,259.7L98.5,245.4L85.7,246.0L84.1,236.1L62.5,228.5L61.5,233.1L82.6,363.0L83.9,359.2L95.0,346.6L118.0,339.6L119.8,337.0L117.9,327.0L114.4,323.3Z","cx":126.8,"cy":296.2},{"id":"08100104","name":"Wartheplatz","bzr":"Schillerpromenade","d":"M125.8,408.4L124.1,397.2L209.0,381.6L185.9,310.3L114.4,323.3L117.9,327.0L119.8,337.0L118.0,339.6L95.0,346.6L83.9,359.2L82.6,363.0L89.5,414.1L125.8,408.4Z","cx":142.8,"cy":361.1},{"id":"08100105","name":"Silbersteinstraße","bzr":"Schillerpromenade","d":"M124.1,397.2L125.8,408.4L128.1,408.0L129.5,439.9L133.1,453.3L131.7,466.8L140.3,469.5L168.0,464.7L235.7,448.5L223.7,424.6L209.5,381.5L124.1,397.2Z","cx":178.3,"cy":432.2},{"id":"08100206","name":"Flughafenstraße","bzr":"Neuköllner Mitte/Zentrum","d":"M148.0,130.2L147.5,139.4L153.2,164.6L154.2,198.2L157.7,216.0L161.2,215.5L165.7,239.0L187.8,234.4L190.0,242.0L258.5,228.7L255.7,222.8L225.1,187.0L148.0,130.2Z","cx":181.7,"cy":175.8},{"id":"08100207","name":"Rollberg","bzr":"Neuköllner Mitte/Zentrum","d":"M265.9,229.8L264.0,227.6L190.0,242.0L187.8,234.4L165.7,239.0L178.8,287.4L208.8,281.2L238.5,291.9L251.0,292.9L263.1,290.5L281.7,299.5L286.8,298.5L282.0,285.9L275.7,260.9L262.7,231.4L265.9,229.8Z","cx":226.3,"cy":271.0},{"id":"08100208","name":"Körnerpark","bzr":"Neuköllner Mitte/Zentrum","d":"M296.7,360.5L291.4,313.5L286.8,298.5L281.7,299.5L263.1,290.5L251.0,292.9L238.5,291.9L208.8,281.2L178.8,287.4L209.0,381.6L296.7,360.5Z","cx":244.4,"cy":337.0},{"id":"08100209","name":"Glasower Straße","bzr":"Neuköllner Mitte/Zentrum","d":"M348.1,356.2L297.3,366.2L296.7,360.5L209.5,381.5L223.7,424.6L235.7,448.5L290.5,441.3L315.5,435.1L318.3,437.4L348.8,428.2L346.3,421.8L319.2,379.9L348.5,374.9L346.3,361.5L348.1,356.2Z","cx":274.7,"cy":401.6},{"id":"08100310","name":"Maybachufer","bzr":"Reuterstraße","d":"M243.1,62.3L135.9,5.7L118.7,0.0L145.0,65.9L178.4,60.7L192.1,62.8L201.1,65.7L231.0,83.5L243.1,62.3Z","cx":160.0,"cy":33.2},{"id":"08100311","name":"Reuterplatz","bzr":"Reuterstraße","d":"M156.2,109.8L200.0,135.1L231.0,83.5L201.1,65.7L192.1,62.8L178.4,60.7L145.0,65.9L160.2,105.7L156.2,109.8Z","cx":190.2,"cy":94.6},{"id":"08100312","name":"Weichselplatz","bzr":"Reuterstraße","d":"M281.8,195.2L319.6,147.8L288.1,120.1L283.5,110.2L277.7,84.3L274.8,85.0L266.6,74.6L243.1,62.3L200.0,135.1L226.7,150.6L281.8,195.2Z","cx":250.6,"cy":127.6},{"id":"08100313","name":"Bouchéstraße","bzr":"Reuterstraße","d":"M278.1,80.9L282.7,106.9L286.2,117.0L292.7,125.2L319.6,147.8L354.1,107.4L336.9,93.9L317.7,114.2L278.1,80.9Z","cx":316.4,"cy":115.6},{"id":"08100314","name":"Donaustraße","bzr":"Reuterstraße","d":"M145.8,129.2L225.1,187.0L240.7,205.3L281.8,195.2L226.7,150.6L158.8,110.3L156.2,109.8L145.8,129.2Z","cx":224.6,"cy":168.8},{"id":"08100415","name":"Ganghoferstraße","bzr":"Rixdorf","d":"M353.4,276.9L359.8,270.6L366.9,259.1L284.1,191.8L281.8,195.2L240.7,205.3L255.7,222.8L258.5,228.7L264.0,227.6L274.8,239.9L294.7,233.0L325.5,264.1L346.6,270.5L353.4,276.9Z","cx":318.6,"cy":236.4},{"id":"08100416","name":"Alt-Rixdorf","bzr":"Rixdorf","d":"M357.2,283.1L346.6,270.5L325.5,264.1L294.7,233.0L274.8,239.9L265.9,229.8L262.7,231.4L279.4,272.3L282.0,285.9L291.4,313.5L293.1,327.2L295.1,327.4L300.9,318.5L304.4,320.7L306.3,327.6L329.1,323.2L328.2,318.4L348.2,312.6L355.7,302.3L358.1,290.7L357.2,283.1Z","cx":316.5,"cy":277.7},{"id":"08100417","name":"Braunschweiger Straße","bzr":"Rixdorf","d":"M353.4,276.9L357.2,283.1L358.1,290.7L355.7,302.3L348.2,312.6L328.2,318.4L329.1,323.2L306.3,327.6L304.4,320.7L300.9,318.5L295.1,327.4L293.1,327.2L297.3,366.2L348.1,356.2L356.8,350.7L382.7,343.9L390.7,339.2L390.8,336.9L401.5,336.1L399.7,331.8L411.2,317.4L416.1,304.4L417.5,305.3L418.0,301.0L366.9,259.1L359.8,270.6L353.4,276.9Z","cx":376.1,"cy":315.0},{"id":"08100418","name":"Hertzbergplatz","bzr":"Rixdorf","d":"M284.1,191.8L429.1,309.7L436.9,247.1L426.6,238.1L427.0,234.1L384.1,198.6L382.4,200.8L319.6,147.8L284.1,191.8Z","cx":361.2,"cy":217.5},{"id":"08100419","name":"Treptower Straße Nord","bzr":"Rixdorf","d":"M354.1,107.4L319.6,147.8L382.4,200.8L384.1,198.6L422.8,229.7L434.5,140.6L431.0,136.5L413.9,157.8L354.1,107.4Z","cx":392.6,"cy":178.2},{"id":"08100520","name":"Weiße Siedlung","bzr":"Köllnische Heide","d":"M434.5,140.6L422.2,230.6L427.0,234.1L426.6,238.1L436.9,247.1L424.8,343.7L423.3,346.9L425.9,348.1L426.8,346.3L455.5,359.3L469.9,363.2L543.8,347.3L549.2,342.6L530.3,311.7L526.1,301.6L534.0,257.6L434.5,140.6Z","cx":482.9,"cy":252.4},{"id":"08100521","name":"Schulenburgpark","bzr":"Köllnische Heide","d":"M570.3,503.4L570.5,494.6L577.2,475.0L588.8,460.3L600.0,433.3L599.4,419.6L549.2,342.6L543.8,347.3L493.3,359.5L469.9,363.2L457.7,360.1L426.8,346.3L425.9,348.1L423.3,346.9L424.8,343.7L429.1,309.7L418.0,301.0L417.5,305.3L416.1,304.4L411.2,317.4L399.7,331.8L401.5,336.1L390.8,336.9L390.7,339.2L379.0,345.5L349.8,353.8L346.3,361.5L348.5,374.9L319.2,379.9L346.3,421.8L348.8,428.2L386.5,417.5L384.1,423.1L383.3,432.0L384.4,440.7L387.7,449.0L403.0,475.3L406.6,474.0L408.7,476.6L421.5,499.5L423.5,497.5L570.3,503.4Z","cx":458.6,"cy":398.7}]}};
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const at=s=>String(s).replace(/<[^>]+>/g,'').replace(/\[\d+\]/g,'').replace(/"/g,'&quot;');
+const EMO=[[/bakery/i,'🥐'],[/café|cafe|coffee/i,'☕'],[/density|population|resident/i,'👥'],[/aged 18|young/i,'🧑'],[/under 6|children/i,'👶'],[/kita/i,'🧸'],[/transit/i,'🚇'],[/land value|rent|cost/i,'💶'],[/social/i,'🏘️'],[/wine/i,'🍷'],[/zero-waste|grocery/i,'🌱'],[/demand/i,'📈'],[/competit/i,'🥊'],[/operator/i,'🧑‍🍳'],[/space/i,'📐'],[/regulation|risk/i,'📜']];
+const emo=s=>(EMO.find(([r])=>r.test(s))||[0,'•'])[1];
+const srcIco=s=>((/geodata/.test(s)?'🏛️':'')+(/OSM/.test(s)?'🗺️':'')+(/web|Tavily/.test(s)?'🌐':''))||'📄';
+const MEDAL=['🥇','🥈','🥉'];
+const SHAPE={point:['🏬','Property'],location:['📍','Location'],gap:['🕳️','Gap']};
+const shapeChip=()=>`<span class="chip c-${C.shape}">${SHAPE[C.shape][0]} ${SHAPE[C.shape][1]}</span>`;
+const STG={classify:'🧭',plan:'📝',approve:'✅',research:'🔬',skeptic:'🤨','fact-check':'🔍',write:'✍️'};
+const STGL={classify:'Understanding your question',plan:'Planning',research:'Collecting data',skeptic:'Challenging the findings','fact-check':'Fact-checking every claim',write:'Writing the answer'};
+const ROLE={Classifier:'🧭',Planner:'📝','Data researcher':'📊','Web researcher':'🌐',Scorer:'🧮',Skeptic:'🤨','Fact-checker':'🔍',Writer:'✍️'};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return ((h>>>0)%10000)/10000}
 const WFS = l => `https://gdi.berlin.de/services/wfs/${l}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${l}`;
@@ -437,7 +501,7 @@ function show(id){
   const from=$('#'+curView),to=$('#'+id),dir=VIEWS.indexOf(id)>=VIEWS.indexOf(curView)?1:-1;
   clearTimeout(viewT);VIEWS.forEach(v=>$('#'+v).classList.remove('leave'));steps(id);
   const enter=()=>{VIEWS.forEach(s=>$('#'+s).classList.toggle('hidden',s!==id));to.style.setProperty('--dir',dir);
-    to.querySelectorAll('.card').forEach((c,i)=>c.style.setProperty('--i',Math.min(i,6)));window.scrollTo({top:0,behavior:'instant'})};
+    to.querySelectorAll('.card,.anim').forEach((c,i)=>c.style.setProperty('--i',Math.min(i,6)));window.scrollTo({top:0,behavior:'instant'})};
   curView=id;
   if(from===to||from.classList.contains('hidden')||reduceMotion()){enter();return}
   from.style.setProperty('--dir',dir);from.classList.add('leave');viewT=setTimeout(()=>{from.classList.remove('leave');enter()},260);
@@ -457,22 +521,23 @@ $('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return
 $$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
 $('#restart').onclick=()=>{show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
+$('#d-more').onclick=()=>{const c=$('#d-sum').classList.toggle('clamp');$('#d-more').textContent=c?'Read more':'Show less'};
 
 function plan(){
   SC=C.shape==='point'?pointScenario(C):scenario(C);
   $('#p-q').textContent=C.q;
-  $('#p-class').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span> <span class="why">${C.why}</span>`;
+  $('#p-class').innerHTML=shapeChip();$('#p-why').innerHTML=`💬 ${C.why}`;
   if(C.shape==='point'){
-    $('#p-area').innerHTML=`<b>Wiener Straße 12</b> → parcel + ~100 m neighbourhood, inside PLR <b>Lausitzer Platz</b> (02300315)<div class="small mut" style="margin-top:4px">Operator profile: ${esc(C.op||'— none given (operator-fit scored neutral)')}</div>`;
+    $('#p-area').innerHTML=`<span class="chip">🗺️ Wiener Straße 12 · Lausitzer Platz</span><span class="chip" title="Operator profile">🧑‍🍳 ${esc(C.op||'no profile · fit neutral')}</span>`;
     const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
-    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h3>Business hypotheses (planner)</h3><table><tbody>${SC.H.map((h,i)=>`<tr><td><input type="checkbox" checked data-h="${i}"></td><td><b>${h.name}</b></td><td class="why">${h.dw[2]}; ${h.dw[1].replace(/\[\d+\]/g,'')}</td></tr>`).join('')}</tbody></table>`;
-    $('#p-paid tbody').innerHTML='<tr><td colspan=4 class="mut">none for this template</td></tr>';
+    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h2>💡 Business ideas to test</h2><table class="list"><tbody>${SC.H.map((h,i)=>`<tr title="${at(h.dw[2]+'; '+h.dw[1])}"><td><input type="checkbox" checked data-h="${i}"></td><td><span class="emo">${emo(h.name)}</span> ${h.name}</td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid').innerHTML='';
   } else {
-    $('#p-area').innerHTML=`<b>${SC.aname}</b> (Bezirk ${SC.bez}) → <b>${SC.cells.length} PLR cells</b><div class="small mut" style="margin-top:4px">Granularity: PLR (decision A2) — demographics + MSS native per cell.</div>`;
-    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody>${SC.layers.map(l=>`<tr><td><input type="checkbox" checked data-l="${l.id}"></td><td>${l.label}</td><td>${l.dir}</td><td>${l.w.toFixed(2)}</td><td><span class="badge b-${SC.sources[l.src-1].method}">${SC.sources[l.src-1].method}</span></td><td class="why">${l.why.replace(/\[\d+\]/,'')}</td></tr>`).join('')}</tbody></table>`;
-    $('#p-paid tbody').innerHTML=SC.paid.length?SC.paid.map((p,i)=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td><span class="badge b-skip">key not provided — skipped</span></td><td><input type="password" disabled placeholder="not available in the offline mockup" title="The mockup makes no provider calls"></td></tr>`).join(''):'<tr><td colspan=4 class="mut">none for this template</td></tr>';
+    $('#p-area').innerHTML=`<span class="chip" title="Bezirk ${SC.bez} · PLR granularity">🗺️ ${SC.aname} · ${SC.cells.length} areas</span>`;
+    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h2>⚖️ How we'll score</h2><table id="p-layers" class="list"><tbody>${SC.layers.map(l=>`<tr title="${at(l.why)}"><td><input type="checkbox" checked data-l="${l.id}"></td><td><span class="emo">${emo(l.label)}</span> ${l.label}</td><td class="r"><span class="dirr" title="${l.dir==='+'?'more is better':'less is better'}">${l.dir==='+'?'↑':'↓'}</span> <span class="wbar" title="weight ${l.w.toFixed(2)}"><i style="width:${Math.min(100,l.w/.3*100)}%"></i></span></td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid').innerHTML=SC.paid.length?` · <span title="Paid sources need an API key; the offline mockup makes no provider calls">🔒 ${SC.paid.map(p=>p[0]).join(', ')} skipped (no key)</span>`:'';
   }
   // keep sub-questions in sync with the layers / hypotheses they feed
   $$('#p-sub input').forEach(i=>i.onchange=()=>{const s=C.shape==='point'?null:SC.subq[+i.dataset.s];
@@ -512,9 +577,9 @@ $('#approve').onclick=()=>{
 
 let timer=null;
 function live(){
-  show('s-live');const box=$('#l-trace');box.innerHTML='';
+  show('s-live');const box=$('#l-trace');box.innerHTML='';const feed=$('#l-feed');feed.innerHTML='';$('#l-orb').dataset.s='';
   const stages=['classify','plan','approve','research','skeptic','fact-check','write'];
-  $('#stages').innerHTML=stages.map(s=>`<span data-s="${s}">${s}</span>`).join('');
+  $('#stages').innerHTML=stages.map(s=>`<span data-s="${s}">${STG[s]} ${s}</span>`).join('');
   const stageOf=ev=>({Classifier:'classify',Planner:ev.type==='replan'?'fact-check':'plan','Data researcher':'research','Web researcher':'research',Scorer:'research',Skeptic:'skeptic','Fact-checker':'fact-check',Writer:'write'}[ev.role]);
   let i=0,tok=0,sec=0;
   const step=()=>{
@@ -522,9 +587,11 @@ function live(){
     const ev=TR[i++];tok+=ev.tok;sec+=+ev.sec;
     box.insertAdjacentHTML('beforeend',`<div class="ev ${ev.cls||''}"><span class="w">+${sec.toFixed(1)}s</span><span class="role">${ev.role}</span><span>${esc(ev.type)} · ${esc(ev.text)}<br><span class="w">why: ${esc(ev.why)}</span></span><span class="meta">${MODELS[ev.role]||''}${ev.tok?' · '+ev.tok+' tok':''}</span></div>`);
     box.scrollTop=box.scrollHeight;
+    feed.insertAdjacentHTML('beforeend',`<div class="fi ${ev.cls||''}"><span class="fe">${ROLE[ev.role]||'•'}</span><b>${ev.role}</b><span class="ft">${esc(ev.text)}</span></div>`);while(feed.children.length>4)feed.firstElementChild.remove();
     const st=stageOf(ev);let hit=false;$$('#stages span').forEach(s=>{if(s.dataset.s==='approve')s.className='done';if(s.dataset.s===st){s.className='on';hit=true}else if(!hit&&s.className!=='done'&&stages.indexOf(s.dataset.s)<stages.indexOf(st))s.className='done'});
+    {const o=$('#l-orb');if(st&&o.dataset.s!==st){o.dataset.s=st;o.textContent=STG[st];o.classList.remove('pulse');void o.offsetWidth;o.classList.add('pulse');$('#l-stage').textContent=STGL[st]}}
     $('#bar').style.width=(i/TR.length*100)+'%';
-    $('#l-stat').textContent=`${i}/${TR.length} events · ${tok.toLocaleString()} tokens · ${sec.toFixed(1)} s`;
+    $('#l-stat').textContent=`⏱ ${sec.toFixed(1)} s · 🪙 ${tok.toLocaleString()} tokens · step ${i} of ${TR.length}`;
   };
   clearInterval(timer);timer=setInterval(step,650);step();
   $('#skip').onclick=()=>{clearInterval(timer);dash()};
@@ -533,7 +600,7 @@ function live(){
 /* ---------- dashboard ---------- */
 function dash(){
   clearInterval(timer);show('s-dash');
-  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span>`;$('#d-role').textContent=C.role?'Role: '+C.role:'';
+  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=shapeChip();$('#d-role').textContent=C.role?'👤 '+C.role:'';$('#d-sum').classList.add('clamp');$('#d-more').textContent='Read more';
   const pt=$('#p-sub').cloneNode(true);pt.removeAttribute('id');pt.querySelectorAll('input').forEach((x,i)=>{const ok=SC.planChecks[i];if(!ok)x.closest('tr').style.opacity=.45;x.replaceWith(ok?'✓':'✕ not approved')});$('#d-plan').replaceChildren(pt);
   $('#d-note').innerHTML=SC.note;$('#d-note').classList.toggle('hidden',!SC.note);
   $('#battle-card').classList.toggle('hidden',C.shape==='point'&&SC.H.length<2);
@@ -545,7 +612,7 @@ function dash(){
 const hasFut=()=>SC.cells.some(c=>c.modifiers.length);
 function renderSummary(){
   const r=SC.defaultRank.slice(0,3), L=SC.layers, s=n=>SC.sources[n-1];
-  $('#d-mix').textContent='written for the default layer mix';
+  $('#d-mix').textContent='default mix';
   let h;
   if(C.shape==='gap'){
     h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${(f=>f.length?`${f.length>1?'Two announced changes':'One announced change'} after today would widen the gap further — ${f.join(' and ')} (shown under <i>Present + future</i>).`:'')(SC.cells.flatMap(c=>c.modifiers).map(m=>m.q===3?'a closure of two Kitas':'~420 planned housing units'))} One web claim about city-wide rankings could not be verified and was dropped.`;
@@ -556,7 +623,7 @@ function renderSummary(){
 }
 
 function renderLayers(){
-  $('#layers').innerHTML=SC.layers.map(l=>`<div class="layer"><input type="checkbox" id="ly-${l.id}" ${state.on[l.id]?'checked':''}><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="small mut">w ${l.w.toFixed(2)}</span><span class="small mut">${l.dir==='+'?'↑ good':'↓ good'}</span></div>`).join('');
+  $('#layers').innerHTML=SC.layers.map(l=>`<div class="layer"><span class="emo">${emo(l.label)}</span><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="small mut" title="direction · weight">${l.dir==='+'?'↑':'↓'} ${l.w.toFixed(2)}</span><input type="checkbox" class="switch" id="ly-${l.id}" ${state.on[l.id]?'checked':''}></div>`).join('');
   SC.layers.forEach(l=>$('#ly-'+l.id).onchange=e=>{state.on[l.id]=e.target.checked;renderArea()});
   $$('#mode button').forEach(b=>{b.classList.toggle('on',b.dataset.m===state.mode);b.disabled=b.dataset.m==='future'&&!hasFut();b.title=b.disabled?'Future sub-question was not approved':'';b.onclick=()=>{state.mode=b.dataset.m;$$('#mode button').forEach(x=>x.classList.toggle('on',x===b));renderArea()}});
   $('#reset').onclick=()=>{state.on={...SC.defaultOn};state.mode='present';renderLayers();renderArea()};
@@ -566,30 +633,33 @@ function renderLayers(){
 function renderArea(){
   const ranked=scores(SC,state.on,state.mode), byId={};ranked.forEach((r,i)=>byId[r.cell.id]={...r,rank:i+1});
   const defRank={};SC.defaultRank.forEach((r,i)=>defRank[r.cell.id]=i+1);
-  $('#d-ftitle').textContent=C.shape==='gap'?'Top-3 cells by Kita gap':'Top-3 ranked cells';
+  $('#d-ftitle').textContent=C.shape==='gap'?'Biggest Kita gaps':'Top 3 areas';
+  const openD=new Set($$('#d-find .top details[open]').map(d=>d.closest('.top').dataset.id));
   flip('#d-find .top',()=>{$('#d-find').innerHTML=ranked.slice(0,3).map((r,i)=>{const c=r.cell,mv=defRank[c.id]-(i+1);
-    return `<div class="top" data-id="${c.id}"><div class="rk">#${i+1}</div><div class="row" style="gap:8px"><b style="font-size:15px">${c.name}</b><span class="small mut">PLR ${c.id} · ${c.bzr}</span>${mv?`<span class="mv ${mv>0?'up':'dn'}">${mv>0?'▲':'▼'} ${Math.abs(mv)} vs default</span>`:''}</div>
-      <div><span class="sc">${r.score.toFixed(2)}</span> <span class="small mut">${C.shape==='gap'?'gap score':'score'} (${state.mode==='future'?'present + future':'present'})</span></div>
-      <div class="vals">${SC.layers.map(l=>`<div style="opacity:${state.on[l.id]?1:.35}">${l.label}: <b>${c.values[l.id].toFixed(2)}</b> ${cite(l.src)}<div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
+    return `<div class="top" data-id="${c.id}"><div class="top-h"><span class="medal">${MEDAL[i]}</span><div class="grow"><b>${c.name}</b><div class="small mut">${c.bzr}</div></div>${mv?`<span class="mv ${mv>0?'up':'dn'}" title="vs default mix">${mv>0?'▲':'▼'}${Math.abs(mv)}</span>`:''}<span class="sc" title="${C.shape==='gap'?'gap score':'score'} (${state.mode==='future'?'today + future':'today'})">${r.score.toFixed(2)}</span></div>
+      <div class="lbars">${SC.layers.map(l=>`<div class="lb" title="${l.label}: ${c.values[l.id].toFixed(2)}" style="opacity:${state.on[l.id]?1:.3}"><span>${emo(l.label)}</span><div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
+      ${(c.modifiers.length||c.risks.length||c.unknowns.length)?`<div class="tags">${c.modifiers.map(m=>`<span class="tag t-fut" title="${at(m.quote)}">🚀 ${m.label}${state.mode==='future'?' · +0.10':''}</span>`).join('')}${c.risks.map(k=>`<span class="tag t-risk" title="${at(k.quote)}">⚠️ ${k.text}</span>`).join('')}${c.unknowns.map(u=>`<span class="tag t-unk" title="${at(u)}">❓ ${u.split(/[.:]/)[0]}</span>`).join('')}</div>`:''}
+      <details><summary class="small mut">Details &amp; sources</summary><div class="vals">${SC.layers.map(l=>`<div style="opacity:${state.on[l.id]?1:.35}">${l.label}: <b>${c.values[l.id].toFixed(2)}</b> ${cite(l.src)}<div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
       ${c.modifiers.map(m=>`<div class="mod"><b>Future:</b> ${m.label} ${cite(m.src)} <span class="badge">${state.mode==='future'?'+0.10 applied':'+0.10 in future mode'}</span><br><span class="quote">“${m.quote}”</span>${m.magnitude?` <span class="small mut">· magnitude stated by source: ${m.magnitude}</span>`:''}</div>`).join('')}
       ${c.risks.map(k=>`<div class="risk"><b>Risk (${k.sev}):</b> ${k.text} ${cite(k.src)} <span class="badge">−0.08 skeptic demotion</span><br><span class="quote">“${k.quote}”</span></div>`).join('')}
-      ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${u}</div>`).join('')}</div>`}).join('')
-    +(()=>{const w=ranked.find(r=>r.cell.risks.length);return w&&!ranked.slice(0,3).includes(w)?`<p class="small mut">Also considered: <b>${w.cell.name}</b> (#${byId[w.cell.id].rank}) — ${w.cell.risks[0].text.toLowerCase()} ${cite(w.cell.risks[0].src)}.</p>`:''})();});
+      ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${u}</div>`).join('')}</details></div>`}).join('')
+    +(()=>{const w=ranked.find(r=>r.cell.risks.length);return w&&!ranked.slice(0,3).includes(w)?`<p class="small mut">🤨 Also considered: <b>${w.cell.name}</b> (#${byId[w.cell.id].rank}) — ${w.cell.risks[0].text.toLowerCase()} ${cite(w.cell.risks[0].src)}.</p>`:''})();});
+  $$('#d-find .top').forEach(x=>{const d=x.querySelector('details');if(d&&openD.has(x.dataset.id))d.open=true});
   // battle
-  const [a,b]=ranked;$('#battle-title').innerHTML=`Location Battle: <span style="color:var(--acc)">${a.cell.name}</span> vs ${b.cell.name}`;
+  const [a,b]=ranked;$('#battle-title').innerHTML=`⚔️ ${a.cell.name} <span class="mut" style="font-weight:400">vs</span> ${b.cell.name}`;
   $('#d-battle').innerHTML=`<div class="battle">${SC.layers.filter(l=>state.on[l.id]).map(l=>{const va=l.dir==='+'?a.cell.values[l.id]:1-a.cell.values[l.id],vb=l.dir==='+'?b.cell.values[l.id]:1-b.cell.values[l.id];
-    return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#007aff':'#94a3b8'}"></span></div><div class="lab">${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#007aff':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
-    <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each layer's contribution direction-adjusted (longer = better for a ${C.shape==='gap'?'gap':SC.noun}).</p>`;
+    return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#007aff':'#94a3b8'}"></span></div><div class="lab">${emo(l.label)} ${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#007aff':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
+    <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div>`;
   drawMap(ranked,byId);bindCites();
 }
 
 function drawMap(ranked,byId){
-  const A=SC.area;$('#d-maparea').textContent=`${SC.aname} · ${A.cells.length} PLR cells · heatmap of ${C.shape==='gap'?'gap score':'composite score'}`;
+  const A=SC.area;$('#d-maparea').textContent=`${SC.aname} · ${C.shape==='gap'?'gap':'score'} heatmap`;
   const top3=ranked.slice(0,3).map(r=>r.cell.id);
   $('#map').innerHTML=`<svg viewBox="-6 -6 ${A.w+12} ${A.h+12}">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${color(byId[c.id].score)}"/>`).join('')}
    ${A.cells.filter(c=>byId[c.id].cell.modifiers.length).map(c=>`<text x="${c.cx}" y="${c.cy+14}" text-anchor="middle" style="font-size:12px">${state.mode==='future'?'★':'☆'}</text>`).join('')}
    ${top3.map((id,i)=>{const c=A.cells.find(x=>x.id===id);return `<text x="${c.cx}" y="${c.cy}" text-anchor="middle" style="font-size:13px">#${i+1}</text>`}).join('')}</svg><div class="tip" id="tip"></div>`;
-  $('#legend').innerHTML=`<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0,.25,.5,.75,1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆/★ future development (★ applied)</span><span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+  $('#legend').innerHTML=`<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0,.25,.5,.75,1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆ future project</span><span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
   const tip=$('#tip'),map=$('#map');
   $$('#map path.cell').forEach(p=>{const r=byId[p.dataset.id],c=r.cell;
     p.onmousemove=ev=>{const b=map.getBoundingClientRect();tip.style.display='block';let x=ev.clientX-b.left+14,y=ev.clientY-b.top+14;if(x>b.width-230)x-=250;if(y>b.height-170)y-=180;tip.style.left=x+'px';tip.style.top=y+'px';
@@ -616,17 +686,17 @@ function renderPoint(){
   $('#d-mix').textContent='point · LocalLens';
   const s=P.sources;
   $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">The space at <b>Wiener Straße 12</b> lies in PLR Lausitzer Platz ${cite(P.addrSrc)}, one of the district's densest and youngest cells ${cite(9)}. ${pointSummary(P)}</p>`;
-  $('#d-ftitle').textContent='Top-3 business hypotheses';
+  $('#d-ftitle').textContent='Top business ideas';
   const sev=v=>v>=8?'#007aff':v>=6?'#64a8ff':v>=4?'#f59e0b':'#dc2626';
   const ref=x=>typeof x==='number'?cite(x):`<span class="small mut">(${x})</span>`;
-  $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="rk">#${i+1}</div><b style="font-size:15px">${h.name}</b> <span class="small mut">rank initial #${i+1} → final #${i+1}</span><div><span class="sc">${h.score.toFixed(1)}</span><span class="small mut"> / 10 recommendation score</span></div>
-    ${P.dims.map((d,k)=>`<div class="dim"><span>${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div><div class="small mut" style="margin:-2px 0 4px 128px">${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</div>`).join('')}
-    <div class="fa"><div><h4 style="color:var(--ok)">FOR</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">AGAINST</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">UNKNOWNS → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></div>`).join('');
-  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`Hypothesis Battle: <span style="color:var(--acc)">${a.name}</span> vs ${b.name}`;
-  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#007aff':'#94a3b8'}"></span></div><div class="lab">${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#007aff':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
+  $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="top-h"><span class="medal">${MEDAL[i]}</span><span class="hemo">${emo(h.name)}</span><div class="grow"><b>${h.name}</b></div><span class="sc" title="recommendation score">${h.score.toFixed(1)}<small>/10</small></span></div>
+    ${P.dims.map((d,k)=>`<div class="dim" title="${at(h.dw[k])}"><span>${emo(d)} ${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div>`).join('')}
+    <details><summary class="small mut">👍 For · 👎 Against · ❓ Unknowns</summary><ul class="small" style="padding-left:16px">${P.dims.map((d,k)=>`<li><b>${d}:</b> ${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</li>`).join('')}</ul><div class="fa"><div><h4 style="color:var(--ok)">👍 For</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">👎 Against</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">❓ Unknowns → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></details></div>`).join('');
+  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`⚔️ ${a.name} <span class="mut" style="font-weight:400">vs</span> ${b.name}`;
+  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#007aff':'#94a3b8'}"></span></div><div class="lab">${emo(d)} ${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#007aff':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
   // map
   const A=P.area,hc=['#007aff','#7c3aed','#d97706'];
-  $('#d-maparea').textContent='the space, its PLR cell, and competitors within 500 m';
+  $('#d-maparea').textContent='competitors within 500 m';
   $('#map').innerHTML=`<svg viewBox="${cell.cx-170} ${cell.cy-105} 340 210">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${c.id===P.cellId?'#bcd9ff':'#e2e8f0'}"/>`).join('')}
     <circle cx="${cell.cx}" cy="${cell.cy}" r="62" fill="none" stroke="#0b1720" stroke-dasharray="4 3"/>
     ${P.competitors.filter(k=>P.H.includes(P.Hall[k.h])).map(k=>`<circle cx="${k.x}" cy="${k.y}" r="3.6" fill="${hc[k.h]}" stroke="#fff" stroke-width="1"/>`).join('')}
@@ -641,9 +711,10 @@ function renderPoint(){
 
 function renderSources(){
   const conf={high:'b-ok',medium:'b-part',low:'b-bad'},st={verified:['b-ok','verified'],partial:['b-part','partial']};
-  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span class="badge b-${s.method}">${s.method}</span><span class="badge">${s.tier}</span><span class="badge ${conf[s.conf]}">confidence: ${s.conf}</span><span class="badge ${st[s.status][0]}">${st[s.status][1]}</span></div>
+  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span title="${s.status} · confidence ${s.conf} · ${s.tier}">${s.status==='verified'?'✅':'🟡'}</span><span class="badge b-${s.method}">${s.method}</span></div>
     <div class="quote small" style="margin:3px 0">“${esc(s.quote)}”</div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></div></div>`).join('');
   $('#d-nover').innerHTML=SC.rejected.map(r=>`<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${r.claim}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${r.reason}</div><a href="${r.url}" target="_blank" rel="noopener">${r.url}</a></div></div>`).join('');
+  $('#n-src').textContent=SC.sources.length;$('#n-rej').textContent=SC.rejected.length;
 }
 function renderTrace(){
   const per={};TR.forEach(e=>{per[e.role]=per[e.role]||{t:0,s:0,n:0};per[e.role].t+=e.tok;per[e.role].s+=+e.sec;per[e.role].n++});
@@ -656,7 +727,7 @@ function renderGrade(){
   const g=[['✓',`${v}/${n} citations verified on re-fetch${n>v?`, ${n-v} partial`:''}`],['✓','Every number in the summary comes from a cited source (no model-estimated magnitudes)'],['✓',`${SC.rejected.length} unsupported claim dropped and listed`],[C.shape==='gap'?'✓':'!',C.shape==='gap'?'No paid sources needed':'Footfall not measured — paid slot skipped (no key)'],['✓','Plan approved by the user before research'],['!','verify_citations.py: run against runs/<id>/evidence.jsonl (not part of the mockup)']];
   $('#d-grade').innerHTML=g.map(r=>`<tr><td style="color:${r[0]==='✓'?'var(--ok)':'var(--warn)'};font-weight:800">${r[0]}</td><td>${r[1]}</td></tr>`).join('');
 }
-function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
+function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;for(let d=el.closest('details');d;d=d.parentElement.closest('details'))d.open=true;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
 </script>
 </body>
 </html>
