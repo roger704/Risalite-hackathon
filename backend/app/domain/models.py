@@ -442,7 +442,84 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
+GREEN_SPACE_FEATURE_TYPES = frozenset({"green_space", "playground"})
+
+
+def _optional_area(name: str, value: Any) -> None:
+    if value is not None and (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not isfinite(value)
+        or value < 0
+    ):
+        raise ValidationError(f"{name} must be a nonnegative finite number or null")
+
+
+@dataclass(frozen=True, kw_only=True)
+class GreenSpace(Record):
+    """An official public green space or playground polygon (WGS84).
+
+    ``display_point`` is a derived marker position, never the feature itself.
+    ``adjacent_record_ids`` lists records of the other feature type in the same
+    snapshot whose polygons touch or overlap within the configured tolerance.
+    """
+
+    geometry: dict[str, Any]
+    display_point: dict[str, Any]
+    display_point_method: str
+    feature_type: str
+    original_category: str
+    category_mapping_version: str
+    geometry_area_m2: float
+    name: str | None = None
+    area_code: str | None = None
+    hierarchy: str | None = None
+    boundary_edition: str | None = None
+    source_area_m2: float | None = None
+    net_play_area_m2: float | None = None
+    adjacent_record_ids: tuple[str, ...] = ()
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="green_space", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("GreenSpace geometry must preserve a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("GreenSpace geometry must have coordinates")
+        _point(self.display_point)
+        for name in (
+            "display_point_method",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        if self.feature_type not in GREEN_SPACE_FEATURE_TYPES:
+            raise ValidationError(f"Unsupported green space feature_type: {self.feature_type}")
+        for name in ("name", "area_code", "hierarchy", "boundary_edition"):
+            _optional_text(name, getattr(self, name))
+        if self.area_code is not None and (self.hierarchy is None or self.boundary_edition is None):
+            raise ValidationError("area_code requires hierarchy and boundary_edition")
+        if self.geometry_area_m2 is None:
+            raise ValidationError("geometry_area_m2 is required")
+        for name in ("geometry_area_m2", "source_area_m2", "net_play_area_m2"):
+            _optional_area(name, getattr(self, name))
+        object.__setattr__(self, "adjacent_record_ids", tuple(self.adjacent_record_ids))
+        if any(not isinstance(value, str) or not value for value in self.adjacent_record_ids):
+            raise ValidationError("adjacent_record_ids must be nonempty strings")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord: TypeAlias = (
+    Area | AreaObservation | Place | Business | TransitStop | StopService | GreenSpace
+)
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
@@ -450,6 +527,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "green_space": GreenSpace,
 }
 
 

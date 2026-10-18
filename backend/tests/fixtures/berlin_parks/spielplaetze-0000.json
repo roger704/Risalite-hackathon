@@ -1,0 +1,110 @@
+{
+ "type": "FeatureCollection",
+ "numberMatched": 2,
+ "numberReturned": 2,
+ "timeStamp": "2026-10-18T12:00:00Z",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "urn:ogc:def:crs:EPSG::25833"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "id": "spielplaetze.1",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       388341.38,
+       5818146.32
+      ],
+      [
+       388409.25,
+       5818144.78
+      ],
+      [
+       388411.78,
+       5818256.0
+      ],
+      [
+       388343.91,
+       5818257.54
+      ],
+      [
+       388341.38,
+       5818146.32
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "pitid": "0000b001:00000001",
+    "kennzeich": "00101",
+    "bezirkname": "Mitte",
+    "ortstlname": "Synthetic Ort",
+    "objartname": "Spielplatz",
+    "namenr": "Synthetic Spielplatz",
+    "namezusatz": "neben dem Park",
+    "baujahr": " ",
+    "sanierjahr": " ",
+    "katasterfl": 7400,
+    "widmung": "gewidmet",
+    "plannr": "01011101",
+    "planname": "Synthetic Alpha",
+    "nettospfl": 6800.5
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "spielplaetze.2",
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        388637.6,
+        5818929.66
+       ],
+       [
+        388664.75,
+        5818929.04
+       ],
+       [
+        388665.76,
+        5818973.53
+       ],
+       [
+        388638.62,
+        5818974.14
+       ],
+       [
+        388637.6,
+        5818929.66
+       ]
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "pitid": "0000b001:00000002",
+    "kennzeich": "00102",
+    "bezirkname": "Mitte",
+    "ortstlname": "Synthetic Ort",
+    "objartname": "Spielplatz",
+    "namenr": "Synthetic Hof",
+    "namezusatz": " ",
+    "baujahr": " ",
+    "sanierjahr": " ",
+    "katasterfl": 900,
+    "widmung": "gewidmet",
+    "plannr": "09999999",
+    "planname": "Unknown",
+    "nettospfl": 0
+   }
+  }
+ ]
+}
