@@ -38,6 +38,7 @@ META_LEAD_IN = re.compile(
     r"|now i (?:will|can|'ll) write|i(?:'ll| will) now write)[^.\n]*[.!:]?\s*)+",
     re.IGNORECASE,
 )
+URL_END = r"(?![\w/\-?=&%#~+@]|\.\w)"  # the URL does not continue into a longer path
 SCORE_WEIGHTS = {
     "demand": 0.25,
     "competition_gap": 0.25,
@@ -416,9 +417,18 @@ def cited_urls(report: str, urls: set[str]) -> tuple[set[str], set[str]]:
     """Return (urls cited anywhere, urls cited as inline markdown links before the Sources list)."""
     headings = list(SOURCES_HEADING.finditer(report))
     body = report[: headings[-1].start()] if headings else report
-    anywhere = {u for u in urls if u in report or u.rstrip("/") in report}
-    inline = {u for u in urls if f"]({u}" in body or f"]({u.rstrip('/')}" in body}
+    anywhere = {u for u in urls if mentions_url(report, u)}
+    inline = {u for u in urls if mentions_url(body, u, prefix="](")}
     return anywhere, inline
+
+
+def mentions_url(text: str, url: str, prefix: str = "") -> bool:
+    """True if `url` (with or without a trailing slash) appears as a whole URL, not as a prefix."""
+    return any(
+        re.search(re.escape(prefix + variant) + URL_END, text)
+        for variant in {url, url.rstrip("/")}
+        if variant
+    )
 
 
 def run_research(
