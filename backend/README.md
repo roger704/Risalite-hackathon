@@ -222,6 +222,23 @@ The imports processed 4,032,869 input rows into 86,067 records with zero rejecti
 
 OSM is a community-maintained map, not a verified inventory of currently operating businesses. Opening-hours and website tags may be missing or outdated; completeness and tagging practices vary. `shop=coffee` may represent beans or equipment rather than a café. Overpass way/relation centers can lie outside the small query bbox when their geometry intersects it, so returned points are checked against the broader Berlin extent instead; Overpass nodes are additionally constrained to the query bbox. Derived databases remain subject to ODbL share-alike requirements, and dated Geofabrik URLs may expire or be removed; changing the pinned source or minimum expected counts requires a reviewed configuration update.
 
+## Scoring (S2)
+
+Build scored PLR cells or locate an address from local snapshots:
+
+```sh
+uv run location-data cells --area "Friedrichshain-Kreuzberg" --template coffee --out ../runs/fixtures/friedrichshain-kreuzberg-coffee/
+uv run location-data locate "Oranienstraße 12, 10999 Berlin"
+```
+
+Import all six inputs in order with:
+
+```sh
+for dataset in berlin_lor berlin_lor_names berlin_population osm_pois ihk_businesses vbb_gtfs; do uv run location-data ingest "$dataset"; done
+```
+
+Layers are resident density, the share of residents aged 18–45, OSM café places, IHK-registered café businesses, and scheduled morning transit departures within 400 m. OSM and IHK are separate inventories and are never summed; IHK counts use the supplied PLR code rather than coordinate reassignment. Transit measures scheduled supply, not footfall.
+
 ## Adding a connector
 
 Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.

@@ -1,0 +1,24 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {"name": "urn:ogc:def:crs:EPSG::25833"}
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "adressen_berlin.1",
+      "geometry": {"type": "Point", "coordinates": [392000, 5810000]},
+      "properties": {
+        "str_name": "Oranienstraße",
+        "hnr": 12,
+        "hnr_zusatz": "a",
+        "plz": "10999",
+        "plr_nr": "02030301",
+        "plr_name": "Wrangelkiez",
+        "bez_name": "Friedrichshain-Kreuzberg",
+        "ort_name": "Kreuzberg"
+      }
+    }
+  ]
+}

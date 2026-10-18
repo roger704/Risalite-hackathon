@@ -9,6 +9,7 @@ from pathlib import Path
 
 from app.application.service import DataService
 from app.domain import ConnectorError, manifest_to_dict
+from app.infrastructure.storage import read_records
 
 
 def parser() -> argparse.ArgumentParser:
@@ -36,6 +37,15 @@ def parser() -> argparse.ArgumentParser:
     records.add_argument("--metric-code")
     records.add_argument("--limit", type=int, default=100)
     records.add_argument("--cursor")
+
+    cells = subcommands.add_parser("cells", help="Build scored PLR cells from local snapshots")
+    cells.add_argument("--area")
+    cells.add_argument("--template", default="coffee")
+    cells.add_argument("--out", type=Path, required=True)
+    cells.add_argument("--modifiers", type=Path)
+
+    locate = subcommands.add_parser("locate", help="Locate an address and nearby competitors")
+    locate.add_argument("address")
     return command
 
 
@@ -63,6 +73,82 @@ def main(argv: list[str] | None = None) -> int:
                 metric_code=args.metric_code,
                 limit=args.limit,
                 cursor=args.cursor,
+            )
+        elif args.command == "cells":
+            from app.scoring.areas import resolve_area
+            from app.scoring.build import build_cells, write_run
+            from app.scoring.geometry import cells_geojson, load_plr_geometries
+            from app.scoring.layers import compute_layers
+
+            config_path = (
+                Path(__file__).resolve().parents[2]
+                / "config"
+                / "scoring"
+                / (f"{args.template}_v1.json")
+            )
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            datasets = {item["dataset_id"]: item for item in service.list_datasets()}
+            names_manifest = service.catalog.get(
+                "berlin_lor_names", datasets["berlin_lor_names"]["latest_snapshot_id"]
+            )
+            names_records = read_records(service._snapshot_path(names_manifest))
+            names = {
+                item.area_code: {**item.attributes, "name": item.name}
+                for item in names_records
+                if getattr(item, "record_type", None) == "area"
+            }
+            area = resolve_area(args.area, names)
+            lor_manifest = service.catalog.get(
+                "berlin_lor", datasets["berlin_lor"]["latest_snapshot_id"]
+            )
+            geometries = load_plr_geometries(read_records(service._snapshot_path(lor_manifest)))
+            subset = geometries[geometries["id"].isin(area.plr_ids)].copy()
+            modifiers = (
+                json.loads(args.modifiers.read_text(encoding="utf-8")) if args.modifiers else []
+            )
+            config["_geometry_source_url"] = service.configs["berlin_lor_names"].resource_url
+            config["_geometry_snapshot_id"] = names_manifest.snapshot_id
+            config["_geometry_geometry_snapshot_id"] = lor_manifest.snapshot_id
+            config["_area_name"] = area.name
+            layers = compute_layers(
+                service, area.plr_ids, config, geometries=geometries, names=names
+            )
+            doc, evidence = build_cells(
+                area,
+                layers,
+                None,
+                modifiers,
+                {},
+                {},
+                config=config,
+                names=names,
+                template=args.template,
+            )
+            geojson = cells_geojson(subset, names)
+            write_run(args.out, doc, geojson, evidence)
+            result = {
+                "out": {
+                    "cells": str(args.out / "cells.json"),
+                    "geojson": str(args.out / "cells.geojson"),
+                    "evidence": str(args.out / "evidence.jsonl"),
+                },
+                "cell_count": len(doc.cells),
+                "excluded_count": len(doc.excluded_cells),
+                "top3": [
+                    {
+                        "id": cell.id,
+                        "name": cell.name,
+                        "score_present": cell.score_present,
+                        "raw_values": cell.raw_values,
+                    }
+                    for cell in doc.cells[:3]
+                ],
+            }
+        elif args.command == "locate":
+            from app.scoring.locate import locate as locate_address
+
+            result = asyncio.run(locate_address(args.address, service=service)).model_dump(
+                mode="json"
             )
         else:
             result = manifest_to_dict(
