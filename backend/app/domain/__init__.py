@@ -10,6 +10,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    DEVELOPMENT_PLAN_STATUSES,
     POPULATION_BLOCK_AGE_BANDS,
     PUBLIC_REDISTRIBUTION_STATUSES,
     RECORD_TYPES,
@@ -19,6 +20,7 @@ from .models import (
     AreaObservation,
     Business,
     DatasetConfig,
+    DevelopmentPlan,
     FetchRequest,
     ForecastObservation,
     GridObservation,
@@ -51,6 +53,8 @@ __all__ = [
     "AreaObservation",
     "ForecastObservation",
     "Business",
+    "DevelopmentPlan",
+    "DEVELOPMENT_PLAN_STATUSES",
     "Place",
     "POPULATION_BLOCK_AGE_BANDS",
     "PopulationBlock",
