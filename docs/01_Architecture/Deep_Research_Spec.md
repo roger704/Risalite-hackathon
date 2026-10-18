@@ -496,3 +496,25 @@ Merge per spec **[illustrated]**: wave 2 researches the top 3 with their profile
 **Example 4 — "Is Oranienstraße 25 a good place for a café?"** (T1): T1 is not specified in detail (§6, `candidates.json`). The surrounding PLR are at the bottom of the T2 ranking (Oranienplatz 0.02, 34 OSM cafés), but T1 asks an absolute question the relative score cannot answer (O10).
 
 **Example 5 — "Where are Kita places missing in Friedrichshain-Kreuzberg?"** (T3): `main` has no Kita connector and no T3 scoring config; only the 0–6 age band is available. The flow cannot produce a reliable ranking today and the report should say so.
+
+### 13.8 Mockup data needs vs. this flow (for team discussion)
+
+Checked against `frontend/mockup/index.html` (`devin/1792329565-mockup-3d-heatmap`), mockup exports (`devin/1792331231-mockup-exports`) and the S3 app/contracts (PR #19).
+
+- **Covered by this spec (not implemented):** classification + why, clarify, plan with sub-questions/layers/weights, approval, trace events with why/model/tokens/seconds, ledger with quotes, verified/partial status, "could not verify" appendix, future modifiers with magnitude, risks with severity, `demoted_by`, cited summary, top-3, location battle, exports (`retrieved_at`/`published_at` exist on `WebEvidence`).
+- **Data gap:** the mockup's layers come from WFS datasets not on `main` (`ua_einwohnerdichte_2025`, `gewerbedaten` NACE, `oepnv_ungestoert`, `brw2026`, `mss_2025`, `kita`, `step_wo_2040`, `adressen_berlin`, `wohnlagenadr2026`). Mockup T2 layers (incl. a land-value cost layer and one combined competition layer) differ from `coffee_v1`.
+- **Not in this spec:** T1 (3 hypotheses × 6 dimensions scored 0–10 with cited reasons, for/against/unknowns, competitor points within 500 m, operator fit) and T3 (no Kita connector).
+
+Proposed additions (undecided):
+
+| # | Addition |
+|---|---|
+| M1 | `subquestion_id` on findings/modifiers/risks; `layer_ids` per sub-question in the plan (unticking a sub-question removes its layers and modifiers consistently) |
+| M2 | deterministic `tier` (official/institutional/press/weak) and `confidence` for web evidence from a domain list |
+| M3 | cell `unknowns` as `{text, suggested_validation}` |
+| M4 | `factcheck.json` with `best_score` and `reason` per rejected finding |
+| M5 | `metrics.json`: role × model × calls/tokens/seconds plus self-grade figures |
+| M6 | `paid_sources` in the plan and a `skip` event |
+| M7 | one scoring rule shared by S2 and S3: today S3 `scoring.js` sorts future mode on the uncapped score and imputes missing layers with the mean, while S2 caps at 1.0 and reweights — rankings can diverge |
+| M8 | specify the T1 flow (hypothesis researchers, dimension scoring, radius competitors) |
+| M9 | data requests to the data team (land value, NACE businesses with coordinates, Kita, MSS, addresses) or align the mockup with `coffee_v1` |
