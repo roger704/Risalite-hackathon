@@ -1,0 +1,60 @@
+flowchart TB
+  subgraph P1["1 · Question → plan → approval (Nebius, structured output)"]
+    direction LR
+    Q["Question + role"] --> C["Classify<br/>point · location · gap"]
+    C --> G{"Area given?"}
+    G -- no --> CQ["Clarify<br/>one question back"]
+    CQ --> C
+    G -- yes --> A["Resolve area<br/>LOR names → PLR cells"]
+    A --> P["Plan<br/>layers · weights · sub-questions · paid slots"]
+    P --> AP[["Approval pause<br/>POST /runs/{id}/approve"]]
+  end
+
+  subgraph P2["2 · Data stage — deterministic, no LLM (S2 connectors)"]
+    direction LR
+    POP["Population<br/>density · age 18–45"]
+    OSM["OSM POIs<br/>competition · footfall"]
+    IHK["IHK register<br/>café cross-check"]
+    GTFS["VBB GTFS<br/>departures / window"]
+    WFS["Berlin WFS (optional)<br/>MSS · land value"]
+    LV["Layer values per PLR<br/>normalized · citable"]
+    SC["Score v0 + top-3 profiles"]
+    POP --> LV
+    OSM --> LV
+    IHK --> LV
+    GTFS --> LV
+    WFS --> LV
+    LV --> SC
+  end
+
+  subgraph P3["3 · Web research — deepagents + Tavily"]
+    direction LR
+    W1["Wave 1 · district context<br/>≤3 researchers, parallel to data stage"]
+    W2["Wave 2 · top-3 cells<br/>1 researcher per cell, ≤3 searches"]
+    RF["record_finding<br/>ledger id + verbatim quote check"]
+    L[("Evidence ledger<br/>evidence.jsonl · findings.jsonl")]
+    W1 --> RF
+    W2 --> RF
+    RF --> L
+  end
+
+  subgraph P4["4 · Synthesis and verification"]
+    direction LR
+    M["Merge<br/>modifiers · risks · unknowns"]
+    SK["Skeptic subagent<br/>counter-evidence for #1–#2"]
+    FC["Fact-check<br/>re-extract · ratio ≥ 0.85"]
+    RV["Severity review<br/>verified risks only"]
+    RS["Rescore<br/>high risk → demote"]
+    WR["Writer<br/>verified findings only"]
+    OUT["report.md · cells.json<br/>trace.jsonl → SSE"]
+    M --> SK --> FC --> RV --> RS --> WR --> OUT
+  end
+
+  AP --> P2
+  AP --> W1
+  SC -- "top-3 profile" --> W2
+  W1 -. "district findings" .-> W2
+  LV -. "layer evidence" .-> L
+  L --> M
+  SC --> M
+  SK -. "risk findings" .-> RF
