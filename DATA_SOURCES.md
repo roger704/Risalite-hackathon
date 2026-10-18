@@ -20,6 +20,7 @@ This is a practical inventory for the project. Provider documentation and datase
 | **[Berlin household statistics](https://www.statistik-berlin-brandenburg.de/a-i-17-j/)** | Household size and family structures by LOR | Published tables and downloads | Identify family-oriented neighborhoods |
 | **[Official Berlin address points](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba)** | Addresses with coordinates | Public WFS service; DL-DE-Zero 2.0 | Locate candidate addresses without a paid geocoding API |
 | **[ALKIS Berlin parcels](https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7)** | Official cadastral parcel boundaries, identifiers, and source area | Bounded Berlin WFS 2.0 GeoJSON extent; DL-DE-Zero 2.0 | Connect selected points with official parcel geometry; geometric matches are not legal assignments |
+| **[Berlin Mietspiegel 2026 Wohnlagen by address](https://daten.berlin.de/datensaetze/wohnlagen-nach-adressen-zum-berliner-mietspiegel-2026-wfs-809faebe)** | Official address-level classes `einfach`, `mittel`, and `gut` from the Berlin WFS | WFS GeoJSON, EPSG:25833; [DL-DE-Zero 2.0](https://www.govdata.de/dl-de/zero-2-0) | Join by the provider's address key to describe residential surroundings; not income, purchasing power, commercial suitability, footfall, or rent |
 
 ### Why IHK Business Data Matters
 
@@ -96,5 +97,7 @@ This provides a free data foundation for both demo scenarios while keeping uncer
 ## 7. First Implementation Validation
 
 The [backend setup guide](backend/README.md) documents the two working connectors and their reviewed download resources. On 18 October 2026, a full download-to-publication run imported 542 LOR planning-area polygons and 4,878 population observations (542 areas, one total plus eight age bands) from the official sources without rejected rows. Population refers to 30 June 2026; the selected boundary archive is the 1 January 2023 release of the 2021 LOR scheme. All area codes matched; code matching alone does not certify unchanged geometry between editions.
+
+The official Kita WFS (`kita:kita`, revision 31 December 2025, DL-DE-Zero 2.0) was imported on 18 October 2026 as `berlin_kitas`: 2,905 publicly funded facilities (equal to `numberMatched`), no rejected rows, all assigned to a Planungsraum. Its `e_platz` field is the licensed maximum number of places (missing for 22 facilities); the source provides no vacancies, and facility counts are not evidence of a childcare shortage.
 
 The selected LOR archive is licensed CC BY 3.0 and supplies IDs without neighborhood names. The population workbook is licensed CC BY 3.0 DE. These source-specific licenses take precedence over general assumptions about Berlin Open Data licensing. Exact URLs, mappings, attribution, and reference dates are in the reviewed files under `backend/config/datasets/`.

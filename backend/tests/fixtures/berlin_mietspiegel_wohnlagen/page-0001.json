@@ -1,0 +1,51 @@
+{
+  "type": "FeatureCollection",
+  "totalFeatures": 5,
+  "numberMatched": 5,
+  "numberReturned": 2,
+  "timeStamp": "2026-10-18T14:51:37.871Z",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "wohnlagenadr2026.00001004A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [385817.874, 5815940.603]
+      },
+      "properties": {
+        "schluessel": "00001004A",
+        "bezname": "Charlottenburg-Wilmersdorf",
+        "plz": "10713",
+        "strasse": "Aachener Straße",
+        "hnr": "004A",
+        "wol": "mittel",
+        "stadtteil": "West",
+        "plr_name": "Brabanter Platz"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "wohnlagenadr2026.00067001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [408796.927, 5807854.363]
+      },
+      "properties": {
+        "schluessel": "00067001",
+        "bezname": "Treptow-Köpenick",
+        "plz": "12559",
+        "strasse": "Johann-Jacob-Baeyer-Straße",
+        "hnr": "001",
+        "wol": "einfach",
+        "stadtteil": "Ost",
+        "plr_name": "Müggelheim"
+      }
+    }
+  ]
+}

@@ -193,6 +193,8 @@ class DataService:
                     coverage.update(
                         connector.check_parent(config, batch.records, self._load_records(parent))
                     )
+                    if config.adapter == "berlin_wfs_wohnlagen":
+                        coverage["lor_snapshot_id"] = parent.snapshot_id
                 if not (parent and config.adapter == "population"):
                     geometries = [
                         item.geometry for item in batch.records if hasattr(item, "geometry")
@@ -540,3 +542,8 @@ class DataService:
                 }
             ],
         }
+
+    def wohnlage(self, dataset_id: str, snapshot_id: str, **query):
+        from app.application.wohnlage_lookup import lookup_wohnlage
+
+        return lookup_wohnlage(self, dataset_id, snapshot_id, **query)

@@ -590,6 +590,95 @@ class ForecastObservation(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class ResidentialLocationClass(Record):
+    geometry: dict[str, Any]
+    address_key: str
+    street_code: str
+    house_number: int
+    house_number_suffix: str | None
+    house_number_label: str
+    street_name: str | None
+    postcode: str | None
+    district_name: str | None
+    planning_area_name: str | None
+    east_west_marker: str | None
+    wohnlage_class: str | None
+    class_status: str
+    source_label: str | None
+    edition: str
+    valid_from: str
+    valid_to: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="residential_location_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("address_key", self.address_key)
+        if not re.fullmatch(r"\d{8}[A-Z]{0,2}", self.address_key):
+            raise ValidationError("address_key must be an 8-digit key with optional suffix")
+        if not re.fullmatch(r"\d{5}", self.street_code):
+            raise ValidationError("street_code must contain five digits")
+        if type(self.house_number) is not int or not 0 <= self.house_number <= 999:
+            raise ValidationError("house_number must be an integer from 0 to 999")
+        _optional_text("house_number_suffix", self.house_number_suffix)
+        if self.house_number_suffix is not None and not re.fullmatch(
+            r"[A-Z]{1,2}", self.house_number_suffix
+        ):
+            raise ValidationError("house_number_suffix must be one or two uppercase letters")
+        _text("house_number_label", self.house_number_label)
+        if self.house_number_label != f"{self.house_number:03d}{self.house_number_suffix or ''}":
+            raise ValidationError("house_number_label does not match its numeric and suffix fields")
+        if self.address_key != f"{self.street_code}{self.house_number_label}":
+            raise ValidationError("address_key does not match street code and house number")
+        if self.source_record_id != self.address_key:
+            raise ValidationError("source_record_id must equal address_key")
+        if not isinstance(self.valid_from, str) or self.record_id != (
+            f"wohnlage:{self.valid_from[:4]}:{self.address_key}"
+        ):
+            raise ValidationError("record_id must use the Wohnlage edition year and address key")
+        for name in (
+            "street_name",
+            "postcode",
+            "district_name",
+            "planning_area_name",
+            "east_west_marker",
+            "wohnlage_class",
+            "source_label",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.class_status not in {"assigned", "unassigned", "unmapped"}:
+            raise ValidationError("class_status must be assigned, unassigned or unmapped")
+        if self.class_status == "assigned":
+            if (
+                self.wohnlage_class not in {"einfach", "mittel", "gut"}
+                or self.source_label != self.wohnlage_class
+            ):
+                raise ValidationError("assigned Wohnlage records require a known class")
+        elif self.wohnlage_class is not None:
+            raise ValidationError("unassigned or unmapped records cannot have a class")
+        if self.class_status == "unassigned" and self.source_label is not None:
+            raise ValidationError("unassigned records cannot have an original class label")
+        if self.class_status == "unmapped" and (
+            self.source_label is None or self.source_label in {"einfach", "mittel", "gut"}
+        ):
+            raise ValidationError("unmapped records require an unknown original source label")
+        _text("edition", self.edition)
+        for name in ("valid_from", "valid_to"):
+            try:
+                date.fromisoformat(getattr(self, name))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        if self.valid_from > self.valid_to:
+            raise ValidationError("valid_from cannot be after valid_to")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class AreaIndicatorClass(Record):
     """Ordinal class a published indicator assigns to an area; not a numeric measurement."""
 
@@ -704,6 +793,61 @@ class GridObservation(Record):
         _optional_text("area_code", self.area_code)
 
 
+@dataclass(frozen=True, kw_only=True)
+class Facility(Record):
+    """A registered facility at a WGS84 point. Capacity and vacancies are nullable;
+    a present value needs its own definition and ISO reference date."""
+
+    geometry: dict[str, Any]
+    facility_type: str
+    provider_facility_id: str
+    original_category: str
+    category_mapping_version: str
+    canonical_category: str | None = None
+    name: str | None = None
+    capacity: int | None = None
+    capacity_definition: str | None = None
+    capacity_reference_date: str | None = None
+    vacancies: int | None = None
+    vacancies_reference_date: str | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="facility", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "facility_type",
+            "provider_facility_id",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("canonical_category", "name", "capacity_definition", "area_code"):
+            _optional_text(name, getattr(self, name))
+        for value, reference in (
+            ("capacity", "capacity_reference_date"),
+            ("vacancies", "vacancies_reference_date"),
+        ):
+            _optional_count(value, getattr(self, value))
+            reference_date = getattr(self, reference)
+            if reference_date is not None:
+                try:
+                    date.fromisoformat(reference_date)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{reference} must be an ISO calendar date") from exc
+            if getattr(self, value) is not None and reference_date is None:
+                raise ValidationError(f"{value} requires {reference}")
+        if self.capacity is not None and self.capacity_definition is None:
+            raise ValidationError("capacity requires capacity_definition")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
 NormalizedRecord: TypeAlias = (
     Area
     | AreaObservation
@@ -715,6 +859,8 @@ NormalizedRecord: TypeAlias = (
     | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
+    | Facility
+    | ResidentialLocationClass
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -724,9 +870,11 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "residential_location_class": ResidentialLocationClass,
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
+    "facility": Facility,
 }
 
 
