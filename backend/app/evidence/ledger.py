@@ -111,7 +111,8 @@ class EvidenceLedger:
         if not self.path.exists():
             return []
         rows = []
-        for number, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), 1):
+        # JSONL uses LF boundaries; Unicode line separators may occur inside source text.
+        for number, line in enumerate(self.path.read_text(encoding="utf-8").split("\n"), 1):
             if not line.strip():
                 continue
             try:

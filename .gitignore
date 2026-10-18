@@ -10,5 +10,6 @@ __pycache__/
 build/
 dist/
 data/
+runs/
 *.log
 .DS_Store

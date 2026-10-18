@@ -260,6 +260,29 @@ def _events(client, run_id, auth, last=None):
     return [json.loads(line[5:]) for line in body.splitlines() if line.startswith("data:")]
 
 
+def test_public_budget_is_checked_only_after_valid_approval(make_client, monkeypatch):
+    monkeypatch.setenv("RISALITE_PUBLIC_MAX_RUNS", "1")
+    client = make_client()
+
+    def plan():
+        created = client.post(
+            "/research", json={"question": "Where should I open a café in Britz?"}
+        ).json()
+        assert created["status"] == "awaiting_approval"
+        return created["run_id"], {"Authorization": f"Bearer {created['run_token']}"}
+
+    first, auth = plan()
+    url = f"/runs/{first}/approve"
+    assert client.post(url, json={}).status_code == 404
+    assert client.post(url, json={"subquestions": ["unknown"]}, headers=auth).status_code == 422
+    assert client.post(url, json={}, headers=auth).status_code == 200
+    _events(client, first, auth)
+    second, second_auth = plan()
+    response = client.post(f"/runs/{second}/approve", json={}, headers=second_auth)
+    assert response.status_code == 429
+    assert "public demo research budget" in response.json()["detail"]
+
+
 def test_full_flow_clarify_approve_stream_result(make_client, tmp_path):
     client = make_client()
     created = client.post(

@@ -32,7 +32,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8").split("\n")
         entries = [json.loads(line) for line in lines if line.strip()]
     except (OSError, json.JSONDecodeError) as exc:
         raise ConnectorError("RUN_INVALID", f"Could not read {path.name}: {exc}") from exc

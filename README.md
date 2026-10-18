@@ -1,3 +1,5 @@
+**[PROD — SpotWise](https://spotwise.81-85-0-244.sslip.io/)** · [Launch research app](https://spotwise.81-85-0-244.sslip.io/app/)
+
 # Risalite — Agentic Deep Research for Berlin Locations
 
 **Challenge:** Agentic Deep Research with Nebius Token Factory & Tavily
@@ -10,9 +12,11 @@
 
 **How it works:** approve a research plan → analyze public data and rank locations → investigate candidates on the web → challenge and verify findings → explore the results. Calculations produce the numeric metrics and ranking; AI agents investigate, check evidence, and explain the answer.
 
-**How it is built:** HTML/CSS/JavaScript and Leaflet in the browser; Python/FastAPI, GeoPandas, Shapely, and PyProj on the backend; GeoParquet/Parquet snapshots with a SQLite catalog for storage. DeepAgents research uses **Nebius Token Factory** for hosted models and **Tavily** for web search/extraction. The application runs on a laptop or CPU server.
+**How it is built:** HTML/CSS/JavaScript, MapLibre GL and Leaflet in the browser; Python/FastAPI, GeoPandas, Shapely, and PyProj on the backend; GeoParquet/Parquet snapshots with a SQLite catalog for storage. DeepAgents research uses **Nebius Token Factory** for hosted models and **Tavily** for web search/extraction. The application runs on a laptop or CPU server.
 
-**Where we are:** the data connectors, dashboard, evidence modules, and provider adapters are implemented. The dashboard currently uses demo fixtures; the complete live agent integration is in progress. **Coming next:** validated live research, a public HTTPS demo, and broader property-level and childcare workflows. See the [status and roadmap](#status-and-roadmap).
+**Try it online:** [Explore the animated introduction](https://spotwise.81-85-0-244.sslip.io/) or [open the research app](https://spotwise.81-85-0-244.sslip.io/app/). Start with “Where is it smart to open a coffee place in Kreuzberg?”, review the plan, then approve it to run live research. No account is required. The review deployment allows one active run and 20 admitted runs in total, including validation runs; research uses real Nebius and Tavily credits.
+
+**Where we are:** the café workflow connects the demo dashboard to real data snapshots, deterministic scoring, live research agents, verification, maps, and exports. The app runs on a CPU-only Nebius server behind HTTPS. **Coming next:** stronger public-use controls, recovery for interrupted sessions, and broader property-level and childcare workflows. See the [status and roadmap](#status-and-roadmap) and [deployment guide](deploy/nebius/README.md).
 
 ## Watch the demo
 
@@ -37,15 +41,15 @@ flowchart LR
 
 </details>
 
-*The diagram shows the intended complete experience. The status and roadmap below separate available components from ongoing integration and future work.*
+*The public café workflow follows these stages. The status and roadmap below distinguish deployed features from the broader property and childcare work.*
 
 [Status and roadmap](#status-and-roadmap) · [Architecture](#architecture) · [Research flow](#research-flow) · [Data connectors](#data-connectors) · [Run locally](#run-it) · [Project documents](#key-documents)
 
 ## Architecture
 
-The application has two complementary paths: public datasets are imported into reusable snapshots, while research agents investigate questions using those snapshots and live web sources. The diagram includes the target live integration.
+The application has two complementary paths: public datasets are imported into reusable snapshots, while research agents investigate questions using those snapshots and live web sources. The public deployment runs the frontend and API together behind Caddy HTTPS on a CPU-only Nebius VM.
 
-**Blue:** available components. **Grey:** fixture-backed demo. **Amber:** integration in progress. **Dashed arrows:** connections being integrated.
+**Blue:** implemented components. **Grey:** the optional synthetic fixture mode used for tests and offline previews. The public deployment uses the live research runtime.
 
 ![Risalite architecture: the browser connects to FastAPI, public-data connectors feed versioned snapshots and geospatial services, and the live agent integration connects those services to Nebius, Tavily, evidence, and reports.](docs/diagrams/architecture.svg)
 
@@ -56,7 +60,7 @@ The application has two complementary paths: public datasets are imported into r
 
 ```mermaid
 flowchart TB
-    ui["Browser dashboard<br/>HTML / CSS / JavaScript + Leaflet"]
+    ui["Browser dashboard<br/>HTML / CSS / JavaScript + MapLibre / Leaflet"]
     data["Free public datasets<br/>Berlin open data, IHK, OSM, VBB"]
 
     subgraph backend["Python / FastAPI backend — laptop or CPU server"]
@@ -65,7 +69,7 @@ flowchart TB
         ingest["Connectors + ingestion CLI<br/>Download, normalize, validate"]
         store[("Versioned snapshots<br/>GeoParquet / Parquet + SQLite")]
         geo["Geospatial services<br/>GeoPandas, Shapely, PyProj"]
-        agent["Live research runtime — PR #64<br/>Research, rank, challenge, write"]
+        agent["Live research runtime<br/>Research, rank, challenge, write"]
         evidence["Evidence and export modules<br/>Ledger, quote checks, reports, sources"]
     end
 
@@ -78,18 +82,16 @@ flowchart TB
     geo -->|"Read"| store
     data --> ingest --> store
     api -->|"Export saved runs"| evidence
-    api -.->|"Start live research"| agent
-    agent -.->|"Query data"| geo
-    agent <-.->|"Model calls"| nebius
-    agent <-.->|"Search / extract"| tavily
-    agent -.->|"Findings and report"| evidence
+    api -->|"Start live research"| agent
+    agent -->|"Query data"| geo
+    agent <-->|"Model calls"| nebius
+    agent <-->|"Search / extract"| tavily
+    agent -->|"Findings and report"| evidence
 
     classDef available fill:#e8f2ff,stroke:#2563eb,color:#172554;
     classDef demo fill:#f1f5f9,stroke:#64748b,color:#1e293b;
-    classDef integrating fill:#fff4d6,stroke:#b7791f,color:#713f12,stroke-dasharray:5 5;
-    class ui,api,ingest,store,geo,evidence,data,nebius,tavily available;
+    class ui,api,ingest,store,geo,evidence,data,nebius,tavily,agent available;
     class fixtures demo;
-    class agent integrating;
 ```
 
 </details>
@@ -98,26 +100,26 @@ Nebius runs the models remotely. The application can run locally or on a CPU ser
 
 ## Status and roadmap
 
-The project is being developed in parallel. This is a snapshot of published `main` and the open integration work, checked on **18 October 2026**. A connector being implemented does not mean its dataset is imported on every machine or integrated into every research workflow.
+The project is being developed in parallel. Status checked on **18 October 2026**. The public café demo has LOR boundaries and names, population, OSM places, retail centres, VBB schedules, and block population density imported. Other connectors may be implemented without their data being imported or integrated into a research workflow.
 
 | Stage | What it includes | Status |
 |---|---|---|
-| Data foundation | 21 documented dataset connectors/configurations, typed contracts, ingestion CLI, validation, versioned snapshots, provenance, and read APIs | Available on `main`; coverage and access restrictions vary by dataset |
-| Map and dashboard | Question entry, editable plan, progress trace, map, layer controls, sources, and report/source exports | Available on `main`; research runs currently use synthetic fixtures |
-| Evidence foundation | Evidence ledger, quote matching, fact-check modules, and citation-checking CLI | Available on `main`; full live workflow integration is in progress |
+| Data foundation | Documented dataset connectors/configurations, typed contracts, ingestion CLI, validation, versioned snapshots, provenance, and read APIs | Available on `main`; coverage and access restrictions vary by dataset |
+| Map and dashboard | Question entry, editable plan, progress trace, map, layer controls, sources, and report/source exports | Demo design consolidated into the live API-connected app on `main`; synthetic fixtures remain available for testing |
+| Evidence foundation | Evidence ledger, quote matching, fact-check modules, and citation-checking CLI | Included in the live runtime; claims retain verification status and source links |
 | Hosted AI and web research | Nebius structured-inference adapter, Tavily search/extract adapter, and a separate DeepAgents experiment | Implemented; provider credentials and credits required |
-| Live application runtime | Data analysis, deterministic ranking, researchers, skeptic, fact-check, writer, and live run endpoints | In progress in [PR #64](https://github.com/roger704/Risalite-hackathon/pull/64); not yet merged at this check |
-| SpotWise reports | Recommendations, risks, and what could change the answer, using the live runtime | In progress in [PR #66](https://github.com/roger704/Risalite-hackathon/pull/66), stacked on #64 |
-| Public release | One HTTPS link for the frontend and API, persistent runs, usage limits, and a live demo recording | Next release milestone; deployment remains to be validated |
+| Live application runtime | Data analysis, deterministic ranking, researchers, skeptic, fact-check, writer, and live run endpoints | Merged in [PR #64](https://github.com/roger704/Risalite-hackathon/pull/64); running in the public review deployment |
+| SpotWise reports | Recommendations, risks, and what could change the answer, using the live runtime | Current writer is deployed; further report improvements are tracked separately in [PR #66](https://github.com/roger704/Risalite-hackathon/pull/66) |
+| Public release | One HTTPS link for frontend and API, persisted result files, concurrency and total-run limits | [Judges' demo is online](https://spotwise.81-85-0-244.sslip.io/); session recovery and a live demo recording remain future work |
 
-### Next: a public coffee-location demo
+### Next: strengthen the public coffee-location demo
 
-1. Finish and review the live runtime integration and its dependent report changes.
-2. Import and pin the datasets needed for the selected Berlin demo area.
-3. Verify the browser flow with actual Nebius calls, Tavily research, and source-backed findings.
-4. Persist completed runs and handle interrupted research, timeouts, and provider errors.
-5. Add public-access controls for concurrency, per-visitor usage, and a global research budget; keep provider keys on the backend.
-6. Deploy the frontend and API together behind HTTPS, verify the public URL, and record a complete live run.
+1. Finish and review the dependent report improvements.
+2. Validate coverage and evidence quality across more Berlin areas and questions.
+3. Add saved-run viewing and recovery after browser or server restarts; result files already persist.
+4. Improve handling of timeouts, provider errors, and concurrent visitors.
+5. Extend the existing global run cap and concurrency limit with per-visitor controls and monetary budgets.
+6. Record a complete live run for the demo video.
 
 ### Then: broader location intelligence
 
@@ -132,7 +134,7 @@ The project is being developed in parallel. This is a snapshot of published `mai
 
 ## Research flow
 
-This is the intended integrated workflow. The current dashboard demonstrates the interface with fixtures; live execution is being connected in #64. Classification and planning in that PR currently use rules; model-driven planning remains a future improvement.
+This is the live café research workflow. Classification and initial planning use rules; model-driven initial planning remains a future improvement. Researchers, the skeptic, verification, and report generation run after the user approves the plan.
 
 ![Research flow: clarify the area, approve or edit the plan, analyze pinned data, investigate candidates, record evidence, verify findings, research again within budget if needed, and produce the report and dashboard.](docs/diagrams/research-flow.svg)
 
@@ -171,7 +173,7 @@ Every reported fact should lead back to its dataset snapshot or original web sou
 | [Data sources research](DATA_SOURCES.md) | Free datasets, access methods, licensing, limitations, integration order |
 | [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
 | [Landing page](frontend/landing/README.md) | Animated, looping landing page: what Risalite is for, the workflow and the deliverables, in 10 seconds |
-| [Application frontend](frontend/app/README.md) | Demo design connected to the research API, served at `/`; replaces the standalone prototype |
+| [Application frontend](frontend/app/README.md) | Demo design connected to the research API, served publicly at `/app/`; replaces the standalone prototype |
 | [Backend setup guide](backend/README.md) | Per-connector import and query details, ingestion CLI, versioned snapshots, read API |
 | [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
@@ -243,14 +245,14 @@ All `records` commands also exist as `GET /api/v1/datasets/{dataset_id}/records?
 
 ## Run it
 
-These commands start the dashboard and API from published `main`. Research runs use synthetic fixtures until the live runtime is integrated. No provider keys are needed to preview that interface.
+Use the [public deployment](https://spotwise.81-85-0-244.sslip.io/) for judging. These commands start an **offline preview with synthetic fixtures**, which needs no provider keys. For real local research, follow [Live deep research](#live-deep-research-s1) below.
 
 ```bash
 git clone https://github.com/roger704/Risalite-hackathon.git && cd Risalite-hackathon
 cp .env.example .env            # fill locally when testing provider clients
 cd backend
-uv sync
-uv run uvicorn app.api.main:app --reload   # dashboard + API on http://127.0.0.1:8000/
+uv sync --locked --python 3.11
+RISALITE_RUNS=fixtures uv run uvicorn app.api.main:app --reload
 ```
 
 Open the dashboard at [http://127.0.0.1:8000/](http://127.0.0.1:8000/) and the API docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). A `.env` file is not loaded automatically by these commands; export its variables in the backend process environment when making provider calls.
@@ -309,9 +311,9 @@ Release priority: **T2 coffee (area) end-to-end with clickable citations** comes
 
 - **Nebius Token Factory** — hosted model inference for researchers, skeptic, and writer; model-driven classification and planning are a future improvement.
 - **Tavily** — `search` (domain-restricted first) and `extract` for verbatim quotes.
-- **Berlin open geodata** — `lor_2021` (PLR geometries), `ua_einwohnerdichte_2025`, `mss_2025`, `gewerbedaten` (NACE 56), `oepnv_ungestoert`, `schulen`, `brw2026`, `wohnlagenadr2026`, `kita`, `step_wo_2040`, `adressen_berlin`; plus OpenStreetMap via Overpass.
+- **Public café data** — official LOR boundaries and names, register population, block population density, StEP retail centres, VBB schedules, and OpenStreetMap via the Geofabrik Berlin extract. Other implemented connectors are listed in [Data connectors](#data-connectors); they are not all enabled in the public research workflow.
 - **Optional paid slots** (skipped unless a key is given) — hystreet.com footfall, Google Places competitor ratings.
-- **Application** — Python + FastAPI backend; HTML/CSS/JavaScript dashboard, Leaflet map, and client-side layer controls, served by FastAPI.
+- **Application** — Python + FastAPI backend; HTML/CSS/JavaScript dashboard, MapLibre GL 3D and Leaflet 2D maps, and client-side layer controls. FastAPI serves the app; Caddy supplies HTTPS on the Nebius VM.
 
 ## Work streams
 
@@ -368,8 +370,7 @@ Install `uv`, use Python 3.11, and provide `NEBIUS_API_KEY` and `TAVILY_API_KEY`
 ```sh
 export LOCATION_DATA_DIR=/home/ubuntu/data/risalite
 cd backend
-LOR_SNAPSHOT_ID=berlin_lor-099dc691163b4bdf82567d4e643fbeee
-uv run --python 3.11 location-data ingest berlin_lor
+LOR_SNAPSHOT_ID="$(uv run --python 3.11 location-data ingest berlin_lor | python3 -c 'import json,sys; print(json.load(sys.stdin)["snapshot_id"])')"
 uv run --python 3.11 location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
 uv run --python 3.11 location-data ingest berlin_population
 uv run --python 3.11 location-data ingest zensus_grid
@@ -384,7 +385,7 @@ uv run --python 3.11 location-data ingest berlin_centers --lor-snapshot "$LOR_SN
 
 ### Start and run
 
-Start the dashboard and live API from `backend/`; replace the two secret placeholders with secret-manager references:
+Start the dashboard and live API from `backend/`; replace the secret placeholders with secret-manager references. The public review server is configured to use **`nvidia/nemotron-3-super-120b-a12b`** for all roles. Set `NEBIUS_MODEL`, `RISALITE_RESEARCH_MODEL`, `RISALITE_SKEPTIC_MODEL`, `RISALITE_WRITER_MODEL`, and `RISALITE_REVIEW_MODEL` to that model, or another model available to your Token Factory account.
 
 ```sh
 LOCATION_DATA_DIR=/home/ubuntu/data/risalite RISALITE_RUNS=live \

@@ -33,13 +33,27 @@ function show(id) {
   if (step && pill) { pill.style.width = `${step.offsetWidth}px`; pill.style.transform = `translateX(${step.offsetLeft - 3}px)`; }
   window.scrollTo(0, 0);
 }
-function err(sel, msg) { const e = $(sel); e.textContent = msg; e.classList.toggle('hidden', !msg); }
+function err(sel, msg) { const e = $(sel); (e.querySelector('[data-error-message]') || e).textContent = msg; e.classList.toggle('hidden', !msg); }
 const apiUrl = path => API + path;
 const headers = extra => ({ ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}), ...extra });
 async function getJSON(path, opt = {}) {
-  const response = await fetch(apiUrl(path), { ...opt, headers: headers(opt.headers || {}) });
+  let response;
+  try { response = await fetch(apiUrl(path), { ...opt, headers: headers(opt.headers || {}) }); }
+  catch (error) {
+    if (error.name === 'AbortError') throw error;
+    throw new Error('We couldn’t reach SpotWise. Check your connection and try again.');
+  }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${opt.method || 'GET'} ${path} → HTTP ${response.status}: ${payload.detail || payload.error?.message || 'request failed'}`);
+  if (!response.ok) {
+    const detail = typeof payload.detail === 'string' ? payload.detail : payload.error?.message || '';
+    let message = detail || 'SpotWise couldn’t complete this request. Please try again.';
+    if (response.status === 503) message = 'SpotWise is briefly unavailable. Please try again in a moment.';
+    if (response.status === 429) message = /budget/i.test(detail)
+      ? 'The public demo’s research limit has been reached. Please contact the team.'
+      : 'Another investigation is running. Please try again when it finishes.';
+    const error = new Error(message); error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 const post = (path, body) => getJSON(path, {
@@ -143,7 +157,8 @@ async function exportRun(fmt, print = false) {
     query.set('mode', state.mode);
   }
   const queryString = query.toString();
-  const path = `/runs/${encodeURIComponent(RUN.run_id)}/export/${encodeURIComponent(fmt)}${queryString ? `?${queryString}` : ''}`;
+  const exportPrefix = RUN.mode === 'fixtures' ? '/runs' : '/api/v1/runs';
+  const path = `${exportPrefix}/${encodeURIComponent(RUN.run_id)}/export/${encodeURIComponent(fmt)}${queryString ? `?${queryString}` : ''}`;
   let objectUrl = null;
   try {
     const response = await fetch(apiUrl(path), { headers: headers(), signal: controller.signal });
@@ -280,6 +295,7 @@ $('#q').addEventListener('input', () => { stopTyping(); clearHint(); });
 $('#op').addEventListener('input', () => { stopTyping(true); clearHint(); });
 $('#role').addEventListener('change', () => { if (typingExample) stopTyping(true); clearHint(); });
 $('#go').onclick = () => { if (typingExample) finishTyping(); clearHint(); ask($('#q').value.trim()); };
+$('#ask-retry').onclick = () => $('#go').click();
 $('#print-report').onclick = () => exportRun('report.html', true);
 $('#restart').onclick = () => {
   stopTyping(); clearHint(); activeHash = '';
@@ -331,11 +347,17 @@ async function ask(q) {
   const gen = GEN;
   err('#ask-err', ''); $('#clar').classList.add('hidden');
   const body = { question: q, role: $('#role').value || null, profile: $('#op').value || null };
+  const button = $('#go'); button.disabled = true; button.textContent = 'Preparing plan…';
   try {
     RUN = await post('/research', body);
   } catch (e) {
-    if (gen === GEN) err('#ask-err', 'Could not start research: ' + e.message + ' — is the API running?');
+    if (gen === GEN) {
+      $('#ask-err').classList.toggle('notice', e.status === 503 || e.status === 429);
+      err('#ask-err', e.message);
+    }
     return;
+  } finally {
+    button.disabled = false; button.textContent = 'Research ›';
   }
   if (gen !== GEN) return;
   acceptRun(RUN);
@@ -609,6 +631,15 @@ function dash() {
     RESTORE_DASH = null;
     R.defaultRank = SpotWiseScoring.scoreCells(R.cells, R.defaultOn, R.defaultW, 'present');
     renderLayers(); renderArea();
+  } else if ((R.findings || []).length) {
+    $('#layer-card').classList.add('hidden'); $('#battle-card').classList.add('hidden');
+    $('#d-ftitle').textContent = 'Research findings'; $('#d-mix').textContent = 'Live research';
+    const liveFindings = R.findings || [];
+    const verifiedFindings = liveFindings.filter(f => f.status === 'accepted' && ['verified', 'partial'].includes(f.verification));
+    const droppedFindings = liveFindings.filter(f => f.status !== 'accepted' || !['verified', 'partial'].includes(f.verification));
+    const verifiedHtml = verifiedFindings.length ? `<h3>Research findings</h3>${verifiedFindings.map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim || f.statement || '')}</b><div class="quote small">“${esc(f.quote || '')}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification)}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('')}` : '';
+    const droppedHtml = droppedFindings.length ? `<h3 class="mut">Dropped / unverified</h3><ul class="small mut">${droppedFindings.map(f => `<li>${esc(f.claim || f.statement || '')} <span class="badge">${esc(f.status || 'unknown')} · ${esc(f.verification || 'unverified')}</span></li>`).join('')}</ul>` : '';
+    $('#d-find').innerHTML = verifiedHtml + droppedHtml;
   } else { $('#d-find').innerHTML = '<p class="mut">The run returned no cells or candidates.</p>'; }
   bindCites(); syncShareHash();
 }
@@ -617,11 +648,14 @@ const cite = id => id && CITE[id] ? `<a class="cite" data-e="${esc(id)}">[${CITE
 function renderInline(text) {
   return esc(text)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\[(\d+)\]/g, (match, n) => {
-      const evidence = (R.evidence || [])[Number(n) - 1];
-      return evidence ? cite(evidence.evidence_id) : match;
-    })
-    .replace(/\[((?:e|ds_)[\w:.-]*)\]/g, (match, id) => CITE[id] ? cite(id) : '');
+    .replace(/\[((?:(?:e|ds_)[\w:.-]*|\d+)(?:\s*,\s*(?:(?:e|ds_)[\w:.-]*|\d+))*)\](?!\()/g, (match, tokens) => tokens.split(',').map(token => {
+      const id = token.trim();
+      if (/^\d+$/.test(id)) {
+        const evidence = (R.evidence || [])[Number(id) - 1];
+        return evidence ? cite(evidence.evidence_id) : '';
+      }
+      return CITE[id] ? cite(id) : '';
+    }).join(' '));
 }
 function renderMarkdown(markdown) {
   const blocks = [];
@@ -635,7 +669,12 @@ function renderMarkdown(markdown) {
     list = [];
   };
   String(markdown).split(/\r?\n/).forEach(line => {
-    if (/^\s*[-*]\s+/.test(line)) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph(); flushList();
+      const level = Math.min(6, heading[1].length + 2);
+      blocks.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+    } else if (/^\s*[-*]\s+/.test(line)) {
       flushParagraph(); list.push(line.replace(/^\s*[-*]\s+/, ''));
     } else if (!line.trim()) {
       flushParagraph(); flushList();

@@ -1,0 +1,17 @@
+#cloud-config
+users:
+  - name: deploy
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - REPLACE_WITH_OPERATOR_SSH_PUBLIC_KEY
+ssh_pwauth: false
+disable_root: true
+package_update: true
+packages:
+  - ufw
+runcmd:
+  - [ufw, allow, from, REPLACE_WITH_OPERATOR_PUBLIC_IPV4, to, any, port, '22', proto, tcp]
+  - [ufw, allow, '80/tcp']
+  - [ufw, allow, '443/tcp']
+  - [ufw, --force, enable]

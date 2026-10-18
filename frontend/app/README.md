@@ -6,4 +6,4 @@ The workflow is **Ask → review and approve the plan → research → explore r
 
 Set `RISALITE_RUNS=live` for real research with configured providers and imported datasets. Set `RISALITE_RUNS=fixtures` for a clearly labeled replay using synthetic fixtures. See the repository README for backend setup.
 
-The standalone prototype has been consolidated here and removed. The separate marketing page is served at `/landing/`; its demo link opens this application.
+The standalone prototype has been consolidated here and removed. The public research app is served at `/app/`; the marketing homepage at `/` links to it. Local API previews also serve this application at `/`, with the marketing page at `/landing/`.

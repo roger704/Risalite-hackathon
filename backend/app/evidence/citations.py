@@ -105,12 +105,18 @@ def render_citations(
     for line in text.split("\n"):
         sentences = []
         for sentence in _SENTENCE.split(line):
+            if sentences and CITATION.search(sentence) and not _MARKER.sub("", sentence).strip():
+                sentences[-1] = f"{sentences[-1]} {sentence.strip()}"
+            else:
+                sentences.append(sentence)
+        rendered_sentences = []
+        for sentence in sentences:
             had_markers = bool(CITATION.search(sentence))
             rendered = _MARKER.sub(replace, sentence)
             if had_markers and not CITATION.search(rendered):
                 continue
-            sentences.append(rendered)
-        if line.strip() and not sentences:
+            rendered_sentences.append(rendered)
+        if line.strip() and not rendered_sentences:
             continue
-        lines.append(" ".join(sentences))
+        lines.append(" ".join(rendered_sentences))
     return StripReport("\n".join(lines), tuple(kept), tuple(stripped))

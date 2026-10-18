@@ -24,7 +24,7 @@ class TraceWriter:
             return 0
         seqs = [
             json.loads(line).get("seq", -1)
-            for line in self.path.read_text(encoding="utf-8").splitlines()
+            for line in self.path.read_text(encoding="utf-8").split("\n")
             if line.strip()
         ]
         return max(seqs, default=-1) + 1

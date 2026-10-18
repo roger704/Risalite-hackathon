@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import secrets
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from uuid import uuid4
 
 from app.evidence.ledger import EvidenceLedger
 
+from .budget import PublicRunBudget
 from .events import EventLog
 from .pipeline import Context, Deps, RunFailure, execute
 from .planning import (
@@ -56,6 +58,12 @@ class RunService:
             except ValueError:
                 max_active_runs = 3
         self.max_active_runs = max(0, max_active_runs)
+        public_maximum = os.environ.get("RISALITE_PUBLIC_MAX_RUNS", "").strip()
+        self.public_budget = (
+            PublicRunBudget(self.runs_dir / "public-budget.sqlite", max(0, int(public_maximum)))
+            if public_maximum
+            else None
+        )
 
     # access ---------------------------------------------------------------------------
     def _authorized_run(
@@ -403,6 +411,13 @@ class RunService:
                     "status": "awaiting_approval",
                     "plan": run["plan"],
                 }
+        if self.public_budget is not None:
+            try:
+                admitted = self.public_budget.admit(run["run_id"])
+            except sqlite3.Error as exc:
+                raise RunError(503, "The research budget is temporarily unavailable") from exc
+            if not admitted:
+                raise RunError(429, "The public demo research budget has been reached")
         run["approval"] = body
         run["status"] = "approved"
         run["approved_at"] = time.time()

@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -148,6 +148,14 @@ def mount_frontend(application: FastAPI) -> None:
             "/landing", StaticFiles(directory=str(landing_dir), html=True), name="landing"
         )
     if app_dir.is_dir():
+
+        @application.get("/app", include_in_schema=False)
+        def research_app_redirect(request: Request) -> RedirectResponse:
+            return RedirectResponse(str(request.url.replace(path="/app/")))
+
+        application.mount(
+            "/app", StaticFiles(directory=str(app_dir), html=True), name="research-app"
+        )
         application.mount("/", StaticFiles(directory=str(app_dir), html=True), name="frontend")
 
 
@@ -207,6 +215,8 @@ def create_app(
 
     def get_runs_dir() -> Path:
         return application.state.runs_dir
+
+    application.state.runs_dir = get_runs_dir().resolve()
 
     @application.middleware("http")
     async def request_context(request: Request, call_next):
