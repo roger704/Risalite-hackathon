@@ -389,7 +389,7 @@ function renderArea() {
     const demoted = ranked.filter(item => (item.cell.demoted_by || []).length && !ranked.slice(0, 3).includes(item));
     return demoted.length ? `<h3>Risk-adjusted cells</h3>${demoted.map(item => `<div class="src"><div class="num">#${byId[item.cell.id].rank}</div><div><b>${esc(item.cell.name)}</b> · score ${item.score.toFixed(2)} ${item.cell.demoted_by.map(id => `<a class="badge risk-link" href="#finding-${esc(id)}">risk · ${esc(id)}</a>`).join(' ')}<div>${(item.cell.risks || []).map(risk => esc(risk.text)).join(' · ')}</div></div></div>`).join('')}` : '';
   })() + (() => {
-    const findingRows = (R.findings || []).map(f => `<div class="src" id="finding-${esc(f.finding_id)}"><div class="num">${esc(f.finding_id)}</div><div><b>${esc(f.claim)}</b><div class="quote small">“${esc(f.quote)}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div>`).join('');
+    const findingRows = (R.findings || []).map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim)}</b><div class="quote small">“${esc(f.quote)}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('');
     return findingRows ? `<h3>Research findings</h3>${findingRows}` : '';
   })() + (() => { const w = ranked.find(r => (r.cell.risks || []).length); return w && !ranked.slice(0, 3).includes(w) ? `<p class="small mut">Also considered: <b>${esc(w.cell.name)}</b> (#${byId[w.cell.id].rank}): ${esc(w.cell.risks[0].text)} ${cite(w.cell.risks[0].evidence_id)}.</p>` : ''; })();
   const [a, b] = ranked;
@@ -445,7 +445,7 @@ function renderPoint() {
   $('#d-find').innerHTML = H.slice(0, 3).map((h, i) => `<div class="top"><div class="rk">#${i + 1}</div><b style="font-size:15px">${esc(h.name)}</b> <span class="small mut">rank initial #${h.rank_initial} → final #${h.rank_final}</span><div><span class="sc">${(+h.score).toFixed(1)}</span><span class="small mut"> / 10 recommendation score</span></div>
     ${h.dimensions.map(d => `<div class="dim"><span>${esc(d.name)}</span><div class="mini" style="height:8px"><div style="width:${d.score * 10}%;background:${sev(d.score)}"></div></div><b>${d.score}</b></div><div class="small mut" style="margin:-2px 0 4px 128px">${esc(d.why)} ${(d.evidence_ids || []).map(cite).join(' ')}</div>`).join('')}
     <div class="fa"><div><h4 style="color:var(--ok)">FOR</h4><ul>${(h.for || []).map(claim).join('')}</ul></div><div><h4 style="color:var(--bad)">AGAINST</h4><ul>${(h.against || []).map(claim).join('')}</ul></div><div><h4 class="mut">UNKNOWNS → validate</h4><ul>${(h.unknowns || []).map(u => `<li>${esc(u.text)}<br><span class="mut">→ ${esc(u.suggested_validation)}</span></li>`).join('')}</ul></div></div></div>`).join('') +
-    (R.findings || []).map(f => `<div class="src" id="finding-${esc(f.finding_id)}"><div class="num">${esc(f.finding_id)}</div><div><b>${esc(f.claim)}</b><div class="quote small">“${esc(f.quote)}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div>`).join('');
+    (R.findings || []).map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim)}</b><div class="quote small">“${esc(f.quote)}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('');
   if (H.length > 1) {
     const [a, b] = H; $('#battle-card').classList.remove('hidden');
     $('#battle-title').innerHTML = `Hypothesis Battle: <span style="color:var(--acc)">${esc(a.name)}</span> vs ${esc(b.name)}`;
@@ -468,8 +468,12 @@ function renderSources() {
   const E = R.evidence || [];
   $('#d-src').innerHTML = E.map(e => `<div class="src" id="src-${esc(e.evidence_id)}"><div class="num">[${CITE[e.evidence_id]}]</div><div><div class="row" style="gap:6px"><b>${esc(e.title || e.evidence_id)}</b><span class="badge b-${esc(e.method)}">${esc(e.method)}</span><span class="badge">${esc(e.tier)}</span><span class="badge ${conf[e.confidence] || ''}">confidence: ${esc(e.confidence)}</span><span class="badge ${st[e.status] || ''}">${esc(e.status)}</span><span class="small mut">${esc(e.evidence_id)}</span></div>
     <div class="quote small" style="margin:3px 0">“${esc(e.quote)}”</div>${link(e.url, e.url)}</div></div>`).join('') || '<p class="mut">No ledger entries.</p>';
-  const unsupportedFindings = (R.findings || []).filter(f => f.verification === 'unsupported' || f.status === 'rejected');
-  const unsupportedEvidence = E.filter(e => e.status === 'unsupported').map(e => `<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${esc(e.claim || e.title || e.quote)}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${esc(e.reason || '')}</div>${link(e.url || e.source_url, e.url || e.source_url)}</div></div>`).join('');
+  const unsupportedEvidenceEntries = E.filter(e => e.status === 'unsupported');
+  const unsupportedEvidenceIds = new Set(unsupportedEvidenceEntries.map(e => e.evidence_id));
+  const unsupportedFindings = (R.findings || [])
+    .filter(f => f.verification === 'unsupported' || f.status === 'rejected')
+    .filter(f => !(f.evidence_ids || []).length || !f.evidence_ids.every(id => unsupportedEvidenceIds.has(id)));
+  const unsupportedEvidence = unsupportedEvidenceEntries.map(e => `<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${esc(e.claim || e.title || e.quote)}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${esc(e.reason || '')}</div>${link(e.url || e.source_url, e.url || e.source_url)}</div></div>`).join('');
   const unsupportedClaims = unsupportedFindings.map(f => `<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${esc(f.claim)}</b> <span class="badge b-bad">${esc(f.status)} · ${esc(f.verification)}</span><div class="small mut">${esc(f.why || '')}</div></div></div>`).join('');
   $('#d-nover').innerHTML = unsupportedEvidence + unsupportedClaims || '<p class="mut small">Nothing was dropped.</p>';
 }

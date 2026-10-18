@@ -481,8 +481,9 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
             if layer["id"] == approved_layer["id"]:
                 layer["enabled"] = approved_layer["enabled"]
                 layer["weight_default"] = approved_layer["weight"]
-    findings_path = _fixture_dir() / "findings.jsonl"
-    findings = _read_jsonl("findings.jsonl") if findings_path.exists() else []
+    findings_name = "findings_point.jsonl" if shape == "point" else "findings.jsonl"
+    findings_path = _fixture_dir() / findings_name
+    findings = _read_jsonl(findings_name) if findings_path.exists() else []
     evidence = _read_jsonl("evidence.jsonl")
     result_doc.update(
         {

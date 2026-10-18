@@ -80,6 +80,8 @@ th{font-size:12px;color:var(--mut);font-weight:600}
 .battle .lab{text-align:center;color:var(--mut)}
 .src{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
 .src .num{font-weight:800;color:var(--acc)}
+.src.finding{grid-template-columns:1fr}
+.finding-id{display:inline-block;margin-bottom:4px;padding:2px 6px;border-radius:5px;background:#e8eef3;color:var(--mut);font:11px ui-monospace,SFMono-Regular,monospace}
 .src a{color:#1d4ed8;word-break:break-all;font-size:12px}
 details summary{cursor:pointer;font-weight:600}
 .planrow td:first-child{width:28px}

@@ -169,3 +169,18 @@ def test_root_serves_dashboard_index(client):
     assert response.status_code == 200
     assert "Risalite" in response.text
     assert "app.js" in response.text
+
+
+def test_point_result_does_not_include_area_findings(client):
+    run = start_run(
+        client,
+        "This storefront at Wiener Straße 12 just became available — what is the best use?",
+    )
+    headers = auth(run)
+    approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+    assert approved.status_code == 200
+
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+    assert result.status_code == 200
+    assert result.json()["findings"] == []
