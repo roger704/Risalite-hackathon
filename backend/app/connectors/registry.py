@@ -8,11 +8,13 @@ from app.domain import ConfigError
 ADAPTERS: dict[str, str] = {
     "lor": "app.connectors.lor:LORConnector",
     "population": "app.connectors.population:PopulationConnector",
+    "population_forecast": "app.connectors.population_forecast:PopulationForecastConnector",
     "osm": "app.connectors.osm:OSMConnector",
     "ihk": "app.connectors.ihk:IHKConnector",
     "gtfs": "app.connectors.gtfs:GTFSConnector",
     "berlin_wfs": "app.connectors.berlin_wfs:BerlinWFSConnector",
     "bicycle_counts": "app.connectors.bicycle_counts:BicycleCountsConnector",
+    "berlin_environment": "app.connectors.berlin_environment:BerlinEnvironmentConnector",
     "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
     "households": "app.connectors.households:HouseholdsConnector",
 }
