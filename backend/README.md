@@ -352,8 +352,8 @@ Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test
 The `berlin_mietspiegel_wohnlagen` dataset imports the provider's WFS address points and the official `einfach`, `mittel`, or `gut` classification. Pin a compatible LOR snapshot for the point-in-polygon coverage check:
 
 ```sh
-LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
 uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-snapshot_id-printed-by-the-LOR-import'
 uv run location-data ingest berlin_mietspiegel_wohnlagen --lor-snapshot "$LOR_SNAPSHOT_ID"
 WOHNLAGE_SNAPSHOT_ID='replace-with-wohnlage-snapshot_id'
 uv run location-data records berlin_mietspiegel_wohnlagen --snapshot "$WOHNLAGE_SNAPSHOT_ID" --limit 10

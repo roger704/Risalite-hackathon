@@ -220,12 +220,7 @@ def lookup_wohnlage(
         candidates = _candidate_rows(wohnlage_path, prefix)
         base_response["candidates"] = candidates
         base_response["join_status"] = "not_found"
-        base_response["evidence"].update(
-            {
-                "schluessel": key,
-                "provider_feature_id": f"{options['typename'].split(':')[-1]}.{key}",
-            }
-        )
+        base_response["evidence"]["lookup_key"] = key
         return base_response
 
     record = found[0]

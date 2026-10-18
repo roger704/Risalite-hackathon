@@ -486,8 +486,10 @@ class ResidentialLocationClass(Record):
             raise ValidationError("address_key does not match street code and house number")
         if self.source_record_id != self.address_key:
             raise ValidationError("source_record_id must equal address_key")
-        if self.record_id != f"wohnlage:2026:{self.address_key}":
-            raise ValidationError("record_id must use the 2026 Wohnlage address key")
+        if not isinstance(self.valid_from, str) or self.record_id != (
+            f"wohnlage:{self.valid_from[:4]}:{self.address_key}"
+        ):
+            raise ValidationError("record_id must use the Wohnlage edition year and address key")
         for name in (
             "street_name",
             "postcode",

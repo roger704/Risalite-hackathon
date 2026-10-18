@@ -97,6 +97,14 @@ def test_normalizes_record_contracts_and_parent_coverage():
     assert by_key["00001004A"].house_number_suffix == "A"
     assert by_key["00001004A"].record_id == "wohnlage:2026:00001004A"
     assert by_key["00001004A"].source_record_id == "00001004A"
+    later_edition = replace(
+        by_key["00001004A"],
+        record_id="wohnlage:2027:00001004A",
+        edition="Berliner Mietspiegel 2027",
+        valid_from="2027-05-28",
+        valid_to="2029-05-28",
+    )
+    assert later_edition.record_id == "wohnlage:2027:00001004A"
     assert by_key["00001004A"].geometry["type"] == "Point"
     assert {record.wohnlage_class for record in batch.records} == {"einfach", "mittel", "gut"}
     assert {record.east_west_marker for record in batch.records} == {"Ost", "West"}
@@ -419,6 +427,9 @@ def test_lookup_matched_unclassified_not_found_and_suffix_candidates(tmp_path):
     )
     assert not_found["join_status"] == "not_found"
     assert [row["address_key"] for row in not_found["candidates"]] == ["00001004A"]
+    assert not_found["evidence"]["lookup_key"] == "00001004"
+    assert "schluessel" not in not_found["evidence"]
+    assert "provider_feature_id" not in not_found["evidence"]
 
 
 def test_lookup_address_mode_ambiguous_and_not_joinable(tmp_path):
