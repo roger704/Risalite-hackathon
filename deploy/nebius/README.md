@@ -19,6 +19,8 @@ The whole application runs on one dedicated Ubuntu 24.04 Nebius VM: `cpu-d3`, `2
 
 The `/runs/*/events` route bypasses response compression and flushes immediately so research progress reaches the browser while a run is active. Ordinary pages and API responses remain compressed.
 
+Live downloads use `/api/v1/runs/{id}/export/{format}`. Caddy also forwards the older `/runs/{id}/export/{format}` URLs for browser sessions opened before this correction, preserving their authorization headers and selected layer mix.
+
 Provisioning and public access require approval; these files do not create a VM automatically. Cloud resource charges and Nebius/Tavily research usage are separate; account credits and exact regional prices must be checked in the cloud console.
 
 ## Setup
@@ -36,6 +38,12 @@ Provisioning and public access require approval; these files do not create a VM 
 Anyone with the link can plan and approve research. The service allows **one active run** and **20 admitted runs total** for this review deployment. The total is stored in `/var/lib/spotwise/runs/public-budget.sqlite` and survives restarts; an unavailable budget fails closed. Each admitted run can still spend up to the pipeline's 40-search and 40-extract limits plus model inference. This is a run-count cap, not a monetary cap.
 
 Change `RISALITE_PUBLIC_MAX_RUNS` only deliberately in a systemd override. Set it to `0` to stop new live research while leaving the UI available. A repeated admission of the same run does not count twice. Keep one worker: live run state is process-local. Files persist across a restart, but an in-progress run cannot automatically resume and API run sessions must be recreated; wait for active runs to finish before updates.
+
+## Validation — 18 October 2026
+
+The public HTTPS app completed a live Nemotron café investigation for Kreuzberg with the market sub-question selected. All six scoring layers contained data for all 19 neighbourhood areas. Research, skeptic, review and writer calls used `nvidia/nemotron-3-super-120b-a12b`. Browser checks covered streaming progress, the ranked map, citation-to-source navigation, Markdown report download, and sources CSV download.
+
+A controlled local 503 test confirmed that the question is retained and **Try again** recovers to a plan. Regression tests cover Unicode line separators in extracted evidence, grouped citation rendering and HTML escaping, plus persistent public-run admission limits.
 
 ## Operation
 

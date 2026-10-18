@@ -157,7 +157,8 @@ async function exportRun(fmt, print = false) {
     query.set('mode', state.mode);
   }
   const queryString = query.toString();
-  const path = `/runs/${encodeURIComponent(RUN.run_id)}/export/${encodeURIComponent(fmt)}${queryString ? `?${queryString}` : ''}`;
+  const exportPrefix = RUN.mode === 'fixtures' ? '/runs' : '/api/v1/runs';
+  const path = `${exportPrefix}/${encodeURIComponent(RUN.run_id)}/export/${encodeURIComponent(fmt)}${queryString ? `?${queryString}` : ''}`;
   let objectUrl = null;
   try {
     const response = await fetch(apiUrl(path), { headers: headers(), signal: controller.signal });
