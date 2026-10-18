@@ -1,0 +1,65 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 3,
+  "numberReturned": 2,
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "synthetic.01011101",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[390000, 5818000], [390200, 5818000], [390200, 5818200], [390000, 5818200], [390000, 5818000]]]
+      },
+      "properties": {
+        "plr_id": "01011101",
+        "plr_name": "Stülerstraße",
+        "bzr_id": "010111",
+        "bzr_name": "Synthetic Süd",
+        "pgr_id": "0101",
+        "pgr_name": "Synthetic Mitte",
+        "bez": "01 - Mitte",
+        "finhalt": 40000.0,
+        "stadtraum_id": "1",
+        "stadtraum_name": "Innere Stadt",
+        "stand": "01.01.2021"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "synthetic.01011102",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [[[390200, 5818000], [390400, 5818000], [390400, 5818200], [390200, 5818200], [390200, 5818000]]],
+        [[[390450, 5818000], [390550, 5818000], [390550, 5818200], [390450, 5818200], [390450, 5818000]]]
+        ]
+      },
+      "properties": {
+        "plr_id": "01011102",
+        "plr_name": "Synthetic Platz",
+        "bzr_id": "010111",
+        "bzr_name": "Synthetic Süd",
+        "pgr_id": "0101",
+        "pgr_name": "Synthetic Mitte",
+        "bez": "01 - Mitte",
+        "finhalt": 60000.0,
+        "stadtraum_id": "1",
+        "stadtraum_name": "Innere Stadt",
+        "stand": "01.01.2021"
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "next",
+      "type": "application/json",
+      "href": "https://gdi.berlin.de/services/wfs/lor_2021?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=lor_2021%3Aa_lor_plr_2021&OUTPUTFORMAT=application%2Fjson&SORTBY=plr_id&COUNT=2&STARTINDEX=2"
+    }
+  ]
+}
