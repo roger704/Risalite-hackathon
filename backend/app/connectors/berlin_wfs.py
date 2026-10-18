@@ -22,6 +22,11 @@ from shapely.geometry import mapping, shape
 from shapely.ops import transform
 
 from app.connectors.base import FileConnector
+from app.connectors.berlin_wfs_roads import (
+    normalize_road_segments,
+    validate_road_segment_options,
+    validate_road_segments,
+)
 from app.domain import (
     Area,
     ConfigError,
@@ -31,6 +36,7 @@ from app.domain import (
     NormalizedBatch,
     QualityReport,
     RawBundle,
+    RoadTrafficSegment,
     SchemaError,
 )
 from app.infrastructure.http import HTTPFetcher
@@ -179,7 +185,6 @@ def _options(config: DatasetConfig) -> dict:
         "id_field",
         "field_map",
         "attribute_fields",
-        "hierarchy",
         "record_type",
     )
     for name in required:
@@ -228,24 +233,29 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
-    if options["record_type"] != "area":
+    if options["record_type"] not in {"area", "road_traffic_segment"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
-    field_map = options["field_map"]
-    if not isinstance(field_map, dict) or any(
-        not isinstance(field_map.get(key), str) or not field_map[key]
-        for key in ("area_code", "name")
-    ):
-        raise SchemaError("WFS field_map must map area_code and name to properties")
-    attributes = options["attribute_fields"]
-    if not isinstance(attributes, list) or any(not isinstance(value, str) for value in attributes):
-        raise SchemaError("WFS attribute_fields must be a list of property names")
-    if not isinstance(options["hierarchy"], str) or not options["hierarchy"].strip():
-        raise SchemaError("WFS hierarchy must be a nonempty string")
-    geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
-    if not isinstance(geometry_types, list) or any(
-        value not in {"Polygon", "MultiPolygon"} for value in geometry_types
-    ):
-        raise SchemaError("WFS geometry_types must list Polygon and/or MultiPolygon")
+    if options["record_type"] == "area":
+        field_map = options["field_map"]
+        if not isinstance(field_map, dict) or any(
+            not isinstance(field_map.get(key), str) or not field_map[key]
+            for key in ("area_code", "name")
+        ):
+            raise SchemaError("WFS field_map must map area_code and name to properties")
+        attributes = options["attribute_fields"]
+        if not isinstance(attributes, list) or any(
+            not isinstance(value, str) for value in attributes
+        ):
+            raise SchemaError("WFS attribute_fields must be a list of property names")
+        if not isinstance(options.get("hierarchy"), str) or not options["hierarchy"].strip():
+            raise SchemaError("WFS hierarchy must be a nonempty string")
+        geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
+        if not isinstance(geometry_types, list) or any(
+            value not in {"Polygon", "MultiPolygon"} for value in geometry_types
+        ):
+            raise SchemaError("WFS geometry_types must list Polygon and/or MultiPolygon")
+    else:
+        validate_road_segment_options(options)
     return options
 
 
@@ -388,6 +398,8 @@ class BerlinWFSConnector(FileConnector):
             raise SchemaError(f"WFS expected {expected} features, received {matched}")
         if count_range is not None and not count_range[0] <= matched <= count_range[1]:
             raise SchemaError(f"WFS expected feature count in {count_range}, received {matched}")
+        if options["record_type"] == "road_traffic_segment":
+            return normalize_road_segments(features, options, config, raw)
 
         source_bounds = _bbox(options, "source_bbox")
         allowed_bounds = _bbox(options, "allowed_bbox", [13.0, 52.3, 13.9, 52.8])
@@ -491,6 +503,10 @@ class BerlinWFSConnector(FileConnector):
             from app.connectors.berlin_wfs_plans import validate_development_plans
 
             return validate_development_plans(batch)
+        if batch.records and all(
+            isinstance(record, RoadTrafficSegment) for record in batch.records
+        ):
+            return validate_road_segments(batch)
         errors = []
         if not batch.records:
             errors.append("WFS snapshot is empty")
