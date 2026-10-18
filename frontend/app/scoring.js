@@ -2,9 +2,15 @@
 (function (g) {
   function scoreCells(doc, on, weights, mode) {
     const layers = doc.layers.filter(l => on[l.id]);
+    const means = Object.fromEntries(layers.map(layer => {
+      const values = doc.cells.map(cell => cell.values[layer.id])
+        .filter(value => value !== null && value !== undefined);
+      const mean = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+      return [layer.id, mean];
+    }));
     const raw = doc.cells.map(c => layers.reduce((s, l) => {
-      const v = c.values[l.id];
-      return v === null || v === undefined ? s : s + weights[l.id] * (l.direction === '-' ? -1 : 1) * v;
+      const value = c.values[l.id] ?? means[l.id];
+      return s + weights[l.id] * (l.direction === '-' ? -1 : 1) * value;
     }, 0));
     const mn = Math.min(...raw), mx = Math.max(...raw);
     const base = doc.cells.map((cell, i) => {

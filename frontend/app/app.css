@@ -16,6 +16,7 @@ h2 .n{background:var(--chip);color:var(--mut);font-size:11px;border-radius:50%;w
 h3{font-size:14px;margin:0 0 6px}
 .mut{color:var(--mut)}
 .demo-note{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-top:10px;font-size:13px}
+.fixture-notice{margin:0 0 16px;padding:12px 16px;font-weight:700}
 .small{font-size:12px}
 textarea{width:100%;font:inherit;font-size:17px;padding:14px;border:1px solid #cdd6de;border-radius:10px;resize:vertical;min-height:78px}
 select,input[type=text],input[type=password]{font:inherit;padding:7px 9px;border:1px solid #cdd6de;border-radius:7px;background:#fff}

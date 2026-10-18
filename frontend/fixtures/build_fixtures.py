@@ -108,14 +108,23 @@ LAYERS = [
 
 def compute_scores(cells: list[dict], layers: list[dict]) -> dict[str, dict[str, float]]:
     """Normalize the layer mix and add future modifiers without risk demotion."""
+    means = {}
+    for layer in layers:
+        values = [
+            cell["values"].get(layer["id"])
+            for cell in cells
+            if cell["values"].get(layer["id"]) is not None
+        ]
+        means[layer["id"]] = sum(values) / len(values) if values else 0
     raw_scores = []
     for cell in cells:
         raw = 0.0
         for layer in layers:
             value = cell["values"].get(layer["id"])
-            if value is not None:
-                direction = 1 if layer["direction"] == "+" else -1
-                raw += layer["weight_default"] * direction * value
+            if value is None:
+                value = means[layer["id"]]
+            direction = 1 if layer["direction"] == "+" else -1
+            raw += layer["weight_default"] * direction * value
         raw_scores.append(raw)
 
     minimum = min(raw_scores)

@@ -64,10 +64,10 @@ class Plan(_Model):
 
 
 class ResearchRequest(_Model):
-    question: str = Field(min_length=1)
-    role: str | None = None
-    template_hint: str | None = None
-    profile: str | None = None
+    question: str = Field(min_length=1, max_length=2000)
+    role: str | None = Field(default=None, max_length=2000)
+    template_hint: str | None = Field(default=None, max_length=2000)
+    profile: str | None = Field(default=None, max_length=2000)
 
 
 class ResearchResponse(_Model):

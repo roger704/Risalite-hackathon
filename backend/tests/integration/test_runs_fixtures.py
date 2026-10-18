@@ -41,10 +41,42 @@ def test_run_endpoints_hide_missing_invalid_and_unknown_tokens(client):
     assert missing.json() == wrong.json() == unknown.json()
 
 
+def test_research_rejects_question_over_2000_characters(client):
+    response = client.post("/research", json={"question": "x" * 2001})
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field", ["role", "profile", "template_hint"])
+def test_research_optional_fields_are_limited_to_2000_characters(client, field):
+    response = client.post(
+        "/research",
+        json={"question": "Where in Kreuzberg?", field: "x" * 2001},
+    )
+    assert response.status_code == 422
+
+
+def test_oldest_run_is_evicted_when_run_store_is_full(client, monkeypatch):
+    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 3)
+    runs = [
+        start_run(client, f"Where is it smart to open a coffee place in Kreuzberg? run {i}")
+        for i in range(4)
+    ]
+    missing = client.get(f"/runs/{runs[0]['run_id']}/result", headers=auth(runs[0]))
+    assert missing.status_code == 404
+    assert len(RUNS) == 3
+
+
 def test_needs_clarification_can_be_resolved_and_areas_are_searchable(client):
     run = start_run(client, "Where is it smart to open a coffee place?")
     assert run["status"] == "needs_clarification"
     assert run["clarify_question"]
+
+    too_long = client.post(
+        f"/runs/{run['run_id']}/clarify",
+        headers=auth(run),
+        json={"answer": "x" * 501},
+    )
+    assert too_long.status_code == 422
 
     response = client.post(
         f"/runs/{run['run_id']}/clarify",
@@ -96,7 +128,7 @@ def test_changed_area_requires_review_and_approval_is_one_shot(client):
     body = changed.json()
     assert body["status"] == "awaiting_approval"
     assert body["plan"]["area"]["area_id"] == "bezirk:02"
-    assert "fixture data covers Kreuzberg only" in body["plan"]["note"]
+    assert body["plan"].get("note") is None
 
     approved = client.post(
         url,
@@ -106,6 +138,24 @@ def test_changed_area_requires_review_and_approval_is_one_shot(client):
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     assert client.post(url, headers=headers, json={}).status_code == 409
+
+
+def test_changed_unsupported_area_discloses_fixture_notice(client):
+    run = start_run(client)
+    url = f"/runs/{run['run_id']}/approve"
+    headers = auth(run)
+
+    changed = client.post(url, headers=headers, json={"area_id": "bezirk:08"})
+    assert changed.status_code == 200
+    assert changed.json()["status"] == "awaiting_approval"
+    notice = changed.json()["plan"]["note"]
+
+    approved = client.post(url, headers=headers, json={"area_id": "bezirk:08"})
+    assert approved.status_code == 200
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+    assert result.status_code == 200
+    assert result.json()["fixture_notice"] == notice
 
 
 def test_result_status_sse_replay_and_result_contract(client):
@@ -155,6 +205,7 @@ def test_result_status_sse_replay_and_result_contract(client):
 
     result = client.get(result_url, headers=headers)
     assert result.status_code == 200
+    assert result.json()["fixture_notice"] is None
     validated = RunResult.model_validate(result.json())
     assert validated.status == "done"
     assert validated.cells is not None
@@ -184,3 +235,50 @@ def test_point_result_does_not_include_area_findings(client):
 
     assert result.status_code == 200
     assert result.json()["findings"] == []
+
+
+def test_point_result_report_matches_approved_hypotheses(client):
+    run = start_run(
+        client,
+        "This storefront at Wiener Straße 12 just became available — what is the best use?",
+    )
+    second_hypothesis_id = run["plan"]["hypotheses"][1]["id"]
+    headers = auth(run)
+    approved = client.post(
+        f"/runs/{run['run_id']}/approve",
+        headers=headers,
+        json={"hypothesis_ids": [second_hypothesis_id]},
+    )
+    assert approved.status_code == 200
+
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+    assert result.status_code == 200
+    body = result.json()
+    assert [hypothesis["id"] for hypothesis in body["candidates"]["hypotheses"]] == [
+        second_hypothesis_id
+    ]
+    assert "Natural-wine bar" in body["report_md"]
+    assert "Craft bakery-café" not in body["report_md"]
+    assert "[21]" in body["report_md"]
+    assert body["fixture_notice"] == (
+        "Summary regenerated from the fixture for your approved hypotheses."
+    )
+
+
+def test_gap_run_discloses_fixture_notice(client):
+    run = start_run(client, "Where are Kitas missing in Neukölln?")
+    assert run["shape"] == "gap"
+    assert run["status"] == "awaiting_approval"
+    assert run["plan"]["note"] == (
+        "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
+        "will show that example, not a computed answer."
+    )
+    headers = auth(run)
+    approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+    assert approved.status_code == 200
+
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+    assert result.status_code == 200
+    assert result.json()["fixture_notice"] == run["plan"]["note"]

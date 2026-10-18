@@ -22,6 +22,13 @@ from app.contracts.api import ApproveRequest, ResearchRequest
 
 router = APIRouter()
 RUNS: dict[str, dict] = {}
+MAX_RUNS = 500
+SUPPORTED_AREAS = {"ortsteil:0202", "bezirk:02"}
+FIXTURE_NOTICE = (
+    "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
+    "will show that example, not a computed answer."
+)
+HYPOTHESIS_NOTICE = "Summary regenerated from the fixture for your approved hypotheses."
 
 AREAS = [
     {"area_id": "bezirk:01", "level": "bezirk", "name": "Mitte", "bezirk": "Mitte"},
@@ -127,7 +134,7 @@ _BY_ID = {area["area_id"]: area for area in AREAS}
 class ClarifyRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    answer: str = Field(min_length=1)
+    answer: str = Field(min_length=1, max_length=500)
 
 
 def _fixture_dir() -> Path:
@@ -146,6 +153,36 @@ def _read_jsonl(name: str) -> list[dict]:
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def _approved_hypothesis_report(hypotheses: list[dict], evidence: list[dict]) -> str:
+    if not hypotheses:
+        return "No approved hypotheses are available in the demo fixture."
+
+    evidence_numbers = {entry["evidence_id"]: i for i, entry in enumerate(evidence, 1)}
+    summary = (
+        f"Of the approved hypotheses, **{hypotheses[0]['name']}** scores highest "
+        f"({hypotheses[0]['score']:.1f}/10)"
+    )
+    summary += "".join(
+        f", followed by {hypothesis['name']} ({hypothesis['score']:.1f}/10)"
+        for hypothesis in hypotheses[1:]
+    )
+    statements = []
+    for hypothesis in hypotheses:
+        claims = hypothesis.get("for", [])
+        claim = claims[0] if claims else {}
+        claim_text = claim.get("text") or "No supporting claim is available in the fixture"
+        evidence_id = claim.get("evidence_id")
+        citation = ""
+        if evidence_id:
+            citation = (
+                f" [{evidence_numbers[evidence_id]}]"
+                if evidence_id in evidence_numbers
+                else f" [{evidence_id}]"
+            )
+        statements.append(f"{hypothesis['name']}: {claim_text}{citation}.")
+    return f"{summary}.\n\n" + "\n\n".join(statements)
 
 
 def _area_matches(text: str) -> list[dict]:
@@ -174,7 +211,7 @@ def _shape(question: str) -> str:
     )
     if address or re.search(r"\b(storefront|this space)\b", lowered):
         return "point"
-    if re.search(r"\b(kita|kindergarten)\b", lowered):
+    if re.search(r"\b(kitas?|kindergarten)\b", lowered):
         return "gap"
     return "location"
 
@@ -196,6 +233,10 @@ def _plan(shape: str, matches: list[dict]) -> dict:
         ]
         if selected["area_id"] not in {area["area_id"] for area in plan["area_candidates"]}:
             plan["area_candidates"].append(selected)
+        if shape == "gap" or selected["area_id"] not in SUPPORTED_AREAS:
+            plan["note"] = FIXTURE_NOTICE
+        else:
+            plan.pop("note", None)
     return plan
 
 
@@ -212,6 +253,12 @@ def _response(run: dict) -> dict:
         "shape": run["shape"],
         "classification": run["classification"],
     }
+
+
+def _store_run(run: dict) -> None:
+    RUNS[run["run_id"]] = run
+    while len(RUNS) > MAX_RUNS:
+        RUNS.pop(next(iter(RUNS)))
 
 
 def _get_run(run_id: str, authorization: str | None) -> dict:
@@ -255,7 +302,7 @@ def research(body: ResearchRequest):
         "plan": _plan(shape, matches) if shape == "point" or matches else None,
         "created_at": time.monotonic(),
     }
-    RUNS[run_id] = run
+    _store_run(run)
     return {**_response(run), "run_token": token}
 
 
@@ -337,7 +384,10 @@ def approve(
         ]
         if area_id not in {area["area_id"] for area in plan["area_candidates"]}:
             plan["area_candidates"].append(selected)
-        plan["note"] = "fixture data covers Kreuzberg only; other areas use the same fixture data."
+        if run["shape"] == "gap" or area_id not in SUPPORTED_AREAS:
+            plan["note"] = FIXTURE_NOTICE
+        else:
+            plan.pop("note", None)
         run["status"] = "awaiting_approval"
         run["plan"] = plan
         return {**_response(run), "status": "awaiting_approval", "plan": plan}
@@ -472,6 +522,13 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
     if time.monotonic() - run.get("approved_at", time.monotonic()) < len(trace) * delay:
         return JSONResponse(status_code=202, content={"status": "running"})
     shape = run["shape"]
+    area = (run.get("plan") or {}).get("area") or {}
+    area_id = area.get("area_id")
+    fixture_notice = (
+        FIXTURE_NOTICE
+        if shape == "gap" or (shape == "location" and area_id not in SUPPORTED_AREAS)
+        else None
+    )
     result_doc = _read_json(f"result_{'point' if shape == 'point' else 'location'}.json")
     cells = _read_json("cells.json")
     for layer in cells["layers"]:
@@ -485,11 +542,23 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
     findings_path = _fixture_dir() / findings_name
     findings = _read_jsonl(findings_name) if findings_path.exists() else []
     evidence = _read_jsonl("evidence.jsonl")
+    candidates = _read_json("candidates.json") if shape == "point" else None
+    report_md = result_doc.get("report_md", "")
+    approval = run.get("approval", {})
+    if candidates is not None and "hypothesis_ids" in approval:
+        original_hypotheses = candidates["hypotheses"]
+        approved_ids = set(approval["hypothesis_ids"])
+        candidates["hypotheses"] = [
+            hypothesis for hypothesis in original_hypotheses if hypothesis["id"] in approved_ids
+        ]
+        if len(candidates["hypotheses"]) < len(original_hypotheses):
+            report_md = _approved_hypothesis_report(candidates["hypotheses"], evidence)
+            fixture_notice = HYPOTHESIS_NOTICE
     result_doc.update(
         {
             "run_id": run["run_id"],
             "status": "done",
-            "report_md": result_doc.get("report_md", ""),
+            "report_md": report_md,
             "cells": cells if shape != "point" else None,
             "evidence": evidence,
             "findings": findings,
@@ -500,8 +569,9 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
             "role": run.get("role") or result_doc.get("role"),
             "shape": shape,
             "plan": run["plan"],
+            "fixture_notice": fixture_notice,
             "cells_geojson": _read_json("cells.geojson"),
-            "candidates": _read_json("candidates.json") if shape == "point" else None,
+            "candidates": candidates,
             "trace": trace,
         }
     )

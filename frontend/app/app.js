@@ -289,6 +289,8 @@ async function loadResult(g = GEN) {
 function dash() {
   show('s-dash');
   CITE = {}; (R.evidence || []).forEach((e, index) => { CITE[e.evidence_id] = index + 1; });
+  $('#fixture-notice').textContent = R.fixture_notice || '';
+  $('#fixture-notice').classList.toggle('hidden', !R.fixture_notice);
   $('#d-q').textContent = R.question || RUN.question;
   const shape = R.shape || RUN.classification?.shape;
   $('#d-shape').innerHTML = `<span class="badge b-${esc(shape)}">${esc(shape)}</span>`;
@@ -362,6 +364,7 @@ function renderLayers() {
   bindCites();
 }
 function layerVal(l, c) {
+  if (c.values[l.id] === null || c.values[l.id] === undefined) return '<span class="small mut">no data</span>';
   const raw = c.raw_values?.[l.id];
   return `${fmt(c.values[l.id])}${raw !== undefined ? ` <span class="small mut">(${raw === null ? 'missing' : esc(raw) + (l.unit ? ' ' + esc(l.unit) : '')})</span>` : ''}`;
 }

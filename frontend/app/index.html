@@ -87,6 +87,7 @@
     <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
     <div id="d-note" class="demo-note hidden"></div>
   </div>
+  <div id="fixture-notice" class="demo-note fixture-notice hidden" role="status"></div>
   <div class="dash">
     <div>
       <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
@@ -101,7 +102,7 @@
       <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
         <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
         <div id="layers"></div>
-        <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add their bonus (+0.10). High-severity risks change rank, not score. Missing values are skipped, never counted as zero.</p>
+        <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add their bonus (+0.10). High-severity risks change rank, not score. Missing values use the layer mean, or zero if none are observed.</p>
       </div>
     </div>
   </div>
