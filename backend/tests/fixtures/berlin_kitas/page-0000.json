@@ -1,0 +1,88 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "kita.01000001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          388137.8,
+          5818151.0
+        ]
+      },
+      "geometry_name": "geom",
+      "properties": {
+        "e_nr": "01000001",
+        "e_name": "Kita Synthetisch Alpha",
+        "e_bez_nr": "01",
+        "e_bez": "Mitte",
+        "e_plz": "10115",
+        "e_ort": "Berlin",
+        "e_strasse": "Synthetische Straße",
+        "e_hnr": "1",
+        "e_zusatz": "",
+        "e_tel": "030 0000000",
+        "e_web": "https://example.org/kita-alpha",
+        "e_platz": "45",
+        "e_art": "Kindertagesstätte",
+        "ang_1": "Situationsansatz",
+        "ang_2": "",
+        "t_nr": "9000001",
+        "t_name": "Synthetischer Träger e.V.",
+        "t_art": "freie Träger",
+        "t_web": ""
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "kita.01000002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          388349.0,
+          5818480.0
+        ]
+      },
+      "geometry_name": "geom",
+      "properties": {
+        "e_nr": "01000002",
+        "e_name": "Elterninitiative Synthetisch",
+        "e_bez_nr": "01",
+        "e_bez": "Mitte",
+        "e_plz": "10115",
+        "e_ort": "Berlin",
+        "e_strasse": "Synthetische Straße",
+        "e_hnr": "1",
+        "e_zusatz": "Hinterhaus",
+        "e_tel": "030 0000000",
+        "e_web": "",
+        "e_platz": " ",
+        "e_art": "Eltern-Initiativ-Kindertagesstätte",
+        "ang_1": "",
+        "ang_2": "",
+        "t_nr": "9000001",
+        "t_name": "Synthetischer Träger e.V.",
+        "t_art": "freie Träger",
+        "t_web": ""
+      }
+    }
+  ],
+  "totalFeatures": 3,
+  "numberMatched": 3,
+  "numberReturned": 2,
+  "timeStamp": "2026-10-18T12:00:00.000Z",
+  "links": [
+    {
+      "rel": "next",
+      "type": "application/json",
+      "href": "https://gdi.berlin.de/services/wfs/kita?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=kita%3Akita&OUTPUTFORMAT=application%2Fjson&SORTBY=e_nr&COUNT=2&STARTINDEX=2"
+    }
+  ],
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  }
+}

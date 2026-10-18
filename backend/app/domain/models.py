@@ -749,6 +749,61 @@ class GridObservation(Record):
         _optional_text("area_code", self.area_code)
 
 
+@dataclass(frozen=True, kw_only=True)
+class Facility(Record):
+    """A registered facility at a WGS84 point. Capacity and vacancies are nullable;
+    a present value needs its own definition and ISO reference date."""
+
+    geometry: dict[str, Any]
+    facility_type: str
+    provider_facility_id: str
+    original_category: str
+    category_mapping_version: str
+    canonical_category: str | None = None
+    name: str | None = None
+    capacity: int | None = None
+    capacity_definition: str | None = None
+    capacity_reference_date: str | None = None
+    vacancies: int | None = None
+    vacancies_reference_date: str | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="facility", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "facility_type",
+            "provider_facility_id",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("canonical_category", "name", "capacity_definition", "area_code"):
+            _optional_text(name, getattr(self, name))
+        for value, reference in (
+            ("capacity", "capacity_reference_date"),
+            ("vacancies", "vacancies_reference_date"),
+        ):
+            _optional_count(value, getattr(self, value))
+            reference_date = getattr(self, reference)
+            if reference_date is not None:
+                try:
+                    date.fromisoformat(reference_date)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{reference} must be an ISO calendar date") from exc
+            if getattr(self, value) is not None and reference_date is None:
+                raise ValidationError(f"{value} requires {reference}")
+        if self.capacity is not None and self.capacity_definition is None:
+            raise ValidationError("capacity requires capacity_definition")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
 NormalizedRecord: TypeAlias = (
     Area
     | AreaObservation
@@ -761,6 +816,7 @@ NormalizedRecord: TypeAlias = (
     | AreaIndicatorClass
     | GridObservation
     | Address
+    | Facility
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -774,6 +830,7 @@ RECORD_TYPES: dict[str, type] = {
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
+    "facility": Facility,
 }
 
 
@@ -903,6 +960,108 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class RetailCenter(Record):
+    """Planning-designated retail center or specialist retail site; WGS84 GeoJSON geometry."""
+
+    geometry: dict[str, Any]
+    layer: str
+    wfs_feature_id: str
+    center_type: str | None
+    center_category: str | None
+    center_role: str | None
+    hierarchy_level: int | None
+    name: str | None
+    parent_center_id: str | None
+    category_mapping_version: str
+    source_url: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="retail_center", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Point",
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("RetailCenter geometry must be a Point, Polygon or MultiPolygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("RetailCenter geometry must have coordinates")
+
+        def position(value: Any) -> tuple[float, ...]:
+            if (
+                not isinstance(value, (list, tuple))
+                or len(value) < 2
+                or any(
+                    type(coordinate) not in (int, float) or not isfinite(coordinate)
+                    for coordinate in value
+                )
+                or not -180 <= value[0] <= 180
+                or not -90 <= value[1] <= 90
+            ):
+                raise ValidationError("RetailCenter coordinates must be finite WGS84 positions")
+            return tuple(value)
+
+        def ring(value: Any) -> None:
+            if not isinstance(value, (list, tuple)) or len(value) < 4:
+                raise ValidationError(
+                    "RetailCenter polygon rings must have at least four positions"
+                )
+            positions = [position(item) for item in value]
+            if positions[0] != positions[-1]:
+                raise ValidationError("RetailCenter polygon rings must be closed")
+
+        def polygon(value: Any) -> None:
+            if not isinstance(value, (list, tuple)) or not value:
+                raise ValidationError("RetailCenter polygons must have at least one ring")
+            for polygon_ring in value:
+                ring(polygon_ring)
+
+        geometry_type = self.geometry["type"]
+        if geometry_type == "Point":
+            position(coordinates)
+        elif geometry_type == "Polygon":
+            polygon(coordinates)
+        else:
+            if not isinstance(coordinates, (list, tuple)) or not coordinates:
+                raise ValidationError("RetailCenter multipolygons must contain polygons")
+            for component in coordinates:
+                polygon(component)
+        for name in ("layer", "wfs_feature_id", "category_mapping_version", "source_url"):
+            _text(name, getattr(self, name))
+        for name in (
+            "center_type",
+            "center_category",
+            "center_role",
+            "name",
+            "parent_center_id",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.center_role not in {
+            None,
+            "center",
+            "center_area",
+            "special_center",
+            "specialist_retail_site",
+        }:
+            raise ValidationError("Unsupported retail-center role")
+        if self.hierarchy_level is not None and (
+            type(self.hierarchy_level) is not int or self.hierarchy_level not in range(1, 5)
+        ):
+            raise ValidationError("hierarchy_level must be 1-4 or null")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord = NormalizedRecord | RetailCenter
+RECORD_TYPES["retail_center"] = RetailCenter
 
 
 @dataclass(frozen=True, kw_only=True)

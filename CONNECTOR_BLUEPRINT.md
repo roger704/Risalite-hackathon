@@ -57,7 +57,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `berlin_households` | Tabular file | `AreaObservation` | Next | Monthly check for new period |
 | `berlin_addresses` | Berlin WFS | `Address` | Implemented | Monthly |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
-| `berlin_centers` | Berlin WFS | `Area` | Next | Monthly |
+| `berlin_centers` | Berlin WFS | `RetailCenter` | Next | Monthly |
 | `berlin_population_forecast` | Tabular file | `AreaObservation` with scenario | Next | Monthly check for new edition |
 | `berlin_schools`, `berlin_parks`, `berlin_hospitals` | Berlin WFS | `Facility`, `Area` | Later | Monthly |
 | `berlin_social_monitoring` | Tabular/geospatial file | `AreaObservation` | Later | Monthly check for new edition |

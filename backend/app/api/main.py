@@ -14,10 +14,12 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.centers import create_centers_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
+from app.application.childcare import childcare_areas, childcare_facilities
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
 from app.connectors.valhalla import ValhallaWalkingClient
@@ -311,6 +313,21 @@ def create_app(
             cursor=cursor,
         )
 
+    @application.get("/api/v1/childcare/facilities")
+    def childcare_facility_points(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+    ) -> dict[str, Any]:
+        return childcare_facilities(data, snapshot_id)
+
+    @application.get("/api/v1/childcare/areas")
+    def childcare_area_counts(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+    ) -> dict[str, Any]:
+        return childcare_areas(data, snapshot_id, population_snapshot_id)
+
     @application.get("/api/v1/population-forecast/expected-change")
     def population_forecast_change(
         data: Annotated[DataService, Depends(get_service)],
@@ -428,8 +445,10 @@ def create_app(
                 "NOT_FOUND",
                 f"No {scenario} {metric_code} data for area {area_code} and target year "
                 f"{target_year} with the requested age interval.",
-            )
+        )
         return expected_change(bases[0], targets[0])
+
+    application.include_router(create_centers_router(get_service))
 
     def get_area_summaries(
         data: Annotated[DataService, Depends(get_service)],
