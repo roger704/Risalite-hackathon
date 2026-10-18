@@ -769,7 +769,7 @@ function markers(){M.mk.forEach(m=>m.remove());M.mk=[];if(!M.ranked)return;
   const top3=M.ranked.slice(0,3).map(r=>r.cell.id);
   M.cells.forEach(c=>{const r=M.byId[c.id],cell=r.cell,b=[],k=top3.indexOf(c.id);
     if(k>=0&&M.ov.top)b.push(`<span class="bd rk" data-k="rank" title="Rank ${k+1}">${k+1}</span><span class="bd nm" data-k="rank">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
-    if(M.ov.fut)cell.modifiers.forEach((m,j)=>b.push(`<span class="bd fu${state.mode==='future'?' on':''}" data-k="fut" data-j="${j}" title="${esc(m.label)}">★</span>`));
+    if(M.ov.fut&&state.mode==='future')cell.modifiers.forEach((m,j)=>b.push(`<span class="bd fu${state.mode==='future'?' on':''}" data-k="fut" data-j="${j}" title="${esc(m.label)}">★</span>`));
     if(M.ov.risk){cell.risks.forEach((x,j)=>b.push(`<span class="bd rs" data-k="risk" data-j="${j}" title="${esc(x.text)}">⚠</span>`));cell.unknowns.forEach((u,j)=>b.push(`<span class="bd uk" data-k="unk" data-j="${j}" title="Unknown">?</span>`))}
     if(!b.length)return;
     const el=document.createElement('div');el.className='mk3';el.innerHTML=`<div class="bds">${b.join('')}</div><div class="stem"></div>`;
