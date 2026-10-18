@@ -164,6 +164,9 @@ def main() -> int:
     except GraphRecursionError:
         log(f"error: agent did not finish within {args.recursion_limit} steps")
         return 1
+    except Exception as exc:  # surface provider errors without a traceback
+        log(f"error: {type(exc).__name__}: {exc}")
+        return 1
     report = message_text(result["messages"][-1])
 
     known = {normalize_url(u) for u in stats.result_urls}
