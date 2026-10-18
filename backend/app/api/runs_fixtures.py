@@ -11,7 +11,9 @@ import re
 import secrets
 import time
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
+from threading import RLock
 from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -22,8 +24,10 @@ from app.contracts.api import ApproveRequest, ResearchRequest
 
 router = APIRouter()
 RUNS: dict[str, dict] = {}
+RUNS_LOCK = RLock()
 MAX_RUNS = 500
-SUPPORTED_AREAS = {"ortsteil:0202", "bezirk:02"}
+IDLE_TTL = 3600
+SUPPORTED_AREAS = {"ortsteil:0202"}
 FIXTURE_NOTICE = (
     "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
     "will show that example, not a computed answer."
@@ -255,10 +259,49 @@ def _response(run: dict) -> dict:
     }
 
 
-def _store_run(run: dict) -> None:
-    RUNS[run["run_id"]] = run
-    while len(RUNS) > MAX_RUNS:
-        RUNS.pop(next(iter(RUNS)))
+def _make_room_for_run() -> bool:
+    while len(RUNS) >= MAX_RUNS:
+        oldest_done = min(
+            (run_id for run_id, run in RUNS.items() if run["status"] == "done"),
+            key=lambda run_id: RUNS[run_id].get("created_at", 0),
+            default=None,
+        )
+        if oldest_done is not None:
+            RUNS.pop(oldest_done)
+            continue
+
+        now = time.monotonic()
+        oldest_idle = min(
+            (
+                run_id
+                for run_id, run in RUNS.items()
+                if run["status"] in {"needs_clarification", "awaiting_approval"}
+                and now - run.get("created_at", 0) > IDLE_TTL
+            ),
+            key=lambda run_id: RUNS[run_id].get("created_at", 0),
+            default=None,
+        )
+        if oldest_idle is None:
+            return False
+        RUNS.pop(oldest_idle)
+    return True
+
+
+def _store_run(run: dict) -> bool:
+    with RUNS_LOCK:
+        if not _make_room_for_run():
+            return False
+        RUNS[run["run_id"]] = run
+        return True
+
+
+def _run_locked(function):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        with RUNS_LOCK:
+            return function(*args, **kwargs)
+
+    return wrapper
 
 
 def _get_run(run_id: str, authorization: str | None) -> dict:
@@ -276,37 +319,48 @@ def research(body: ResearchRequest):
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=422, detail="question is required")
-    run_id = str(uuid4())
-    token = secrets.token_urlsafe(24)
-    shape = _shape(question)
-    matches = _area_matches(question)
-    run = {
-        "run_id": run_id,
-        "token_hash": hashlib.sha256(token.encode()).hexdigest(),
-        "question": question,
-        "role": body.role,
-        "profile": body.profile,
-        "shape": shape,
-        "area_matches": matches,
-        "classification": {
+    with RUNS_LOCK:
+        if not _make_room_for_run():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "fixture run store is full"},
+            )
+        run_id = str(uuid4())
+        token = secrets.token_urlsafe(24)
+        shape = _shape(question)
+        matches = _area_matches(question)
+        run = {
+            "run_id": run_id,
+            "token_hash": hashlib.sha256(token.encode()).hexdigest(),
+            "question": question,
+            "role": body.role,
+            "profile": body.profile,
             "shape": shape,
-            "why": "Fixture classifier selected a point, gap, or location research path.",
-            "area": matches[0]["name"] if matches else None,
-        },
-        "status": "needs_clarification"
-        if shape != "point" and not matches
-        else "awaiting_approval",
-        "clarify_question": "Which Berlin district or neighbourhood should I research?"
-        if shape != "point" and not matches
-        else None,
-        "plan": _plan(shape, matches) if shape == "point" or matches else None,
-        "created_at": time.monotonic(),
-    }
-    _store_run(run)
-    return {**_response(run), "run_token": token}
+            "area_matches": matches,
+            "classification": {
+                "shape": shape,
+                "why": "Fixture classifier selected a point, gap, or location research path.",
+                "area": matches[0]["name"] if matches else None,
+            },
+            "status": "needs_clarification"
+            if shape != "point" and not matches
+            else "awaiting_approval",
+            "clarify_question": "Which Berlin district or neighbourhood should I research?"
+            if shape != "point" and not matches
+            else None,
+            "plan": _plan(shape, matches) if shape == "point" or matches else None,
+            "created_at": time.monotonic(),
+        }
+        if not _store_run(run):
+            return JSONResponse(
+                status_code=503,
+                content={"error": "fixture run store is full"},
+            )
+        return {**_response(run), "run_token": token}
 
 
 @router.post("/runs/{run_id}/clarify")
+@_run_locked
 def clarify(
     run_id: str,
     payload: dict,
@@ -319,6 +373,7 @@ def clarify(
         raise HTTPException(status_code=422, detail="A non-empty answer is required") from exc
     if run["status"] != "needs_clarification":
         raise HTTPException(status_code=409, detail="Run is not awaiting clarification")
+    run["created_at"] = time.monotonic()
     run["question"] = f"{run['question']} {body.answer}"
     run["area_matches"] = _area_matches(run["question"])
     if run["shape"] == "point" or run["area_matches"]:
@@ -344,6 +399,7 @@ def search_areas(
 
 
 @router.post("/runs/{run_id}/approve")
+@_run_locked
 def approve(
     run_id: str,
     payload: dict,
@@ -370,6 +426,17 @@ def approve(
     area_id = body.get("area_id")
     if area_id is not None and area_id not in _BY_ID:
         raise HTTPException(status_code=422, detail=f"Unknown area_id: {area_id}")
+    if run["shape"] == "point" and "hypothesis_ids" in payload:
+        hypothesis_ids = body.get("hypothesis_ids")
+        planned_ids = {hypothesis["id"] for hypothesis in plan.get("hypotheses", [])}
+        if not hypothesis_ids or any(
+            hypothesis_id not in planned_ids for hypothesis_id in hypothesis_ids
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Approved hypothesis_ids must be non-empty and present in the plan",
+            )
+    run["created_at"] = time.monotonic()
     if area_id and plan.get("area") and area_id != plan["area"]["area_id"]:
         selected = _BY_ID[area_id]
         plan["area"] = {

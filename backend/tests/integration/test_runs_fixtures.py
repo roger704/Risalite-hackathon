@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.main import create_app
-from app.api.runs_fixtures import RUNS
+from app.api.runs_fixtures import FIXTURE_NOTICE, IDLE_TTL, RUNS
 from app.contracts.api import ResearchResponse, RunResult
 
 
@@ -55,21 +55,60 @@ def test_research_optional_fields_are_limited_to_2000_characters(client, field):
     assert response.status_code == 422
 
 
-def test_oldest_run_is_evicted_when_run_store_is_full(client, monkeypatch):
-    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 3)
-    runs = [
-        start_run(client, f"Where is it smart to open a coffee place in Kreuzberg? run {i}")
-        for i in range(4)
-    ]
-    missing = client.get(f"/runs/{runs[0]['run_id']}/result", headers=auth(runs[0]))
-    assert missing.status_code == 404
-    assert len(RUNS) == 3
+def test_run_store_evicts_done_runs_before_active_runs_and_rejects_when_full(client, monkeypatch):
+    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 2)
+    active = start_run(client)
+    done = start_run(client)
+    done_headers = auth(done)
+    assert (
+        client.post(f"/runs/{done['run_id']}/approve", headers=done_headers, json={}).status_code
+        == 200
+    )
+    assert client.get(f"/runs/{done['run_id']}/result", headers=done_headers).status_code == 200
+
+    newer = client.post(
+        "/research",
+        json={"question": "Where is it smart to open a coffee place in Kreuzberg?"},
+    )
+    assert newer.status_code == 200
+    newer_run = newer.json()
+    assert client.get(f"/runs/{active['run_id']}/result", headers=auth(active)).status_code == 202
+    assert client.get(f"/runs/{done['run_id']}/result", headers=done_headers).status_code == 404
+
+    full = client.post(
+        "/research",
+        json={"question": "Where in Kreuzberg should a new cafe open?"},
+    )
+    assert full.status_code == 503
+    assert full.json() == {"error": "fixture run store is full"}
+    assert set(RUNS) == {active["run_id"], newer_run["run_id"]}
+
+
+def test_expired_pending_run_is_evicted(client, monkeypatch):
+    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 1)
+    expired = start_run(client)
+    RUNS[expired["run_id"]]["created_at"] -= IDLE_TTL + 1
+
+    response = client.post(
+        "/research",
+        json={"question": "Where in Neukölln should a new cafe open?"},
+    )
+
+    assert response.status_code == 200
+    assert (
+        client.get(
+            f"/runs/{expired['run_id']}/result",
+            headers=auth(expired),
+        ).status_code
+        == 404
+    )
 
 
 def test_needs_clarification_can_be_resolved_and_areas_are_searchable(client):
     run = start_run(client, "Where is it smart to open a coffee place?")
     assert run["status"] == "needs_clarification"
     assert run["clarify_question"]
+    created_at = RUNS[run["run_id"]]["created_at"]
 
     too_long = client.post(
         f"/runs/{run['run_id']}/clarify",
@@ -77,6 +116,7 @@ def test_needs_clarification_can_be_resolved_and_areas_are_searchable(client):
         json={"answer": "x" * 501},
     )
     assert too_long.status_code == 422
+    assert RUNS[run["run_id"]]["created_at"] == created_at
 
     response = client.post(
         f"/runs/{run['run_id']}/clarify",
@@ -84,6 +124,7 @@ def test_needs_clarification_can_be_resolved_and_areas_are_searchable(client):
         json={"answer": "Kreuzberg"},
     )
     assert response.status_code == 200
+    assert RUNS[run["run_id"]]["created_at"] > created_at
     clarified = response.json()
     assert clarified["status"] == "awaiting_approval"
     assert clarified["run_token"] == run["run_token"]
@@ -118,6 +159,7 @@ def test_changed_area_requires_review_and_approval_is_one_shot(client):
     run = start_run(client)
     url = f"/runs/{run['run_id']}/approve"
     headers = auth(run)
+    created_at = RUNS[run["run_id"]]["created_at"]
 
     changed = client.post(
         url,
@@ -128,7 +170,9 @@ def test_changed_area_requires_review_and_approval_is_one_shot(client):
     body = changed.json()
     assert body["status"] == "awaiting_approval"
     assert body["plan"]["area"]["area_id"] == "bezirk:02"
-    assert body["plan"].get("note") is None
+    assert body["plan"]["note"] == FIXTURE_NOTICE
+    assert RUNS[run["run_id"]]["created_at"] > created_at
+    created_at = RUNS[run["run_id"]]["created_at"]
 
     approved = client.post(
         url,
@@ -137,7 +181,30 @@ def test_changed_area_requires_review_and_approval_is_one_shot(client):
     )
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+    assert RUNS[run["run_id"]]["created_at"] > created_at
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+    assert result.status_code == 200
+    assert result.json()["fixture_notice"] == FIXTURE_NOTICE
     assert client.post(url, headers=headers, json={}).status_code == 409
+
+
+@pytest.mark.parametrize("hypothesis_ids", [[], ["not-a-hypothesis"], None])
+def test_point_approval_rejects_invalid_hypotheses_without_state_change(client, hypothesis_ids):
+    run = start_run(
+        client,
+        "This storefront at Wiener Straße 12 just became available — what is the best use?",
+    )
+    created_at = RUNS[run["run_id"]]["created_at"]
+    response = client.post(
+        f"/runs/{run['run_id']}/approve",
+        headers=auth(run),
+        json={"hypothesis_ids": hypothesis_ids},
+    )
+
+    assert response.status_code == 422
+    assert RUNS[run["run_id"]]["status"] == "awaiting_approval"
+    assert "approval" not in RUNS[run["run_id"]]
+    assert RUNS[run["run_id"]]["created_at"] == created_at
 
 
 def test_changed_unsupported_area_discloses_fixture_notice(client):
