@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.agent.classify import classify
 from app.agent.events import EventBus, TraceWriter
@@ -17,6 +18,28 @@ from app.contracts.api import ApproveRequest, Classification, ResearchRequest, R
 from app.contracts.events import ResearchEvent
 from app.contracts.evidence import EvidenceEntry
 from app.domain.research import ResearchBudget
+
+
+def test_evidence_entry_matches_s4_ledger_fields():
+    entry = EvidenceEntry(
+        evidence_id="e1",
+        method="tavily-search",
+        url="https://example.org/source",
+        quote="Verbatim source snippet.",
+        tier="weak",
+        retrieved_at=datetime.now(timezone.utc),
+        source_ref={"web_evidence_id": "source-1"},
+        revision=1,
+        provider_tag="retained",
+    )
+
+    assert entry.model_dump()["provider_tag"] == "retained"
+    assert entry.source_ref == {"web_evidence_id": "source-1"}
+    assert entry.revision == 1
+    with pytest.raises(ValidationError):
+        EvidenceEntry.model_validate(entry.model_dump() | {"quote": ""})
+    with pytest.raises(ValidationError):
+        EvidenceEntry.model_validate(entry.model_dump() | {"method": "web"})
 
 
 def _completed_client(tmp_path):
@@ -215,6 +238,13 @@ async def test_rotated_subquestions_cover_all_default_questions(tmp_path):
         any(question.text in query for query in research.queries)
         for question in state.plan.sub_questions
     )
+    entries = orchestrator.result(state.run_id).evidence
+    assert {entry.method for entry in entries} >= {
+        "local-snapshot",
+        "tavily-search",
+        "tavily-extract",
+    }
+    assert all(entry.quote.strip() for entry in entries)
 
 
 @pytest.mark.asyncio
@@ -412,7 +442,7 @@ async def test_model_gateway_receives_ledger_ids_with_exact_ids(tmp_path):
     writer = TraceWriter(run_dir, run_id, orchestrator.bus)
     entry = EvidenceEntry(
         evidence_id="e42",
-        method="web",
+        method="tavily-extract",
         url="https://example.org/source",
         title="Test source",
         quote="A source-backed passage.",

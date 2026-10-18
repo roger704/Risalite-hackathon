@@ -62,7 +62,7 @@ class FixtureCellScorer:
             evidence_by_layer[layer.id] = ledger.add(
                 EvidenceEntry(
                     evidence_id="pending",
-                    method="fixture",
+                    method="local-snapshot",
                     url=SOURCES.get(layer.id, "https://gdi.berlin.de/services/wfs/fixture"),
                     title=f"Synthetic fixture: {layer.label}",
                     quote="synthetic fixture value",
@@ -137,7 +137,9 @@ class PassThroughFactChecker:
             entry.model_copy(
                 update={
                     "status": "verified"
-                    if entry.quote and entry.url and entry.method in {"fixture", "mock", "wfs"}
+                    if entry.quote
+                    and entry.url
+                    and entry.method in {"local-snapshot", "wfs", "wfs-cached", "overpass"}
                     else entry.status
                 }
             )

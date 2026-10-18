@@ -451,11 +451,13 @@ class Orchestrator:
                                 continue
                             for item in page.evidence:
                                 quote = (item.passage or item.snippet or "")[:300]
-                                if quote:
+                                if quote.strip():
                                     ledger.add(
                                         EvidenceEntry(
                                             evidence_id="pending",
-                                            method="web",
+                                            method="tavily-extract"
+                                            if item.passage
+                                            else "tavily-search",
                                             url=item.canonical_url,
                                             title=item.title,
                                             quote=quote,
@@ -487,12 +489,14 @@ class Orchestrator:
                             )
                             for item in extracted.evidence:
                                 quote = (item.passage or item.snippet or "")[:300]
-                                if not quote:
+                                if not quote.strip():
                                     continue
                                 ledger.add(
                                     EvidenceEntry(
                                         evidence_id="pending",
-                                        method="web",
+                                        method="tavily-extract"
+                                        if item.passage
+                                        else "tavily-search",
                                         url=item.canonical_url,
                                         title=item.title,
                                         quote=quote,
@@ -534,7 +538,8 @@ class Orchestrator:
             top_evidence = [
                 entry
                 for entry in ledger.all()
-                if entry.cell_id == leader.id and entry.method == "web"
+                if entry.cell_id == leader.id
+                and entry.method in {"tavily-extract", "tavily-search"}
             ]
             proposal = None
             if top_evidence:

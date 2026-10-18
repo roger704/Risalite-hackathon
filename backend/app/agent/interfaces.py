@@ -10,6 +10,8 @@ from app.domain.research import ResearchConnector, WebEvidence
 
 
 class Ledger(Protocol):
+    """S4's app.evidence.ledger.EvidenceLedger is intended; map add to append and all to entries."""
+
     def add(self, entry: EvidenceEntry) -> str: ...
 
     def get(self, evidence_id: str) -> EvidenceEntry | None: ...
