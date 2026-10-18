@@ -25,9 +25,9 @@ from langgraph.errors import GraphRecursionError
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 DEFAULT_MODEL = "MiniMaxAI/MiniMax-M3"
 SOURCES_HEADING = re.compile(
-    r"^[ \t]*(?:#+[ \t]*(?:sources|references)\b[^\n]*"
-    r"|\*\*(?:sources|references)[^*\n]*\*\*:?[ \t]*"
-    r"|(?:sources|references):?[ \t]*)$",
+    r"^[ \t]*(?:#+[ \t]*(?:sources|references)\b"
+    r"|\*\*(?:sources|references)[ \t]*:?[ \t]*\*\*"
+    r"|(?:sources|references)[ \t]*(?::|$))",
     re.IGNORECASE | re.MULTILINE,
 )
 THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
