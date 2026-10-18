@@ -125,6 +125,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
+| `berlin_addresses` | [Official Berlin address WFS](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba), layer `adressen_berlin:adressen_berlin` | 402,756 official address-point features (source `numberMatched` checked 18 October 2026), 18 properties, source CRS EPSG:25833, paged at 10,000 features. Licensed [Datenlizenz Deutschland – Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attributed to Amt für Statistik Berlin-Brandenburg and Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. |
 | `berlin_centers` | [StEP Zentren 2040 dataset](https://daten.berlin.de/datensaetze/stadtentwicklungsplan-step-zentren-2040-wfs-7eb416eb), [WFS service](https://gdi.berlin.de/services/wfs/step_zen_2040) | Source edition/reference date `2026-01-13`: 81 `zh` features (79 Points, 2 MultiPolygons) and 33 `fma` Points. Mapping `step_zentren_2040_v1`; source CRS EPSG:25833 and stored geometry WGS84. DL-DE-Zero-2.0, attributed to Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. Specialist-retail sites are complementary planning sites, not städtische Zentren; only two Zentrumsbereich polygons have published boundaries. |
 | `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
 | `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
@@ -141,6 +142,56 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
 | `berlin_alkis_parcels` | [ALKIS Berlin Flurstücke](https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7), WFS `alkis_flurstuecke:flurstuecke` | Reviewed source edition `2026-09-22`; bounded EPSG:25833 extent and monthly updates. `afl` is official source area; geometry area is derived separately. DL-DE-Zero 2.0. |
 | `berlin_bicycle_counts` | [Berlin bicycle-counts page](https://daten.berlin.de/datensaetze/radzahldaten-in-berlin), [hourly workbook](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx) | Reviewed edition `2026-06-25`; hourly values from 35 fixed bicycle counters are normalized to daily totals and configured time-window means. Counts measure bicycle traffic only at those counters, not pedestrian footfall, customers, or revenue, and are not projected onto unobserved streets. Attribution: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin; [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0). |
+
+### Berlin address points
+
+Import the pinned LOR boundaries first, then the address dataset:
+
+```sh
+uv run location-data ingest berlin_lor
+uv run location-data ingest berlin_addresses
+```
+
+The import pins the active `berlin_lor` snapshot by default. `GET /api/v1/datasets/berlin_addresses/address-search` searches a required `snapshot_id` with a street query and optional house number/suffix, exact postcode, and district code or name. It normalizes German street spelling, supports a four-character-or-longer street prefix when there is no exact street match, and pages with an opaque cursor. Exact-address matches that produce multiple points are marked ambiguous with candidate postcode/district pairs; the API never auto-selects one.
+
+These are official address points based on the Vermessungsämter numbering plans, not buildings, entrances, units, or premises. They do not imply vacancy, commercial availability, rental terms, or permitted use. Provider-supplied Planungsraum links are checked against the pinned LOR snapshot and never reassigned. The WFS serves a live, unpinned layer; consecutive downloads can differ and raw page hashes vary with response timestamps. Straight-line distance is not walking time.
+
+#### Real-import measurements
+
+The full provider import into `/home/ubuntu/addr-data` produced snapshot `berlin_addresses-caa4b3b91eb1465397f8735f7d3fa07f`, pinned to LOR snapshot `berlin_lor-76dd82db6c474526806561de1c931360`.
+
+| Measurement | Result |
+|---|---:|
+| WFS `numberMatched` | 402,756 |
+| Pages / accepted records | 41 / 402,756 |
+| Rejected rows | 0 |
+| Import elapsed time | 129.21 s |
+| Import peak RSS | 2,141,092 KB |
+| Raw page data | 246,008,672 bytes (234.5 MiB) |
+| Normalized snapshot | 49,257,594 bytes (47.0 MiB) |
+| Parent areas checked | 542 |
+| Unknown provider LOR codes | 0 |
+| Points outside supplied LOR area (1 m tolerance) | 17 |
+| Parent areas without an address | 0 |
+| Address types | 402,459 `Adresse`; 297 `Platz/Straße ohne HNR` |
+
+The parent-coverage result passes the configured limits. There were no missing area codes; all 297 `Platz/Straße ohne HNR` records lack a house number, as indicated by their type.
+
+`AddressIndex` built from the normalized snapshot in 6.23 s. Its process peak RSS was 732,472 KB (611,616 KB above the 120,856 KB pre-build peak).
+
+| Record ID | Address | Postcode | District | Planungsraum | WGS84 point |
+|---|---|---|---|---|---|
+| `address:367859` | Wiener Straße 12 | 10999 | Friedrichshain-Kreuzberg | `02300417` | 13.428334, 52.498395 |
+| `address:342065` | Lindenstraße 10 | 12207 | Steglitz-Zehlendorf | `06200420` | 13.309929, 52.416526 |
+| `address:117130` | Lindenstraße 10 | 12526 | Treptow-Köpenick | `09301025` | 13.579063, 52.391790 |
+
+Real index search results for this snapshot:
+
+| Query | Results | Ambiguous | Result |
+|---|---:|---|---|
+| `Wiener Straße 12` | 1 | No | `address:367859`, postcode 10999, Friedrichshain-Kreuzberg |
+| `wiener str 12a` | 0 | No | No matching address with this house-number suffix in this snapshot |
+| `Lindenstraße 10` | 8 | Yes | Postcode/district candidates: 12207 (Steglitz-Zehlendorf), 12526 (Treptow-Köpenick), 12527 (Treptow-Köpenick), 12555 (Treptow-Köpenick), 12589 (Treptow-Köpenick), 12621 (Marzahn-Hellersdorf), 12683 (Marzahn-Hellersdorf), and 14109 (Steglitz-Zehlendorf). No result is auto-selected. |
 
 All 542 population codes matched the reviewed LOR code set, and each complete age-band breakdown matched its area total. The population code directory states December 2021. Matching codes establishes identifier compatibility; it does not certify that polygon boundaries were unchanged between source editions. The manifest pins the actual LOR snapshot used by each population import.
 
