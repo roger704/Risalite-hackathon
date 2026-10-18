@@ -328,3 +328,111 @@ Token volume (0.8–1.5 M per run) is dominated by researchers re-reading extrac
 | Fabricated or paraphrased quotes | `record_finding` validation + fact-check; rejected reasons fed back to the agent |
 | Token cost | truncated extracts, per-run URL cache, recorded demo run |
 | Demo latency | stream every step via SSE; pre-run the demo question and replay from `trace.jsonl` as backup |
+
+## 13. Optimization review (for team discussion — nothing decided)
+
+Findings from a second review of deepagents 0.7.28, langchain-tavily 0.2.18, u14app/deep-research, the connectors on `main`, the S2 scoring branch (`coffee_v1`) and the MVP experiment (PR #20). Each item lists options and a recommendation. **None of these is a decision**; §1–§12 stay unchanged until the team agrees.
+
+### 13.1 Capability mapping
+
+**deepagents**
+
+| Capability | Used today (spike / PR #20) | Note |
+|---|---|---|
+| `create_deep_agent` + `SubAgent` via `task` | orchestrator + 1 researcher / single agent | see O1 |
+| `response_format` (also per subagent) | no | structured researcher output instead of free text |
+| Built-in `ls/read_file/write_file/edit_file/glob/grep/execute` + default `general-purpose` subagent | active | not needed; extra attack surface and distraction. Removable via `HarnessProfile` (`excluded_tools`, `general_purpose_subagent=…(enabled=False)`) |
+| `write_todos`, summarization, large-result offload, `PatchToolCalls` | active (defaults) | useful, keep |
+| `ToolCallLimitMiddleware`, `ModelCallLimitMiddleware` | no | hard caps as a second safety net next to `BUDGET_EXHAUSTED` |
+| `ModelFallbackMiddleware`, `ModelRetryMiddleware` | no | e.g. Kimi-K3 → DeepSeek-V4-Pro on provider errors |
+| `interrupt_on` + checkpointer | no | stays a stretch option (E3=A) |
+| `RubricMiddleware` (beta grader loop) | no | non-reproducible, extra cost |
+| `skills`, `memory`, `AsyncSubAgent`, `CompiledSubAgent` | no | not needed for the MVP |
+| `astream(..., subgraphs=True)` | callbacks only | natural source for SSE events |
+
+**Tavily**
+
+| Parameter / endpoint | PR #6 client | Note |
+|---|---|---|
+| `search_depth` (basic/advanced/fast), `chunks_per_source` (1–3) | supported | advanced + 3 chunks gives more quotable passages |
+| `topic` (general/news), `time_range` | supported | `news` + `time_range` fits openings, closures, rents |
+| `start_date` / `end_date`, `country`, `exact_match` | not supported | dated projects, German boost, exact street/project names |
+| `include_domains` / `exclude_domains` | supported | per-sub-question domain profiles possible |
+| `include_answer`, `include_raw_content` | not used | answer is not citable; raw content explodes tokens |
+| `extract` with `query` + `chunks_per_source` | supported | returns only relevant passages |
+| `map`, `crawl` | not used | hard to budget |
+| `research` (Tavily Research API, async, `output_schema`) | not used | possible emergency fallback for wave 1 |
+
+**u14app/deep-research**: plan → user confirms → SERP queries with `researchGoal` → per-result learnings with citations → review step (gap detection → new queries, loop) → final report. We already have the equivalents (approval, `why`, `record_finding`, writer) except the **gap/review loop** (O4). Its ≥5 follow-up questions, knowledge graph and image handling are not relevant.
+
+### 13.2 Connector data per stage (T2 café, as on `main` today)
+
+| Stage | Connector data | Facts verified in code/config |
+|---|---|---|
+| Area | `berlin_lor_names` (WFS `lor_2021`) | PLR names + geometry |
+| Data | `berlin_population` | PLR level, 2026h01; bands 0–6, 6–15, 15–18, 18–27, 27–45, 45–55, 55–65, 65+ → 18–45 = 18–27 + 27–45 exactly |
+| Data | `osm_pois` (`osm_v1`) | `coffee_shop`, `coffee_retail`, `bakery`, `fast_food`, `restaurant`, `coworking` |
+| Data | `ihk_businesses` (`ihk_v1`) | branch codes → category; **no opening/registration date** |
+| Data | `vbb_gtfs` | scheduled departures per configurable `service_windows` |
+| Data | `berlin_wfs` | only LOR names configured; **no MSS / land value / rent layer** |
+| Web | Tavily | rents, projects, openings/closures, policy |
+
+### 13.3 Proposals
+
+**O1 — Who orchestrates the waves**
+- A: LLM orchestrator delegates via `task` (spike, cookbook).
+- B: Python runs waves (`asyncio.gather`, ≤ 3 concurrent); each researcher is its own `create_deep_agent`.
+- *Recommendation: B.* The bake-off failures (MiniMax looping, DeepSeek exhausting the shared budget) happened in the free agent loop. B keeps deepagents per researcher but makes waves, budgets and timing deterministic, and saves orchestrator tokens. Cost: less "agentic" in the demo narrative.
+
+**O2 — Researcher hardening**
+- A: defaults. B: remove fs/shell tools and the default subagent, add `response_format` (`{subquestion_id, finding_ids[], gaps[], stop_reason}`), call-limit and fallback middleware.
+- *Recommendation: B.*
+
+**O3 — Tavily profiles**
+- A: one setting for all searches. B: per-stage profiles: wave 1 `basic`; wave 2 + skeptic `advanced`, `chunks_per_source=3`; risks/competition `topic="news"`, `time_range="year"`; projects with `start_date`; `country="germany"`; `exact_match` for street/project names; extract always with `query`.
+- *Recommendation: B.* Needs `start_date`, `country` and `exact_match` added to the PR #6 client. Domain lists per sub-question are a first idea and still untested.
+
+**O4 — Gap loop (from u14app)**
+- A: none. B: LLM review decides on new queries (u14app). C: deterministic: a sub-question with < 2 accepted findings gets one follow-up search round.
+- *Recommendation: C* (bounded, reproducible).
+
+**O5 — Competition layer (S2)**
+- Today `coffee_v1` has `competition_osm` 0.15 **and** `competition_ihk` 0.15, which double-weights competition and contradicts §5.2 ("IHK is a cross-check, never added").
+- A: keep both. B: one `competition` layer = OSM `coffee_shop` per 1,000 residents; IHK only as cross-check (factor > 2 deviation → `unknowns[]`, lower confidence). C: like B but using an averaged OSM/IHK count.
+- *Recommendation: B.* Density instead of raw counts, `coffee_retail` not counted.
+
+**O6 — Additional demand signals (S2)**
+- A: as today. B: add `gastro_cluster` (bakery + restaurant + fast_food + coworking per km²) as a footfall proxy, and a second transit window 14–18 next to 07–10.
+- *Recommendation: B*, with low weights (≈ 0.10) until checked against the fixture run.
+
+**O7 — Low-resident PLRs (S2)**
+- Parks and commercial PLRs give distorted densities and shares.
+- A: rank anyway. B: minimum population (e.g. 500), otherwise flag as "thin data" and exclude from top-3.
+- *Recommendation: B.*
+
+**O8 — Wave-2 cell profile**
+- A: pass only scores. B: pass percentile strengths/weaknesses, nearby stop names, street names, OSM café names, IHK-vs-OSM count and localized wave-1 finding ids.
+- *Recommendation: B.* Concrete names make targeted queries possible (e.g. "Prinzenstraße Café Schließung 2026").
+
+### 13.4 How runs connect
+
+- One run = one `runs/<run_id>/` directory; stages only exchange data through its files (§8).
+- Researchers are independent agent invocations with their own thread, budget and timeout. They share only the append-only ledger (locked writes), never conversation context.
+- Wave 1 → wave 2 only via localized ledger findings and `profiles.json`. Data stage → wave 2 via `profiles.json`; wave 1 runs in parallel to the data stage.
+- Resume: each stage writes a status event. After a crash the run restarts at the last completed stage, so no LangGraph checkpointer is needed.
+- Cross-run cache: Tavily responses by payload hash and connector snapshots are reused, which makes demo reruns cheap and reproducible.
+
+### 13.5 Abort risks
+
+| Risk | Mitigation (proposed) |
+|---|---|
+| Researcher keeps searching after budget (MiniMax: 491 budget errors) | terminal `BUDGET_EXHAUSTED`, `ToolCallLimitMiddleware`, 5 consecutive errors → stop, 120 s per researcher |
+| Orchestrator loops / recursion limit | O1-B |
+| Nebius errors, rate limits, timeouts | `ModelRetry` + `ModelFallback`, concurrency ≤ 3 |
+| Invalid tool-call JSON | `PatchToolCalls` (default), tool-error counter, validated `response_format` |
+| Context overflow from long pages | extract with `query` + `chunks_per_source`, passage truncation, summarization |
+| Tavily empty or failing | client retries; O4 follow-up; otherwise "not covered" in the report |
+| Page changed or blocked at fact-check | first extraction stays as stored evidence; `partial`/`unsupported` instead of failure |
+| Missing connector snapshot or layer | `missing_layers`, renormalized weights, run continues |
+| Prompt injection | `<untrusted_source>` wrapping, no fs/shell tools (O2) |
+| Live run too slow for demo | cache, pre-computed fixture run, wave 2 behind a flag |
