@@ -549,7 +549,6 @@ class TavilyClient:
         if cached:
             fetched_at, data = self._cache[key]
         else:
-            self.budget.consume_extract_urls(len(urls))
             data = await self._post("extract", payload, extract=True)
             fetched_at = self.clock()
             self._cache[key] = (fetched_at, data)
@@ -691,24 +690,36 @@ class TavilyClient:
                 seen.add(canonical)
                 accepted.append(url)
         batches = [tuple(accepted[start : start + 20]) for start in range(0, len(accepted), 20)]
+        batch_keys = [self._cache_key(self._extract_payload(request, batch)) for batch in batches]
+        uncached_batch_indices = {
+            index for index, key in enumerate(batch_keys) if key not in self._cache
+        }
         uncached_url_count = sum(
-            len(batch)
-            for batch in batches
-            if self._cache_key(self._extract_payload(request, batch)) not in self._cache
+            len(batch) for index, batch in enumerate(batches) if index in uncached_batch_indices
         )
         if uncached_url_count:
-            self.budget.ensure_extract_urls_available(uncached_url_count)
+            self.budget.consume_extract_urls(uncached_url_count)
+        uncached_units_not_started = uncached_url_count
         batch_cached: list[bool] = []
         request_ids: list[str] = []
         credit_values: list[float] = []
-        for batch in batches:
-            page = await self._extract_batch(request, batch)
-            evidence.extend(page.evidence)
-            failures.extend(page.failures)
-            batch_cached.append(page.cached)
-            request_ids.extend(page.request_ids)
-            if page.credits is not None:
-                credit_values.append(page.credits)
+        try:
+            for index, batch in enumerate(batches):
+                if index in uncached_batch_indices:
+                    uncached_units_not_started -= len(batch)
+                    if batch_keys[index] in self._cache:
+                        self.budget.release_extract_urls(len(batch))
+                page = await self._extract_batch(request, batch)
+                evidence.extend(page.evidence)
+                failures.extend(page.failures)
+                batch_cached.append(page.cached)
+                request_ids.extend(page.request_ids)
+                if page.credits is not None:
+                    credit_values.append(page.credits)
+        except BaseException:
+            if uncached_units_not_started:
+                self.budget.release_extract_urls(uncached_units_not_started)
+            raise
         if not accepted and not evidence:
             return EvidencePage(
                 (), "failed" if failures else "complete", tuple(failures), (), False, None

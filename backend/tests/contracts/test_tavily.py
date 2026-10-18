@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 
@@ -449,6 +450,41 @@ async def test_extract_budget_reserves_all_uncached_batches_before_http():
         await connector.extract(ResearchExtract(urls))
     assert calls == 0
     assert connector.budget.extract_urls_used == 0
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_extract_reservations_protect_first_request():
+    first_request_started = asyncio.Event()
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        first_request_started.set()
+        await asyncio.sleep(0)
+        payload = json.loads(request.content)
+        return response(
+            {"results": [{"url": url, "raw_content": "page"} for url in payload["urls"]]}
+        )
+
+    async def second_extract():
+        await first_request_started.wait()
+        with pytest.raises(BudgetExceededError):
+            await connector.extract(ResearchExtract(("https://example.com/other",)))
+
+    urls = tuple(f"https://example.com/{index}" for index in range(21))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 21, 0, 0)
+    connector = TavilyClient(config(), budget, client=http, resolver=public_resolver)
+    first_page, _ = await asyncio.gather(
+        connector.extract(ResearchExtract(urls)),
+        second_extract(),
+    )
+    assert first_page.status == "complete"
+    assert len(first_page.evidence) == 21
+    assert calls == 2
+    assert budget.extract_urls_used == 21
     await http.aclose()
 
 

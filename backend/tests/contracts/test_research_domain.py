@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.domain.errors import ValidationError
+from app.domain.errors import ConfigError, ValidationError
 from app.domain.research import (
     BudgetExceededError,
     EvidenceKind,
@@ -80,12 +80,15 @@ def test_budget_checks_before_incrementing_and_allows_final_token_overshoot():
     assert budget.snapshot()["tokens_used"] == 3
 
 
-def test_extract_url_preflight_checks_availability_without_consuming_units():
-    budget = ResearchBudget(0, 3, 0, 0, extract_urls_used=1)
-    budget.ensure_extract_urls_available(2)
+def test_release_extract_urls_decrements_without_underflow():
+    budget = ResearchBudget(0, 3, 0, 0, extract_urls_used=2)
+    budget.release_extract_urls(1)
     assert budget.extract_urls_used == 1
-
-    with pytest.raises(BudgetExceededError) as exc:
-        budget.ensure_extract_urls_available(3)
-    assert (exc.value.resource, exc.value.limit, exc.value.used) == ("extract_urls", 3, 1)
-    assert budget.extract_urls_used == 1
+    budget.release_extract_urls(1)
+    assert budget.extract_urls_used == 0
+    with pytest.raises(ConfigError):
+        budget.release_extract_urls(1)
+    with pytest.raises(ConfigError):
+        budget.release_extract_urls(-1)
+    with pytest.raises(ConfigError):
+        budget.release_extract_urls(1.0)
