@@ -592,19 +592,22 @@ function flip(sel,render){const prev={};$$(sel).forEach(e=>prev[e.dataset.id]=e.
     else if(Math.abs(p-n)>1)e.animate([{transform:`translateY(${p-n}px)`},{transform:'none'}],{duration:600,easing:'cubic-bezier(.22,.9,.24,1)'})})}
 addEventListener('resize',()=>steps(curView));requestAnimationFrame(()=>steps(curView));
 let C=null;
-let typeTok=0,typeDone=null,guideT=null,guideI=0;
+let typeTok=0,typeDone=null,typeCancel=null,guideT=null,guideI=0;
 function typeSeq(steps,done){
   const tok=++typeTok,fine=matchMedia('(pointer:fine)').matches;
-  typeDone=()=>{typeTok++;typeDone=null;steps.forEach(([e,s])=>e.value=s);done()};
+  const end=()=>{typeTok++;typeDone=typeCancel=null;done()};
+  typeDone=()=>{steps.forEach(([e,s])=>e.value=s);end()};
+  typeCancel=end;
+  const ours=()=>{const a=document.activeElement;return !a||a===document.body||steps.some(([e])=>e===a)};
   if(reduceMotion()){typeDone();return}
   steps.forEach(([e])=>e.value='');
   let si=0,ci=0;
   const tick=()=>{
     if(tok!==typeTok)return;
     const [e,s]=steps[si];
-    if(ci===0&&fine)e.focus({preventScroll:true});
+    if(ci===0&&fine&&ours())e.focus({preventScroll:true});
     e.value=s.slice(0,++ci);
-    if(ci>=s.length){si++;ci=0;if(si>=steps.length){typeDone=null;if(fine)e.blur();done();return}}
+    if(ci>=s.length){si++;ci=0;if(si>=steps.length){typeDone=typeCancel=null;if(document.activeElement===e)e.blur();done();return}}
     setTimeout(tick,ci===0?380:18+Math.random()*48)};
   setTimeout(tick,200)}
 const finishTyping=()=>typeDone&&typeDone();
@@ -614,7 +617,7 @@ function startGuide(){
   stopGuide();guideI=0;
   const step=()=>{const ts=guideTargets();$$('.hint').forEach(e=>e.classList.remove('hint'));ts[guideI++%ts.length].classList.add('hint')};
   step();guideT=setInterval(step,1900)}
-['#q','#op'].forEach(s=>$(s).addEventListener('input',e=>{if(typeDone){const v=e.target.value;finishTyping();e.target.value=v}}));
+['#q','#op'].forEach(s=>$(s).addEventListener('input',()=>typeCancel&&typeCancel()));
 $$('.tpl .t').forEach(t=>t.onclick=()=>{
   stopGuide();$('#clar').classList.add('hidden');$('#op').value='';
   const s=[[$('#q'),t.dataset.q]];if(t.dataset.op)s.push([$('#op'),t.dataset.op]);
