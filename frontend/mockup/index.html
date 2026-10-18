@@ -1070,6 +1070,8 @@ table{border-collapse:collapse;width:100%;margin:4px 0 8px}th,td{text-align:left
 @page{size:A4;margin:14mm}
 @media print{.no-print{display:none!important}main{padding:0;max-width:none}.pb{break-before:page}a{color:inherit}}`;
 
+function reportHeat(){const pv=state.preview;state.preview=null;
+  try{return `<div class="map">${heatSVG(scores(SC,state.on,state.mode))}</div><div class="legend">${heatLegend()}</div>`}finally{state.preview=pv}}
 function reportHTML(){
   const mi=mixInfo(),pt=C.shape==='point',e=x=>esc(plain(x)),cl=n=>`<a class="cite" href="#src-${n}">[${n}]</a>`;
   const ln=u=>/^https?:\/\//i.test(u)?`<a href="${esc(u)}">${esc(u)}</a>`:esc(u);
@@ -1084,7 +1086,7 @@ function reportHTML(){
   if(!pt&&SC.paid.length)H.push(`<p class="small mut">Optional paid sources: ${SC.paid.map(p=>`${e(p[0])} (${e(p[1])}) — key not provided, skipped`).join('; ')}</p>`);
   H.push(`<h2>2 · Summary <span class="mut small">(${pt?'point path':'written for the default mix'})</span></h2><div>${safeRich($('#d-sum').innerHTML)}</div>`);
   const svg=$('#map svg');
-  const mapBlock=svg&&pt?`<div class="map">${svg.outerHTML}</div><div class="legend">${$('#legend').innerHTML}</div>`:!pt?`<div class="map">${heatSVG(scores(SC,state.on,state.mode))}</div><div class="legend">${heatLegend()}</div>`:'';
+  const mapBlock=svg&&pt?`<div class="map">${svg.outerHTML}</div><div class="legend">${$('#legend').innerHTML}</div>`:!pt?reportHeat():'';
   if(pt){
     H.push(`<h2>3 · Top business hypotheses</h2>`+SC.H.map((h,i)=>`<div class="top"><h3>#${i+1} ${e(h.name)} — <span class="sc">${h.score.toFixed(1)}</span> <span class="mut small">/ 10</span></h3>
       <table><thead><tr><th>Dimension</th><th>Score</th><th>Why</th></tr></thead><tbody>${SC.dims.map((d,k)=>`<tr><td>${e(d)}</td><td><b>${h.d[k]}</b></td><td>${esc(plain(h.dw[k])).replace(/\[(\d+)\]/g,(m,n)=>cl(n))}</td></tr>`).join('')}</tbody></table>
