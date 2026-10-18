@@ -1,0 +1,26 @@
+{
+  "version": 0.6,
+  "generator": "Synthetic Overpass fixture",
+  "osm3s": {"timestamp_osm_base": "2026-10-18T04:47:00Z"},
+  "elements": [
+    {
+      "type": "node",
+      "id": 101,
+      "lat": 52.53,
+      "lon": 13.40,
+      "tags": {"amenity": "cafe", "name": "Overpass Café", "website": "https://example.org"}
+    },
+    {
+      "type": "way",
+      "id": 101,
+      "center": {"lat": 52.531, "lon": 13.401},
+      "tags": {"shop": "coffee", "name": "Bean Retail"}
+    },
+    {
+      "type": "relation",
+      "id": 202,
+      "center": {"lat": 52.532, "lon": 13.402},
+      "tags": {"amenity": "restaurant", "cuisine": "coffee_shop"}
+    }
+  ]
+}
