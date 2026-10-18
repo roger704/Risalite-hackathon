@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Risalite — clickable mockup</title>
+<!--
+  Risalite dashboard mockup (S3 frontend). Self-contained: no network, no build step.
+  Geometry: real PLR boundaries (lor_2021:a_lor_plr_2021, gdi.berlin.de WFS, CC BY 3.0, simplified).
+  Everything else (layer values, quotes, trace, scores) is SYNTHETIC demo data shaped like the
+  cells.json / candidates.json / evidence.jsonl / trace.jsonl contracts in docs/01_Architecture/Risalite_Spec.md.
+-->
+<style>
+:root{--ink:#14202b;--mut:#5d6b78;--line:#e2e7ec;--bg:#f5f7f9;--card:#fff;--acc:#0f766e;--acc2:#115e59;--warn:#b45309;--bad:#b91c1c;--ok:#15803d;--chip:#eef2f5}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+header{display:flex;align-items:center;gap:14px;padding:12px 22px;background:#0b1720;color:#fff}
+header .logo{font-weight:800;font-size:19px;letter-spacing:.3px}
+header .logo span{color:#5eead4}
+header .tag{color:#9fb3c2;font-size:13px}
+header .mock{margin-left:auto;background:#7c2d12;color:#fed7aa;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:600}
+header button{background:transparent;border:1px solid #33495a;color:#cfe;border-radius:6px;padding:5px 10px;cursor:pointer}
+main{max-width:1320px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+h2 .n{background:var(--chip);color:var(--mut);font-size:11px;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center}
+h3{font-size:14px;margin:0 0 6px}
+.mut{color:var(--mut)}
+.demo-note{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-top:10px;font-size:13px}
+.small{font-size:12px}
+textarea{width:100%;font:inherit;font-size:17px;padding:14px;border:1px solid #cdd6de;border-radius:10px;resize:vertical;min-height:78px}
+select,input[type=text],input[type=password]{font:inherit;padding:7px 9px;border:1px solid #cdd6de;border-radius:7px;background:#fff}
+.btn{font:inherit;font-weight:600;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:9px 18px;cursor:pointer}
+.btn:hover{background:var(--acc2)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid #cdd6de}
+.btn.ghost:hover{background:var(--chip)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.tpl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.tpl .t{border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;background:#fbfcfd}
+.tpl .t:hover{border-color:var(--acc);background:#f0fdfa}
+.tpl .t b{display:block;margin-bottom:4px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--mut);vertical-align:middle}
+.b-point{background:#ede9fe;color:#5b21b6}.b-location{background:#ccfbf1;color:#115e59}.b-gap{background:#fef3c7;color:#92400e}
+.b-wfs{background:#dbeafe;color:#1e40af}.b-overpass{background:#e0e7ff;color:#3730a3}.b-web{background:#fce7f3;color:#9d174d}.b-pdf{background:#fee2e2;color:#991b1b}.b-api{background:#f3e8ff;color:#6b21a8}
+.b-ok{background:#dcfce7;color:#166534}.b-part{background:#fef9c3;color:#854d0e}.b-bad{background:#fee2e2;color:#991b1b}.b-skip{background:#f1f5f9;color:#64748b;text-decoration:line-through}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600}
+.why{color:var(--mut);font-style:italic}
+.cite{color:var(--acc);font-weight:700;text-decoration:none;font-size:12px;cursor:pointer}
+.cite:hover{text-decoration:underline}
+.flash{animation:fl 1.6s}
+@keyframes fl{0%{background:#fef08a}100%{background:transparent}}
+.trace{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:430px;overflow:auto;background:#0b1720;color:#d6e2ea;border-radius:8px;padding:10px 12px}
+.trace .ev{padding:3px 0;border-bottom:1px dashed #1d3140;display:grid;grid-template-columns:56px 118px 1fr 140px;gap:8px}
+.trace .ev .role{color:#5eead4}.trace .ev .w{color:#8fa5b5}.trace .ev .meta{color:#6b8292;text-align:right}
+.trace .ev.rej .role{color:#fca5a5}.trace .ev.skip .role{color:#94a3b8}.trace .ev.re .role{color:#fcd34d}
+.prog{height:6px;background:var(--chip);border-radius:3px;overflow:hidden}
+.prog div{height:100%;background:var(--acc);width:0;transition:width .3s}
+.stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.stages span{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--mut)}
+.stages span.on{background:var(--acc);color:#fff}.stages span.done{background:#ccfbf1;color:#115e59}
+.dash{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;align-items:start}
+.map{position:relative;background:#eef3f6;border-radius:8px;overflow:hidden}
+.map svg{display:block;width:100%;height:auto}
+.map path.cell{stroke:#fff;stroke-width:1.2;cursor:pointer;transition:fill .35s}
+.map path.cell:hover,.map path.cell.hl{stroke:#0b1720;stroke-width:2.4}
+.map text{font-size:10px;fill:#0b1720;pointer-events:none;font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.tip{position:absolute;pointer-events:none;background:#0b1720;color:#e6eef3;border-radius:8px;padding:9px 11px;font-size:12px;min-width:210px;display:none;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.tip b{color:#fff}.tip td{border:0;padding:1px 4px;color:#cfdbe3}
+.legend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);margin-top:6px}
+.legend .bar{flex:0 0 160px;height:9px;border-radius:4px}
+.layer{display:grid;grid-template-columns:22px 1fr 54px 50px;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--line)}
+.layer label{cursor:pointer}
+.toggle{display:inline-flex;border:1px solid #cdd6de;border-radius:8px;overflow:hidden}
+.toggle button{font:inherit;font-size:13px;border:0;background:#fff;padding:6px 12px;cursor:pointer}
+.toggle button.on{background:var(--acc);color:#fff}
+.top{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;position:relative}
+.top .rk{position:absolute;right:14px;top:10px;font-size:26px;font-weight:800;color:#cbd5e1}
+.top .sc{font-size:22px;font-weight:800;color:var(--acc)}
+.mv{font-size:12px;font-weight:700;margin-left:6px}.mv.up{color:var(--ok)}.mv.dn{color:var(--bad)}
+.vals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;margin:8px 0;font-size:12px}
+.mini{height:5px;background:var(--chip);border-radius:3px;margin-top:2px}.mini div{height:100%;border-radius:3px;background:#5eaaa8}
+.mod{background:#f0fdfa;border-left:3px solid var(--acc);padding:6px 9px;margin:6px 0;font-size:12px;border-radius:0 6px 6px 0}
+.risk{background:#fff7ed;border-left:3px solid var(--warn);padding:6px 9px;margin:6px 0;font-size:12px;border-radius:0 6px 6px 0}
+.unk{background:#f8fafc;border-left:3px solid #94a3b8;padding:6px 9px;margin:6px 0;font-size:12px;border-radius:0 6px 6px 0}
+.quote{font-style:italic;color:#334155}
+.battle{display:grid;grid-template-columns:1fr 130px 1fr;gap:4px 8px;font-size:12px;align-items:center}
+.battle .l{text-align:right}.battle .bar{height:10px;border-radius:3px;display:inline-block;vertical-align:middle}
+.battle .lab{text-align:center;color:var(--mut)}
+.src{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.src .num{font-weight:800;color:var(--acc)}
+.src a{color:#1d4ed8;word-break:break-all;font-size:12px}
+details summary{cursor:pointer;font-weight:600}
+.planrow td:first-child{width:28px}
+.hidden{display:none!important}
+.clar{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:14px;margin-top:12px}
+.dim{display:grid;grid-template-columns:120px 1fr 32px;gap:8px;align-items:center;font-size:12px;margin:3px 0}
+.fa{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px}
+.fa h4{margin:0 0 4px;font-size:12px}
+.fa ul{margin:0;padding-left:16px;font-size:12px}
+.grade td:first-child{width:24px}
+@media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Risal<span>ite</span></div>
+  <div class="tag">Don't just research a location. Discover where opportunity exists.</div>
+  <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">MOCKUP · synthetic data</div>
+  <button id="restart">New question</button>
+</header>
+<main>
+
+<!-- 1 · ASK -->
+<section id="s-ask">
+  <div class="card">
+    <h1>Ask a question about a place in Berlin</h1>
+    <p class="mut" style="margin:0 0 12px">Risalite classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web — every claim is fact-checked and cited.</p>
+    <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
+    <div class="row" style="margin-top:10px">
+      <label class="mut">Role (optional)
+        <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
+      </label>
+      <label class="mut" id="opwrap">Operator profile (point questions)
+        <input type="text" id="op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
+      </label>
+      <button class="btn" id="go" style="margin-left:auto">Research ›</button>
+    </div>
+    <div id="clar" class="clar hidden">
+      <b>Clarifying question from the planner</b>
+      <p style="margin:4px 0 8px">Your question doesn't name an area. <b>Which district or neighbourhood?</b> <span class="mut small">(Risalite never guesses an area.)</span></p>
+      <div class="row"><button class="btn ghost" data-area="Kreuzberg">Kreuzberg</button><button class="btn ghost" data-area="Neukölln">Neukölln</button></div>
+    </div>
+    <div class="tpl">
+      <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="badge b-point">T1 · point</span><b>Property / storefront</b><span class="mut small">"This storefront at Wiener Straße 12 just became available — what is the best use?"</span></div>
+      <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="badge b-location">T2 · location</span><b>Business location</b><span class="mut small">"Where is it smart to open a coffee place in Kreuzberg?"</span></div>
+      <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="badge b-gap">T3 · gap</span><b>Kita gap</b><span class="mut small">"Where are Kitas missing in Neukölln?"</span></div>
+    </div>
+    <p class="small mut" style="margin:12px 0 0">Try a question without an area (e.g. "Where should I open a bike repair shop?") to see the clarifying step.</p>
+  </div>
+</section>
+
+<!-- 2 · PLAN -->
+<section id="s-plan" class="hidden">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div><div class="mut small">Question</div><h1 id="p-q"></h1></div>
+    </div>
+    <div id="p-note" class="demo-note hidden"></div>
+    <div class="grid2" style="margin-top:12px">
+      <div><h3>Classification</h3><div id="p-class"></div></div>
+      <div><h3>Derived area</h3><div id="p-area"></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Research plan <span class="badge">awaiting approval</span></h2>
+    <table id="p-sub"><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody></tbody></table>
+    <div id="p-layers-wrap" style="margin-top:16px"><h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody></tbody></table></div>
+    <div style="margin-top:16px"><h3>Optional paid sources</h3><table id="p-paid"><thead><tr><th>Source</th><th>Used for</th><th>Status</th><th>API key</th></tr></thead><tbody></tbody></table></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="approve">Approve & start research</button>
+      <button class="btn ghost" id="back">Edit question</button>
+      <span class="mut small">Untick a sub-question or layer to edit the plan before approving.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · LIVE -->
+<section id="s-live" class="hidden">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Live investigation</h2><button class="btn ghost" id="skip">Skip to result ›</button></div>
+    <div class="stages" id="stages"></div>
+    <div class="prog"><div id="bar"></div></div>
+    <div class="row small mut" style="margin:8px 0"><span id="l-stat"></span></div>
+    <div class="trace" id="l-trace"></div>
+  </div>
+</section>
+
+<!-- 4 · DASHBOARD -->
+<section id="s-dash" class="hidden">
+  <div class="card">
+    <h2><span class="n">1</span> Question & approved plan</h2>
+    <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
+    <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
+    <div id="d-note" class="demo-note hidden"></div>
+  </div>
+  <div class="dash">
+    <div>
+      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
+      <div class="card"><h2><span class="n">3</span> <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
+      <div class="card" id="battle-card"><h2 id="battle-title"></h2><div id="d-battle"></div></div>
+    </div>
+    <div>
+      <div class="card"><h2><span class="n">4</span> Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
+        <div class="map" id="map"><div class="tip" id="tip"></div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
+        <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
+        <div id="layers"></div>
+        <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add +0.10. Recomputed in the browser — the summary stays "default mix".</p>
+      </div>
+    </div>
+  </div>
+  <div class="card"><h2><span class="n">6</span> Sources <span class="mut small" style="font-weight:400">— generated from evidence.jsonl only</span></h2><div id="d-src"></div>
+    <details style="margin-top:10px" open><summary>Could not verify (dropped by the fact-checker)</summary><div id="d-nover" style="margin-top:6px"></div></details></div>
+  <div class="grid2">
+    <div class="card"><h2><span class="n">7</span> Trace</h2><div id="d-models" style="margin-bottom:10px"></div><div class="trace" id="d-trace"></div></div>
+    <div class="card"><h2>Self-grade</h2><table class="grade" id="d-grade"></table></div>
+  </div>
+</section>
+</main>
+
+<script>
+const GEO = {"kreuzberg":{"w":600,"h":308,"bbox":[13.36821531,52.4827705,13.45335236,52.50938111],"k":0.6088157644489092,"cells":[{"id":"02100101","name":"Askanischer Platz","bzr":"Südliche  Friedrichstadt","d":"M123.7,23.8L75.6,28.4L66.5,16.4L45.8,73.9L60.3,88.0L69.9,109.0L78.3,116.5L91.2,120.3L115.0,120.5L148.8,133.0L145.5,100.6L147.8,100.0L123.7,23.8Z","cx":97.4,"cy":81.0},{"id":"02100102","name":"Mehringplatz","bzr":"Südliche  Friedrichstadt","d":"M196.4,132.2L196.6,123.6L186.9,96.3L186.7,85.8L218.6,15.1L123.7,23.8L147.8,100.0L145.5,100.6L148.8,133.0L160.8,135.6L185.0,131.5L196.4,132.2Z","cx":167.1,"cy":54.8},{"id":"02100103","name":"Am Berlin Museum","bzr":"Südliche  Friedrichstadt","d":"M255.3,18.6L225.3,0.1L186.8,85.4L186.8,95.8L196.6,123.6L196.4,132.2L219.0,129.3L225.5,115.3L204.0,106.7L208.2,94.0L209.3,90.6L231.9,81.8L242.2,82.0L259.4,49.5L236.0,39.0L255.3,18.6Z","cx":223.3,"cy":65.7},{"id":"02100104","name":"Moritzplatz","bzr":"Südliche  Friedrichstadt","d":"M248.6,70.0L321.4,105.3L328.0,88.4L325.0,87.0L331.3,72.6L327.0,54.4L323.2,61.9L305.2,52.0L294.3,28.4L280.6,37.1L261.2,13.5L236.0,39.0L259.4,49.5L248.6,70.0Z","cx":285.6,"cy":58.1},{"id":"02100105","name":"Prinzenstraße","bzr":"Südliche  Friedrichstadt","d":"M220.5,126.2L322.6,123.7L357.3,117.4L350.5,112.4L348.9,116.0L322.4,103.2L321.4,105.3L248.6,70.0L242.1,82.1L232.9,81.5L209.3,90.6L204.0,106.7L225.5,115.3L220.5,126.2Z","cx":255.6,"cy":96.9},{"id":"02100106","name":"Wassertorplatz","bzr":"Südliche  Friedrichstadt","d":"M220.5,126.2L219.0,129.3L197.8,132.4L229.3,142.8L276.9,150.3L318.4,162.2L338.5,160.6L352.2,154.0L366.5,153.1L356.0,123.0L357.3,117.4L322.6,123.7L220.5,126.2Z","cx":287.3,"cy":137.6},{"id":"02200207","name":"Gleisdreieck","bzr":"Tempelhofer Vorstadt","d":"M0.3,185.9L20.2,190.6L20.1,192.4L57.9,204.9L57.7,207.8L59.0,208.9L61.7,209.2L78.0,200.7L81.0,137.6L84.6,118.8L76.5,115.5L71.1,110.7L61.3,89.5L45.8,73.9L46.3,70.8L42.5,68.1L38.0,60.4L22.3,90.4L18.5,109.8L9.3,121.7L10.7,122.8L9.8,130.5L3.3,138.9L1.4,172.5L2.6,178.6L0.3,185.9Z","cx":44.4,"cy":134.0},{"id":"02200208","name":"Rathaus Yorckstraße","bzr":"Tempelhofer Vorstadt","d":"M78.0,200.7L108.6,185.0L138.8,194.5L145.8,175.3L155.9,157.9L152.2,157.2L148.8,133.0L114.2,120.3L84.6,118.8L81.0,137.6L78.0,200.7Z","cx":115.2,"cy":166.6},{"id":"02200209","name":"Viktoriapark","bzr":"Tempelhofer Vorstadt","d":"M138.8,194.5L108.6,185.0L61.7,209.2L57.7,207.8L51.2,219.1L50.6,230.9L45.9,231.5L37.5,247.7L37.3,250.4L41.9,250.8L40.9,280.3L24.2,280.1L23.6,282.8L127.2,283.8L130.0,234.3L138.8,194.5Z","cx":85.3,"cy":241.0},{"id":"02200210","name":"Urbanstraße","bzr":"Tempelhofer Vorstadt","d":"M261.1,234.8L265.6,220.9L273.9,227.7L289.1,192.9L265.3,185.9L272.7,168.2L261.4,151.9L262.3,147.8L230.7,143.1L196.0,132.1L185.0,131.5L160.8,135.6L148.8,133.0L152.2,157.2L155.9,157.9L145.8,175.3L138.8,194.5L261.1,234.8Z","cx":205.7,"cy":180.6},{"id":"02200211","name":"Chamissokiez","bzr":"Tempelhofer Vorstadt","d":"M269.1,308.0L272.4,276.7L284.1,257.4L278.4,238.8L261.0,239.9L261.1,234.8L138.8,194.5L130.2,232.7L127.4,272.7L183.5,273.3L183.4,292.6L225.6,294.9L269.1,308.0Z","cx":205.3,"cy":248.6},{"id":"02200212","name":"Graefekiez Süd","bzr":"Tempelhofer Vorstadt","d":"M261.0,239.9L279.6,237.5L370.9,257.1L390.9,266.5L399.8,250.0L361.5,225.8L289.1,192.9L273.9,227.7L265.6,220.9L261.1,234.8L261.0,239.9Z","cx":316.1,"cy":231.2},{"id":"02200213","name":"Graefekiez Nord","bzr":"Tempelhofer Vorstadt","d":"M262.3,147.8L261.4,151.9L272.7,168.2L265.3,185.9L291.8,193.9L361.5,225.8L399.8,250.0L403.1,246.5L366.5,153.1L353.4,153.7L339.6,160.4L321.6,162.5L262.3,147.8Z","cx":357.7,"cy":209.8},{"id":"02300314","name":"Oranienplatz","bzr":"Nördliche Luisenstadt","d":"M322.4,103.2L348.9,116.0L350.5,112.4L352.4,113.4L357.3,117.4L356.2,122.8L382.7,120.8L385.8,110.1L390.8,106.6L389.1,102.3L394.6,88.9L400.1,86.2L416.3,44.7L412.2,41.5L399.8,48.6L385.1,50.9L375.8,49.8L360.9,43.2L357.5,50.0L352.4,50.5L348.0,60.3L329.1,51.7L326.8,53.1L327.3,58.0L331.3,72.6L325.0,87.0L328.0,88.4L322.4,103.2Z","cx":365.6,"cy":79.4},{"id":"02300315","name":"Lausitzer Platz","bzr":"Nördliche Luisenstadt","d":"M413.3,54.4L400.1,86.4L394.6,88.9L389.1,102.3L390.8,106.6L385.8,110.1L382.7,120.8L402.6,120.3L410.2,124.3L412.4,120.3L434.3,117.6L439.3,120.7L490.1,108.6L486.0,103.5L413.3,54.4Z","cx":433.1,"cy":95.6},{"id":"02300316","name":"Köpenicker Straße","bzr":"Nördliche Luisenstadt","d":"M431.2,9.4L415.7,43.0L416.3,46.8L413.3,54.4L486.0,103.5L490.1,108.6L512.4,103.2L516.6,105.7L520.1,100.0L525.3,97.6L535.7,100.6L539.4,99.8L542.2,95.5L516.2,74.9L485.7,55.8L474.0,43.2L431.2,9.4Z","cx":465.2,"cy":65.3},{"id":"02300417","name":"Reichenberger Straße West","bzr":"Südliche Luisenstadt","d":"M444.8,119.5L439.3,120.7L434.3,117.6L421.5,119.0L412.4,120.3L410.2,124.3L402.6,120.3L363.7,121.1L356.0,123.0L367.8,156.5L382.5,161.3L424.6,183.7L452.6,137.4L441.9,131.4L446.1,124.1L444.8,119.5Z","cx":405.6,"cy":146.9},{"id":"02300418","name":"Reichenberger Straße Ost","bzr":"Südliche Luisenstadt","d":"M450.0,118.2L444.8,119.5L446.1,124.1L441.9,131.4L452.6,137.4L424.6,183.7L493.7,220.0L500.7,228.9L503.3,228.3L504.2,220.3L506.2,215.9L539.1,175.4L533.7,172.3L538.9,165.7L450.0,118.2Z","cx":483.5,"cy":173.9},{"id":"02300419","name":"Wrangelkiez","bzr":"Südliche Luisenstadt","d":"M600.0,137.2L595.4,131.6L595.5,129.2L588.0,122.0L584.2,121.2L580.6,123.9L577.8,121.9L578.3,118.6L573.8,114.6L542.2,95.5L539.4,99.8L535.7,100.6L525.3,97.6L520.1,100.0L516.6,105.7L512.4,103.2L450.0,118.2L538.9,165.7L533.7,172.3L539.1,175.4L546.5,169.8L559.9,169.7L582.8,142.1L592.2,137.5L600.0,137.2Z","cx":539.0,"cy":134.4}]},"neukoelln":{"w":600,"h":504,"bbox":[13.40606327,52.45876451,13.47854932,52.49586386],"k":0.6090755033220507,"cells":[{"id":"08100101","name":"Hasenheide","bzr":"Schillerpromenade","d":"M13.7,96.7L20.4,118.5L6.6,141.1L2.7,177.9L101.4,212.4L109.8,212.8L155.3,203.7L153.2,164.6L147.5,139.4L148.0,130.2L122.3,118.2L15.1,95.2L13.7,96.7Z","cx":78.0,"cy":152.8},{"id":"08100102","name":"Schillerpromenade Nord","bzr":"Schillerpromenade","d":"M99.1,211.9L2.7,177.9L0.0,202.2L6.1,231.1L4.6,239.6L39.9,246.5L40.4,244.1L61.5,233.1L62.5,228.5L84.1,236.1L85.7,246.0L98.5,245.4L100.8,259.7L103.5,263.1L106.6,282.0L174.2,269.2L165.7,239.0L161.2,215.5L157.7,216.0L155.3,203.7L109.8,212.8L99.1,211.9Z","cx":115.1,"cy":229.8},{"id":"08100103","name":"Schillerpromenade Süd","bzr":"Schillerpromenade","d":"M114.4,323.3L185.9,310.3L174.2,269.2L106.6,282.0L103.5,263.1L100.8,259.7L98.5,245.4L85.7,246.0L84.1,236.1L62.5,228.5L61.5,233.1L82.6,363.0L83.9,359.2L95.0,346.6L118.0,339.6L119.8,337.0L117.9,327.0L114.4,323.3Z","cx":126.8,"cy":296.2},{"id":"08100104","name":"Wartheplatz","bzr":"Schillerpromenade","d":"M125.8,408.4L124.1,397.2L209.0,381.6L185.9,310.3L114.4,323.3L117.9,327.0L119.8,337.0L118.0,339.6L95.0,346.6L83.9,359.2L82.6,363.0L89.5,414.1L125.8,408.4Z","cx":142.8,"cy":361.1},{"id":"08100105","name":"Silbersteinstraße","bzr":"Schillerpromenade","d":"M124.1,397.2L125.8,408.4L128.1,408.0L129.5,439.9L133.1,453.3L131.7,466.8L140.3,469.5L168.0,464.7L235.7,448.5L223.7,424.6L209.5,381.5L124.1,397.2Z","cx":178.3,"cy":432.2},{"id":"08100206","name":"Flughafenstraße","bzr":"Neuköllner Mitte/Zentrum","d":"M148.0,130.2L147.5,139.4L153.2,164.6L154.2,198.2L157.7,216.0L161.2,215.5L165.7,239.0L187.8,234.4L190.0,242.0L258.5,228.7L255.7,222.8L225.1,187.0L148.0,130.2Z","cx":181.7,"cy":175.8},{"id":"08100207","name":"Rollberg","bzr":"Neuköllner Mitte/Zentrum","d":"M265.9,229.8L264.0,227.6L190.0,242.0L187.8,234.4L165.7,239.0L178.8,287.4L208.8,281.2L238.5,291.9L251.0,292.9L263.1,290.5L281.7,299.5L286.8,298.5L282.0,285.9L275.7,260.9L262.7,231.4L265.9,229.8Z","cx":226.3,"cy":271.0},{"id":"08100208","name":"Körnerpark","bzr":"Neuköllner Mitte/Zentrum","d":"M296.7,360.5L291.4,313.5L286.8,298.5L281.7,299.5L263.1,290.5L251.0,292.9L238.5,291.9L208.8,281.2L178.8,287.4L209.0,381.6L296.7,360.5Z","cx":244.4,"cy":337.0},{"id":"08100209","name":"Glasower Straße","bzr":"Neuköllner Mitte/Zentrum","d":"M348.1,356.2L297.3,366.2L296.7,360.5L209.5,381.5L223.7,424.6L235.7,448.5L290.5,441.3L315.5,435.1L318.3,437.4L348.8,428.2L346.3,421.8L319.2,379.9L348.5,374.9L346.3,361.5L348.1,356.2Z","cx":274.7,"cy":401.6},{"id":"08100310","name":"Maybachufer","bzr":"Reuterstraße","d":"M243.1,62.3L135.9,5.7L118.7,0.0L145.0,65.9L178.4,60.7L192.1,62.8L201.1,65.7L231.0,83.5L243.1,62.3Z","cx":160.0,"cy":33.2},{"id":"08100311","name":"Reuterplatz","bzr":"Reuterstraße","d":"M156.2,109.8L200.0,135.1L231.0,83.5L201.1,65.7L192.1,62.8L178.4,60.7L145.0,65.9L160.2,105.7L156.2,109.8Z","cx":190.2,"cy":94.6},{"id":"08100312","name":"Weichselplatz","bzr":"Reuterstraße","d":"M281.8,195.2L319.6,147.8L288.1,120.1L283.5,110.2L277.7,84.3L274.8,85.0L266.6,74.6L243.1,62.3L200.0,135.1L226.7,150.6L281.8,195.2Z","cx":250.6,"cy":127.6},{"id":"08100313","name":"Bouchéstraße","bzr":"Reuterstraße","d":"M278.1,80.9L282.7,106.9L286.2,117.0L292.7,125.2L319.6,147.8L354.1,107.4L336.9,93.9L317.7,114.2L278.1,80.9Z","cx":316.4,"cy":115.6},{"id":"08100314","name":"Donaustraße","bzr":"Reuterstraße","d":"M145.8,129.2L225.1,187.0L240.7,205.3L281.8,195.2L226.7,150.6L158.8,110.3L156.2,109.8L145.8,129.2Z","cx":224.6,"cy":168.8},{"id":"08100415","name":"Ganghoferstraße","bzr":"Rixdorf","d":"M353.4,276.9L359.8,270.6L366.9,259.1L284.1,191.8L281.8,195.2L240.7,205.3L255.7,222.8L258.5,228.7L264.0,227.6L274.8,239.9L294.7,233.0L325.5,264.1L346.6,270.5L353.4,276.9Z","cx":318.6,"cy":236.4},{"id":"08100416","name":"Alt-Rixdorf","bzr":"Rixdorf","d":"M357.2,283.1L346.6,270.5L325.5,264.1L294.7,233.0L274.8,239.9L265.9,229.8L262.7,231.4L279.4,272.3L282.0,285.9L291.4,313.5L293.1,327.2L295.1,327.4L300.9,318.5L304.4,320.7L306.3,327.6L329.1,323.2L328.2,318.4L348.2,312.6L355.7,302.3L358.1,290.7L357.2,283.1Z","cx":316.5,"cy":277.7},{"id":"08100417","name":"Braunschweiger Straße","bzr":"Rixdorf","d":"M353.4,276.9L357.2,283.1L358.1,290.7L355.7,302.3L348.2,312.6L328.2,318.4L329.1,323.2L306.3,327.6L304.4,320.7L300.9,318.5L295.1,327.4L293.1,327.2L297.3,366.2L348.1,356.2L356.8,350.7L382.7,343.9L390.7,339.2L390.8,336.9L401.5,336.1L399.7,331.8L411.2,317.4L416.1,304.4L417.5,305.3L418.0,301.0L366.9,259.1L359.8,270.6L353.4,276.9Z","cx":376.1,"cy":315.0},{"id":"08100418","name":"Hertzbergplatz","bzr":"Rixdorf","d":"M284.1,191.8L429.1,309.7L436.9,247.1L426.6,238.1L427.0,234.1L384.1,198.6L382.4,200.8L319.6,147.8L284.1,191.8Z","cx":361.2,"cy":217.5},{"id":"08100419","name":"Treptower Straße Nord","bzr":"Rixdorf","d":"M354.1,107.4L319.6,147.8L382.4,200.8L384.1,198.6L422.8,229.7L434.5,140.6L431.0,136.5L413.9,157.8L354.1,107.4Z","cx":392.6,"cy":178.2},{"id":"08100520","name":"Weiße Siedlung","bzr":"Köllnische Heide","d":"M434.5,140.6L422.2,230.6L427.0,234.1L426.6,238.1L436.9,247.1L424.8,343.7L423.3,346.9L425.9,348.1L426.8,346.3L455.5,359.3L469.9,363.2L543.8,347.3L549.2,342.6L530.3,311.7L526.1,301.6L534.0,257.6L434.5,140.6Z","cx":482.9,"cy":252.4},{"id":"08100521","name":"Schulenburgpark","bzr":"Köllnische Heide","d":"M570.3,503.4L570.5,494.6L577.2,475.0L588.8,460.3L600.0,433.3L599.4,419.6L549.2,342.6L543.8,347.3L493.3,359.5L469.9,363.2L457.7,360.1L426.8,346.3L425.9,348.1L423.3,346.9L424.8,343.7L429.1,309.7L418.0,301.0L417.5,305.3L416.1,304.4L411.2,317.4L399.7,331.8L401.5,336.1L390.8,336.9L390.7,339.2L379.0,345.5L349.8,353.8L346.3,361.5L348.5,374.9L319.2,379.9L346.3,421.8L348.8,428.2L386.5,417.5L384.1,423.1L383.3,432.0L384.4,440.7L387.7,449.0L403.0,475.3L406.6,474.0L408.7,476.6L421.5,499.5L423.5,497.5L570.3,503.4Z","cx":458.6,"cy":398.7}]}};
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return ((h>>>0)%10000)/10000}
+const WFS = l => `https://gdi.berlin.de/services/wfs/${l}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${l}`;
+const MODELS = {Classifier:'gpt-oss-120b', Planner:'gpt-oss-120b', 'Data researcher':'tool calls (no LLM)', 'Web researcher':'Nemotron Lightning', Skeptic:'gpt-oss-120b', 'Fact-checker':'Tavily extract + fuzzy match ≥0.85', Writer:'Beam'};
+
+/* ---------- classification (mock planner) ---------- */
+function classify(q){
+  const t=q.toLowerCase();
+  const addr=q.match(/([A-ZÄÖÜ][\wäöüß\-]+(?:straße|str\.|platz|damm|allee|ufer))\s*(\d+\w?)/i);
+  let shape='location', why='The question asks <i>where</i> to put a business → rank candidate cells across an area.';
+  if(/kita|kindergarten|missing|fehlen|lack/.test(t)){shape='gap';why='The question asks where something is <i>missing</i> → compute a supply-vs-demand gap score per cell.'}
+  if(addr||/storefront|this lot|this space|this property|parcel/.test(t)){shape='point';why=`The question is about one specific property${addr?` (“${esc(addr[0])}”)`:''} → evaluate business hypotheses for a parcel + ~100 m neighbourhood.`}
+  let area=null;
+  if(/kreuzberg|wiener stra|oranien|wrangel|graefe/.test(t)) area='kreuzberg';
+  else if(/neuk[öo]e?lln|reuter|rixdorf|schiller/.test(t)) area='neukoelln';
+  const subject=(t.match(/(coffee|caf[ée]|bakery|bike repair shop|bookshop|restaurant|bar|gym|kita|pharmacy|shop)/)||[])[1]||'business';
+  return {shape,why,area,addr:addr?addr[0]:(shape==='point'?'Wiener Straße 12':null),subject};
+}
+
+/* ---------- synthetic data per scenario ---------- */
+const KREUZ = { // demand, young, competition, transit, cost  (hand-tuned demo story)
+'02100101':[.35,.50,.30,.80,.75],'02100102':[.55,.40,.35,.60,.45],'02100103':[.45,.50,.35,.55,.60],'02100104':[.72,.70,.45,.75,.60],
+'02100105':[.55,.55,.30,.50,.45],'02100106':[.65,.50,.40,.45,.45],'02200207':[.30,.60,.25,.70,.70],'02200208':[.70,.60,.55,.70,.60],
+'02200209':[.65,.55,.45,.55,.70],'02200210':[.80,.60,.50,.60,.55],'02200211':[.75,.65,.70,.50,.80],'02200212':[.85,.75,.75,.55,.75],
+'02200213':[.90,.80,.60,.70,.70],'02300314':[.80,.85,.85,.85,.65],'02300315':[.95,.90,.80,.75,.60],'02300316':[.50,.55,.25,.60,.50],
+'02300417':[.85,.80,.65,.65,.55],'02300418':[.90,.80,.55,.55,.50],'02300419':[.95,.90,.90,.60,.55]};
+
+function scenario(c){
+  const area=GEO[c.area], aname=c.area==='kreuzberg'?'Kreuzberg':'Neukölln (Nord)', bez=c.area==='kreuzberg'?'Friedrichshain-Kreuzberg':'Neukölln';
+  const bzSlug=c.area==='kreuzberg'?'ba-friedrichshain-kreuzberg':'ba-neukoelln';
+  const noun='coffee place';
+  const S=[]; const src=(o)=>{S.push({n:S.length+1,status:'verified',...o});return S.length};
+  const sGeo=src({method:'wfs',title:'PLR geometries (lor_2021)',url:WFS('lor_2021:a_lor_plr_2021'),quote:`${area.cells.length} Planungsräume in ${aname}`,tier:'official',conf:'high'});
+  let layers,subq,paid,mods={},risks={},unknowns={},rejected=[];
+  if(c.shape==='gap'){
+    const s1=src({method:'wfs',title:'Population by age group (ua_einwohnerdichte_2025)',url:WFS('ua_einwohnerdichte_2025'),quote:'EW_U6 — residents under 6, per block, aggregated to PLR',tier:'official',conf:'high'});
+    const s2=src({method:'wfs',title:'Kita locations & approved places (kita)',url:WFS('kita'),quote:'genehmigte Plätze per facility, aggregated to PLR',tier:'official',conf:'high'});
+    const s3=src({method:'wfs',title:'Undisturbed public transport access (oepnv_ungestoert)',url:WFS('oepnv_ungestoert'),quote:'share of area within 300 m of a stop',tier:'official',conf:'high'});
+    const s4=src({method:'wfs',title:'Social monitoring 2025 (mss_2025)',url:WFS('mss_2025'),quote:'Status-Index per PLR',tier:'official',conf:'high'});
+    const s5=src({method:'pdf',title:`Kita-Entwicklungsplanung Bezirk ${bez}`,url:`https://www.berlin.de/${bzSlug}/politik-und-verwaltung/aemter/jugendamt/kita-entwicklungsplanung.pdf`,quote:'„…in den Planungsräumen nördlich der Ringbahn besteht ein rechnerisches Defizit an Betreuungsplätzen…“',tier:'institutional',conf:'medium'});
+    const s6=src({method:'web',title:'Planned housing — StEP Wohnen 2040 (step_wo_2040)',url:WFS('step_wo_2040'),quote:'Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029',tier:'official',conf:'high'});
+    const s7=src({method:'web',title:'Local news: Kita operator closes two sites',url:'https://www.example-berlin-news.de/neukoelln/kita-schliessung',quote:'„…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…“',tier:'press',conf:'medium'});
+    layers=[
+      {id:'demand',label:'Children under 6',dir:'+',w:.40,src:s1,why:'Demand: every child under 6 is a potential place.'},
+      {id:'supply',label:'Kita places per child',dir:'-',w:.35,src:s2,why:'Supply: fewer places per child → larger gap.'},
+      {id:'transit',label:'Transit access',dir:'-',w:.10,src:s3,why:'Poor access makes existing places further out effectively unavailable.'},
+      {id:'status',label:'Low social status (MSS)',dir:'+',w:.15,src:s4,why:'Equity: Bezirk planning prioritises low-status areas.'}];
+    subq=[['How many children under 6 live in each PLR?','official geodata','ua_einwohnerdichte_2025',['demand']],['How many approved Kita places exist per PLR?','official geodata','kita',['supply']],['What does the Bezirk Kita plan say about deficits?','web (Tavily)','berlin.de, *.berlin.de'],['Which closures or openings are announced after today?','web (Tavily)','berlin.de, local press'],['Where is new housing planned?','official geodata','step_wo_2040']];
+    paid=[];
+    const ids=area.cells.map(x=>x.id);
+    mods[ids[11]]=[{q:4,label:'Planned housing: ~420 units by 2029',quote:'Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029',src:s6,magnitude:'420 units'}];
+    mods[ids[6]]=[{q:3,label:'Two Kitas (85 places) closing 2027',quote:'…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…',src:s7,magnitude:'85 places'}];
+    rejected=[{claim:'“Neukölln has the lowest Kita coverage in Berlin”',url:'https://www.example-parenting-blog.de/kita-ranking',reason:'Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)'}];
+    src.s5=s5;
+    c.extra={planDoc:s5};
+  } else {
+    const s1=src({method:'wfs',title:'Population density & age groups (ua_einwohnerdichte_2025)',url:WFS('ua_einwohnerdichte_2025'),quote:'EW_DICHTE (residents/ha) and EW_18_45 share, aggregated to PLR',tier:'official',conf:'high'});
+    const s2=src({method:'wfs',title:'Registered food & drink businesses, NACE 56 (gewerbedaten)',url:WFS('gewerbedaten')+'&CQL_FILTER=nace LIKE \'56%\'',quote:'count of NACE 56.x registrations per PLR',tier:'official',conf:'high'});
+    const s3=src({method:'overpass',title:'OpenStreetMap cafés (Overpass)',url:'https://overpass-api.de/api/interpreter?data=[out:json];area[name="'+aname.split(' ')[0]+'"];node[amenity=cafe](area);out;',quote:'amenity=cafe nodes, deduplicated against NACE 56 within 25 m',tier:'community',conf:'medium'});
+    const s4=src({method:'wfs',title:'Undisturbed public transport access (oepnv_ungestoert)',url:WFS('oepnv_ungestoert'),quote:'share of area within 300 m of a stop',tier:'official',conf:'high'});
+    const s5=src({method:'wfs',title:'Standard land values 2026 (brw2026)',url:WFS('brw2026'),quote:'BRW €/m² (zone mean per PLR) — cost proxy',tier:'official',conf:'high'});
+    const s6=src({method:'web',title:'IHK Berlin — Gastronomie-Report',url:'https://www.ihk.de/berlin/branchen/gastronomie/gastgewerbe-report',quote:'„…Spezialitätenkaffee wächst vor allem in dicht bewohnten Kiezen mit jungem Publikum…“',tier:'institutional',conf:'medium'});
+    const s7=src({method:'pdf',title:`Zentren- und Einzelhandelskonzept ${bez}`,url:`https://www.berlin.de/${bzSlug}/politik-und-verwaltung/aemter/stadtentwicklungsamt/zentrenkonzept.pdf`,quote:'„…Stärkung der Nahversorgungszentren Moritzplatz und Südstern…“',tier:'institutional',conf:'medium'});
+    const s8=src({method:'web',title:'News: office campus at Moritzplatz',url:'https://www.example-berlin-news.de/kreuzberg/buero-campus-moritzplatz',quote:'„…rund 1.200 Arbeitsplätze, Fertigstellung 2027…“',tier:'press',conf:'medium'});
+    const s9=src({method:'web',title:'News: housing project Köpenicker Straße',url:'https://www.example-berlin-news.de/kreuzberg/wohnungen-koepenicker-strasse',quote:'„…300 Wohnungen sollen bis 2028 bezugsfertig sein…“',tier:'press',conf:'medium'});
+    const s10=src({method:'web',title:'Commercial rent report Berlin (retail, ground floor)',url:'https://www.example-immo-report.de/berlin/gewerbemieten-2026',quote:'„…Erdgeschossmieten im Wrangelkiez +18 % gegenüber Vorjahr…“',tier:'press',conf:'medium',status:'partial'});
+    layers=[
+      {id:'demand',label:'Population density',dir:'+',w:.30,src:s1,why:'Cafés need resident footfall; density is the cheapest proxy.'},
+      {id:'young',label:'Share aged 18–45',dir:'+',w:.15,src:s1,why:'IHK report: specialty coffee grows with a young audience.'},
+      {id:'competition',label:'Existing cafés (NACE 56 + OSM)',dir:'-',w:.25,src:s2,why:'Saturation lowers the chance of a new entrant.'},
+      {id:'transit',label:'Transit access',dir:'+',w:.15,src:s4,why:'Passing commuters add non-resident footfall.'},
+      {id:'cost',label:'Land value (cost proxy)',dir:'-',w:.15,src:s5,why:'High BRW → high ground-floor rents.'}];
+    subq=[['Where do many (young) residents live?','official geodata','ua_einwohnerdichte_2025',['demand','young']],['Where are cafés already concentrated?','official geodata + OSM','gewerbedaten (NACE 56), Overpass amenity=cafe',['competition']],['Which cells have good transit access?','official geodata','oepnv_ungestoert',['transit']],['What does it cost to rent there?','official geodata + web','brw2026, rent reports',['cost']],['What do IHK / the Bezirk say about gastronomy?','web (Tavily)','ihk.de, berlin.de'],['Which residential/office projects are coming after today?','web (Tavily)','berlin.de, local press']];
+    paid=[['hystreet.com','pedestrian footfall counts'],['Google Places','competitor ratings & opening hours']];
+    if(c.area==='kreuzberg'){
+      mods['02100104']=[{q:5,label:'Office campus: ~1,200 workplaces by 2027',quote:'…rund 1.200 Arbeitsplätze, Fertigstellung 2027…',src:s8,magnitude:'1,200 workplaces'}];
+      mods['02300316']=[{q:5,label:'Planned housing: 300 units at Köpenicker Straße',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
+      risks['02300419']=[{text:'Ground-floor rents rising fast',quote:'…Erdgeschossmieten im Wrangelkiez +18 % gegenüber Vorjahr…',src:s10,sev:'high'}];
+      unknowns['02200213']=['Actual footfall on Graefestraße — hystreet slot skipped (no key). Validate: 2 × 30-min manual counts.'];
+      unknowns['02300418']=['Vacancy of ground-floor units unknown. Validate: walk Reichenberger Str. / check listings.'];
+    } else {
+      const ids=area.cells.map(x=>x.id);
+      mods[ids[12]]=[{q:5,label:'Planned housing: 300 units',quote:'…300 Wohnungen sollen bis 2028 bezugsfertig sein…',src:s9,magnitude:'300 units'}];
+    }
+    rejected=[{claim:'“Footfall on Oranienstraße rose 30 % in 2026”',url:'https://www.example-food-blog.de/kreuzberg-hotspots',reason:'Quote not found on re-fetch (best fuzzy match 0.38 < 0.85) → dropped, planner re-planned web search for footfall'}];
+    c.extra={ihk:s6,zk:s7};
+  }
+  const cells=area.cells.map(g=>{
+    const v={};layers.forEach((l,i)=>{v[l.id]=(c.area==='kreuzberg'&&c.shape!=='gap'&&KREUZ[g.id])?KREUZ[g.id][i]:Math.round((.15+.8*hash(g.id+l.id+c.shape))*100)/100});
+    return {...g,values:v,modifiers:mods[g.id]||[],risks:risks[g.id]||[],unknowns:unknowns[g.id]||[]};
+  });
+  return {c,aname,bez,noun,area,layers,cells,subq,paid,sources:S,rejected,sGeo};
+}
+
+/* ---------- point path (candidates.json) ---------- */
+function pointScenario(c){
+  const area=GEO.kreuzberg, cellId='02300315';
+  const S=[];const src=o=>{S.push({n:S.length+1,status:'verified',...o});return S.length};
+  const a1=src({method:'wfs',title:'Address geocode (adressen_berlin)',url:WFS('adressen_berlin')+'&CQL_FILTER=str_name=\'Wiener Straße\' AND hnr=12',quote:'Wiener Straße 12, 10999 Berlin → PLR 02300315 Lausitzer Platz',tier:'official',conf:'high'});
+  const a2=src({method:'wfs',title:'Competitors within 500 m (gewerbedaten, by NACE)',url:WFS('gewerbedaten')+'&BBOX=…500m',quote:'NACE 10.71 bakeries: 4 · 56.30 bars: 11 · 47.11 grocery: 3',tier:'official',conf:'high'});
+  const a3=src({method:'overpass',title:'OSM shops & amenities within 500 m',url:'https://overpass-api.de/api/interpreter?data=[out:json];(node(around:500,52.4995,13.4318)[shop];node(around:500,52.4995,13.4318)[amenity];);out;',quote:'shop=bakery 3 · amenity=bar 13 · shop=organic 1',tier:'community',conf:'medium'});
+  const a4=src({method:'wfs',title:'Residential location quality (wohnlagenadr2026)',url:WFS('wohnlagenadr2026'),quote:'Wohnlage: mittel',tier:'official',conf:'high'});
+  const a5=src({method:'wfs',title:'Standard land value (brw2026)',url:WFS('brw2026'),quote:'BRW zone 2,900 €/m²',tier:'official',conf:'high'});
+  const a6=src({method:'web',title:'Neighbourhood bakery closes (local press)',url:'https://www.example-berlin-news.de/kreuzberg/baeckerei-schliesst',quote:'„…die letzte Handwerksbäckerei am Lausitzer Platz hat zum Jahresende geschlossen…“',tier:'press',conf:'medium'});
+  const a7=src({method:'web',title:'Bezirk: Ausschank & Außengastronomie rules',url:'https://www.berlin.de/ba-friedrichshain-kreuzberg/politik-und-verwaltung/aemter/ordnungsamt/gaststaetten/',quote:'„…Sondernutzungserlaubnis für Außengastronomie erforderlich…“',tier:'official',conf:'high'});
+  const a8=src({method:'web',title:'Competitor menus & prices (3 natural-wine bars)',url:'https://www.example-bar.de/karte',quote:'glass €7–9, open Wed–Sun from 18:00',tier:'weak',conf:'low'});
+  const a9=src({method:'wfs',title:'Population density & age groups (ua_einwohnerdichte_2025)',url:WFS('ua_einwohnerdichte_2025'),quote:'Lausitzer Platz: 18–45 share in top decile of the district',tier:'official',conf:'high'});
+  const dims=['Demand','Competition gap','Operator fit','Space fit','Cost','Regulation / risk'];
+  const H=[
+    {name:'Craft bakery-café',score:7.8,d:[8,9,10,7,6,7],dw:['Dense, young PLR [9]','Last craft bakery closed [6]; only 4 NACE 10.71 within 500 m [2]','6 yrs bakery experience — direct fit','~70 m² fits a counter + oven; ventilation unknown','BRW 2,900 €/m² [5] — mid-range','Standard Gaststätte rules [7]'],
+     for:[['Last craft bakery on Lausitzer Platz closed',a6],['Few bakeries within 500 m (4)',a2],['Operator has 6 yrs bakery experience','profile']],
+     against:[['3 OSM bakeries still within 500 m',a3],['Morning-only demand peak','reasoning']],
+     unk:[['Oven ventilation permitted in this building?','Ask landlord for Abluft spec; Bauaufsicht check']]},
+    {name:'Natural-wine bar',score:5.9,d:[7,3,4,8,6,4],dw:['Strong evening footfall','11 NACE 56.30 bars within 500 m [2]','No bar experience in profile','Layout suits a bar','Mid rents','Late-night noise complaints risk'],
+     for:[['Young evening audience',a9],['Competitor prices €7–9 / glass sustain margins',a8]],
+     against:[['High bar saturation (11 + 13 OSM)',a2],['Operator lacks bar experience','profile'],['Weak-tier menu evidence cannot carry a recommendation alone',a8]],
+     unk:[['Licensing hours for this street','Ordnungsamt enquiry']]},
+    {name:'Zero-waste grocery',score:5.2,d:[5,7,3,6,5,8],dw:['Medium demand signal','1 organic shop in 500 m [3]','No retail experience','Space OK','Thin margins','Low regulatory burden'],
+     for:[['Only one organic shop nearby',a3]],
+     against:[['Low operator fit','profile'],['Margins thin at this rent level',a5]],
+     unk:[['Willingness to pay for zero-waste in this Kiez','10 short customer interviews']]}];
+  const fit=/^\s*6\s*(yrs?|years?)\s+(of\s+)?bakery experience\b/i.test(c.op||'');
+  if(!fit)H.forEach(h=>{h.score=Math.round((h.score+(5-h.d[2])/6)*10)/10;h.d[2]=5;h.dw[2]=c.op?'Profile not modelled in this mockup — scored neutral':'No operator profile — scored neutral';h.for=h.for.filter(f=>f[1]!=='profile');h.against=h.against.filter(f=>f[1]!=='profile')});
+  const competitors=[];const g=area.cells.find(x=>x.id===cellId);
+  for(let i=0;i<22;i++){const r=hash('c'+i),r2=hash('d'+i);competitors.push({x:g.cx+(r-.5)*90,y:g.cy+(r2-.5)*70,h:i%3})}
+  return {c,area,cellId,sources:S,H,Hall:H,fit,dims,competitors,addrSrc:a1,rejected:[{claim:'“Rents on Wiener Straße doubled since 2023”',url:'https://www.example-forum.de/thread/123',reason:'Unsupported: forum post, no figure on re-fetch'}]};
+}
+
+/* ---------- trace (trace.jsonl, mock) ---------- */
+function traceFor(sc){
+  const c=sc.c, E=[];const e=(role,type,text,why,tok,sec,cls)=>E.push({role,type,text,why,tok,sec,cls});
+  e('Classifier','classify',`shape=${c.shape}`,c.why.replace(/<[^>]+>/g,''),812,1.1);
+  const on=i=>sc.sel.has(i), lay=sc.layers?sc.layers.filter(l=>sc.defaultOn[l.id]):[];
+  e('Planner','plan',`${c.shape==='point'?sc.H.length+' hypotheses':(lay.length+' layers')} · ${sc.sel.size} sub-questions approved`,sc.sel.size<sc.nSub?'Plan edited by the user before approval':'Per-template defaults; weights unchanged',2140,3.4);
+  if(c.shape==='location') e('Planner','skip','hystreet.com, Google Places','key not provided — skipped',0,0,'skip');
+  if(c.shape==='point'){
+    if(on(0))e('Data researcher','tool:wfs','locate("Wiener Straße 12") → adressen_berlin','Ground the space in its PLR before hypothesising',0,.8);
+    if(on(1)){e('Data researcher','tool:wfs','gewerbedaten NACE 10.71/56.30/47.11 within 500 m','Count competitors per hypothesis',0,1.6);
+    e('Data researcher','tool:overpass','shop/amenity around:500','Complement NACE with OSM (report separately)',0,2.2)}
+    if(on(2))e('Data researcher','tool:wfs','brw2026 + wohnlagenadr2026 at the address','Land value and Wohnlage as cost proxies',0,1.1);
+    sc.H.forEach(h=>{e('Web researcher','tavily:search',`FOR "${h.name}" — Kreuzberg Lausitzer Platz`,'Find demand signals / openings for this hypothesis',1620,2.9);e('Skeptic','challenge',`AGAINST "${h.name}"`,'Look for saturation, operator gaps, space limits, regulation',1980,3.7)});
+    e('Fact-checker','reject',sc.rejected[0].claim,sc.rejected[0].reason,0,1.2,'rej');
+    e('Planner','replan','Search rent levels via official BRW instead','Rejected rent claim; use brw2026',540,.9,'re');
+    e('Scorer','score',`6 dimensions × ${sc.H.length} hypotheses`,'Weak-tier evidence cannot carry a recommendation alone',1100,1.4);
+  } else {
+    lay.filter((l,i)=>lay.findIndex(x=>x.src===l.src)===i).forEach(l=>e('Data researcher',l.src&&sc.sources[l.src-1].method==='overpass'?'tool:overpass':'tool:wfs',sc.sources[l.src-1].title,l.why,0,(1+hash(l.id)*2).toFixed(1)));
+    if(c.shape==='location'&&sc.defaultOn.competition)e('Data researcher','tool:overpass','amenity=cafe in area','Complement NACE registrations with OSM',0,2.1);
+    e('Scorer','score',`${sc.cells.length} cells normalised, default mix`,'min–max within area',0,.3);
+    sc.subq.filter((s,i)=>on(i)&&/web/.test(s[1])).forEach(s=>e('Web researcher','tavily:search',`"${s[0]}" site:${s[2].split(',')[0]}`,'Domain-restricted first; widen only if empty',1510,2.6));
+    e('Web researcher','tavily:extract','verbatim quotes for 5 top cells','Quotes are required for every web claim',2900,4.2);
+    e('Skeptic','challenge','#1 cell','Look for risks with quote + severity',2210,3.9);
+    if(sc.cells.some(x=>x.risks.length)) e('Skeptic','rescore','Wrangelkiez demoted (high: rents +18 %)','High-severity risk → demote −0.08',0,.1,'re');
+    e('Fact-checker','reject',sc.rejected[0].claim,sc.rejected[0].reason,0,1.4,'rej');
+    e('Planner','replan','Footfall: rely on transit layer; hystreet still skipped','Unsupported claim removed; no free footfall source',610,1,'re');
+  }
+  e('Fact-checker','verify',`${sc.sources.length} sources re-fetched`,'Tavily extract / WFS re-query, fuzzy ≥ 0.85',0,6.3);
+  e('Writer','write','summary + findings from ledger ids only','Post-processor strips [n] not in ledger',3400,5.1);
+  return E;
+}
+
+/* ---------- scoring ---------- */
+let SC=null, TR=null, state={on:{},mode:'present'};
+function scores(sc,on,mode){
+  const raw=sc.cells.map(cell=>sc.layers.reduce((s,l)=>on[l.id]?s+l.w*(l.dir==='+'?1:-1)*cell.values[l.id]:s,0));
+  const mn=Math.min(...raw),mx=Math.max(...raw);
+  return sc.cells.map((cell,i)=>{let s=mx>mn?(raw[i]-mn)/(mx-mn):.5;
+    if(cell.risks.some(r=>r.sev==='high'))s-=.08;
+    if(mode==='future')s+=.10*cell.modifiers.length;
+    return {cell,key:s,score:Math.max(0,Math.min(1,s))}}).sort((a,b)=>b.key-a.key);
+}
+function color(t){const st=[[255,247,214],[180,226,193],[65,174,160],[18,104,121],[12,52,86]];t=Math.max(0,Math.min(.9999,t))*4;const i=Math.floor(t),f=t-i,a=st[i],b=st[i+1];return `rgb(${a.map((v,k)=>Math.round(v+(b[k]-v)*f)).join(',')})`}
+const cite=n=>`<a class="cite" data-n="${n}">[${n}]</a>`;
+
+/* ---------- flow ---------- */
+function show(id){['s-ask','s-plan','s-live','s-dash'].forEach(s=>$('#'+s).classList.toggle('hidden',s!==id));window.scrollTo(0,0)}
+let C=null;
+$$('.tpl .t').forEach(t=>t.onclick=()=>{$('#q').value=t.dataset.q;$('#op').value=t.dataset.op||'';$('#clar').classList.add('hidden')});
+$('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return}
+  C=classify(q);C.q=q;C.role=$('#role').value;C.op=$('#op').value;
+  if(!C.area&&C.shape!=='point'){$('#clar').classList.remove('hidden');return}
+  if(C.shape==='point')C.area='kreuzberg';
+  plan()};
+$$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
+$('#restart').onclick=()=>{show('s-ask')};
+$('#back').onclick=()=>show('s-ask');
+
+function plan(){
+  SC=C.shape==='point'?pointScenario(C):scenario(C);
+  $('#p-q').textContent=C.q;
+  $('#p-class').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span> <span class="why">${C.why}</span>`;
+  if(C.shape==='point'){
+    $('#p-area').innerHTML=`<b>Wiener Straße 12</b> → parcel + ~100 m neighbourhood, inside PLR <b>Lausitzer Platz</b> (02300315)<div class="small mut" style="margin-top:4px">Operator profile: ${esc(C.op||'— none given (operator-fit scored neutral)')}</div>`;
+    const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
+    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h3>Business hypotheses (planner)</h3><table><tbody>${SC.H.map((h,i)=>`<tr><td><input type="checkbox" checked data-h="${i}"></td><td><b>${h.name}</b></td><td class="why">${h.dw[2]}; ${h.dw[1].replace(/\[\d+\]/g,'')}</td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid tbody').innerHTML='<tr><td colspan=4 class="mut">none for this template</td></tr>';
+  } else {
+    $('#p-area').innerHTML=`<b>${SC.aname}</b> (Bezirk ${SC.bez}) → <b>${SC.cells.length} PLR cells</b><div class="small mut" style="margin-top:4px">Granularity: PLR (decision A2) — demographics + MSS native per cell.</div>`;
+    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody>${SC.layers.map(l=>`<tr><td><input type="checkbox" checked data-l="${l.id}"></td><td>${l.label}</td><td>${l.dir}</td><td>${l.w.toFixed(2)}</td><td><span class="badge b-${SC.sources[l.src-1].method}">${SC.sources[l.src-1].method}</span></td><td class="why">${l.why.replace(/\[\d+\]/,'')}</td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid tbody').innerHTML=SC.paid.length?SC.paid.map((p,i)=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td><span class="badge b-skip">key not provided — skipped</span></td><td><input type="password" disabled placeholder="not available in the offline mockup" title="The mockup makes no provider calls"></td></tr>`).join(''):'<tr><td colspan=4 class="mut">none for this template</td></tr>';
+  }
+  // keep sub-questions in sync with the layers / hypotheses they feed
+  $$('#p-sub input').forEach(i=>i.onchange=()=>{const s=C.shape==='point'?null:SC.subq[+i.dataset.s];
+    if(s&&s[3])s[3].forEach(l=>{const x=$(`#p-layers input[data-l="${l}"]`);if(x)x.checked=i.checked});
+    if(i.dataset.sh)$(`#p-layers-wrap input[data-h="${i.dataset.sh}"]`).checked=i.checked});
+  $$('#p-layers-wrap input[data-h]').forEach(i=>i.onchange=()=>{$(`#p-sub input[data-sh="${i.dataset.h}"]`).checked=i.checked});
+  SC.note=demoNote();$('#p-note').innerHTML=SC.note;$('#p-note').classList.toggle('hidden',!SC.note);
+  show('s-plan');
+}
+function demoNote(){
+  const s=esc(C.subject);
+  if(C.shape==='point'){const a=C.addr&&!/^wiener\s*stra(ß|ss)e\s*12$/i.test(C.addr)?`“${esc(C.addr)}”`:null;
+    return a?`Demo data covers only the storefront at <b>Wiener Straße 12</b>. A real run would evaluate ${a}; this mockup shows the Wiener Straße example instead.`:'';}
+  if(C.shape==='location'&&!/coffee|caf/.test(C.subject))return `Demo data covers cafés only. A real run would pick competitor data for “${s}”; this mockup shows the coffee example instead.`;
+  if(C.shape==='gap'&&!/kita|kindergarten/i.test(C.q))return `Demo data covers Kita gaps only. A real run would model supply and demand for “${s}”; this mockup shows the Kita example instead.`;
+  return '';
+}
+
+$('#approve').onclick=()=>{
+  SC.sel=new Set($$('#p-sub input').filter(i=>i.checked).map(i=>+i.dataset.s));
+  SC.planChecks=$$('#p-sub input').map(i=>i.checked);
+  if(C.shape==='point'){
+    const hs=$$('#p-layers-wrap input[data-h]').filter(i=>i.checked).map(i=>+i.dataset.h);
+    if(!hs.length){alert('Keep at least one business hypothesis.');return}
+    SC.H=hs.map(i=>SC.Hall[i]).sort((a,b)=>b.score-a.score);
+  } else {
+    state.on={};SC.layers.forEach(l=>state.on[l.id]=true);$$('#p-layers input').forEach(i=>state.on[i.dataset.l]=i.checked);
+    if(!Object.values(state.on).some(Boolean)){alert('Keep at least one scoring layer.');return}
+    SC.defaultOn={...state.on};
+    SC.cells.forEach(c=>c.modifiers=c.modifiers.filter(m=>SC.sel.has(m.q)));
+    SC.subq.forEach((s,i)=>{if(SC.sel.has(i))return;
+      if(/cost to rent/.test(s[0]))SC.cells.forEach(c=>c.risks=[]);
+      if(/IHK/.test(s[0]))C.extra.ihk=null;
+      if(/Kita plan/.test(s[0]))C.extra.planDoc=null;});
+  }
+  TR=traceFor(SC);live()};
+
+let timer=null;
+function live(){
+  show('s-live');const box=$('#l-trace');box.innerHTML='';
+  const stages=['classify','plan','approve','research','skeptic','fact-check','write'];
+  $('#stages').innerHTML=stages.map(s=>`<span data-s="${s}">${s}</span>`).join('');
+  const stageOf=ev=>({Classifier:'classify',Planner:ev.type==='replan'?'fact-check':'plan','Data researcher':'research','Web researcher':'research',Scorer:'research',Skeptic:'skeptic','Fact-checker':'fact-check',Writer:'write'}[ev.role]);
+  let i=0,tok=0,sec=0;
+  const step=()=>{
+    if(i>=TR.length){clearInterval(timer);setTimeout(dash,500);return}
+    const ev=TR[i++];tok+=ev.tok;sec+=+ev.sec;
+    box.insertAdjacentHTML('beforeend',`<div class="ev ${ev.cls||''}"><span class="w">+${sec.toFixed(1)}s</span><span class="role">${ev.role}</span><span>${esc(ev.type)} · ${esc(ev.text)}<br><span class="w">why: ${esc(ev.why)}</span></span><span class="meta">${MODELS[ev.role]||''}${ev.tok?' · '+ev.tok+' tok':''}</span></div>`);
+    box.scrollTop=box.scrollHeight;
+    const st=stageOf(ev);let hit=false;$$('#stages span').forEach(s=>{if(s.dataset.s==='approve')s.className='done';if(s.dataset.s===st){s.className='on';hit=true}else if(!hit&&s.className!=='done'&&stages.indexOf(s.dataset.s)<stages.indexOf(st))s.className='done'});
+    $('#bar').style.width=(i/TR.length*100)+'%';
+    $('#l-stat').textContent=`${i}/${TR.length} events · ${tok.toLocaleString()} tokens · ${sec.toFixed(1)} s`;
+  };
+  clearInterval(timer);timer=setInterval(step,650);step();
+  $('#skip').onclick=()=>{clearInterval(timer);dash()};
+}
+
+/* ---------- dashboard ---------- */
+function dash(){
+  clearInterval(timer);show('s-dash');
+  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span>`;$('#d-role').textContent=C.role?'Role: '+C.role:'';
+  const pt=$('#p-sub').cloneNode(true);pt.removeAttribute('id');pt.querySelectorAll('input').forEach((x,i)=>{const ok=SC.planChecks[i];if(!ok)x.closest('tr').style.opacity=.45;x.replaceWith(ok?'✓':'✕ not approved')});$('#d-plan').replaceChildren(pt);
+  $('#d-note').innerHTML=SC.note;$('#d-note').classList.toggle('hidden',!SC.note);
+  $('#battle-card').classList.toggle('hidden',C.shape==='point'&&SC.H.length<2);
+  renderSources();renderTrace();renderGrade();
+  if(C.shape==='point'){$('#layer-card').classList.add('hidden');renderPoint();}
+  else{$('#layer-card').classList.remove('hidden');state.mode='present';state.on={...SC.defaultOn};SC.defaultRank=scores(SC,SC.defaultOn,'present');renderSummary();renderLayers();renderArea()}
+}
+
+const hasFut=()=>SC.cells.some(c=>c.modifiers.length);
+function renderSummary(){
+  const r=SC.defaultRank.slice(0,3), L=SC.layers, s=n=>SC.sources[n-1];
+  $('#d-mix').textContent='written for the default layer mix';
+  let h;
+  if(C.shape==='gap'){
+    h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${(f=>f.length?`${f.length>1?'Two announced changes':'One announced change'} after today would widen the gap further — ${f.join(' and ')} (shown under <i>Present + future</i>).`:'')(SC.cells.flatMap(c=>c.modifiers).map(m=>m.q===3?'a closure of two Kitas':'~420 planned housing units'))} One web claim about city-wide rankings could not be verified and was dropped.`;
+  } else {
+    h=`For a ${SC.noun} in ${SC.aname}, the default mix ranks <b>${r[0].cell.name}</b> first, then <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b> ${cite(SC.sGeo)}. These cells pair high residential density and a young population ${cite(L[0].src)} with fewer existing cafés than the neighbouring hotspots ${cite(L[2].src)}${C.extra.ihk?`, consistent with the IHK observation that specialty coffee grows in dense, young Kieze ${cite(C.extra.ihk)}`:''}. ${C.area==='kreuzberg'?`${SC.cells.find(c=>c.id==='02300419').risks.length?`Wrangelkiez scores highest on demand but was demoted by the skeptic because ground-floor rents are rising sharply ${cite(SC.cells.find(c=>c.id==='02300419').risks[0].src)}. `:''}${hasFut()?`Two announced projects — an office campus at Moritzplatz and 300 flats at Köpenicker Straße — lift those cells under <i>Present + future</i>; the`:'The'} Bezirk's centre concept ${hasFut()?'also ':''}prioritises Moritzplatz ${cite(C.extra.zk)}.`:''} Footfall could not be measured: hystreet.com was skipped (no key) and one footfall claim was rejected by the fact-checker.`;
+  }
+  $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">${h}</p>`;
+}
+
+function renderLayers(){
+  $('#layers').innerHTML=SC.layers.map(l=>`<div class="layer"><input type="checkbox" id="ly-${l.id}" ${state.on[l.id]?'checked':''}><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="small mut">w ${l.w.toFixed(2)}</span><span class="small mut">${l.dir==='+'?'↑ good':'↓ good'}</span></div>`).join('');
+  SC.layers.forEach(l=>$('#ly-'+l.id).onchange=e=>{state.on[l.id]=e.target.checked;renderArea()});
+  $$('#mode button').forEach(b=>{b.classList.toggle('on',b.dataset.m===state.mode);b.disabled=b.dataset.m==='future'&&!hasFut();b.title=b.disabled?'Future sub-question was not approved':'';b.onclick=()=>{state.mode=b.dataset.m;$$('#mode button').forEach(x=>x.classList.toggle('on',x===b));renderArea()}});
+  $('#reset').onclick=()=>{state.on={...SC.defaultOn};state.mode='present';renderLayers();renderArea()};
+  bindCites();
+}
+
+function renderArea(){
+  const ranked=scores(SC,state.on,state.mode), byId={};ranked.forEach((r,i)=>byId[r.cell.id]={...r,rank:i+1});
+  const defRank={};SC.defaultRank.forEach((r,i)=>defRank[r.cell.id]=i+1);
+  $('#d-ftitle').textContent=C.shape==='gap'?'Top-3 cells by Kita gap':'Top-3 ranked cells';
+  $('#d-find').innerHTML=ranked.slice(0,3).map((r,i)=>{const c=r.cell,mv=defRank[c.id]-(i+1);
+    return `<div class="top" data-id="${c.id}"><div class="rk">#${i+1}</div><div class="row" style="gap:8px"><b style="font-size:15px">${c.name}</b><span class="small mut">PLR ${c.id} · ${c.bzr}</span>${mv?`<span class="mv ${mv>0?'up':'dn'}">${mv>0?'▲':'▼'} ${Math.abs(mv)} vs default</span>`:''}</div>
+      <div><span class="sc">${r.score.toFixed(2)}</span> <span class="small mut">${C.shape==='gap'?'gap score':'score'} (${state.mode==='future'?'present + future':'present'})</span></div>
+      <div class="vals">${SC.layers.map(l=>`<div style="opacity:${state.on[l.id]?1:.35}">${l.label}: <b>${c.values[l.id].toFixed(2)}</b> ${cite(l.src)}<div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
+      ${c.modifiers.map(m=>`<div class="mod"><b>Future:</b> ${m.label} ${cite(m.src)} <span class="badge">${state.mode==='future'?'+0.10 applied':'+0.10 in future mode'}</span><br><span class="quote">“${m.quote}”</span>${m.magnitude?` <span class="small mut">· magnitude stated by source: ${m.magnitude}</span>`:''}</div>`).join('')}
+      ${c.risks.map(k=>`<div class="risk"><b>Risk (${k.sev}):</b> ${k.text} ${cite(k.src)} <span class="badge">−0.08 skeptic demotion</span><br><span class="quote">“${k.quote}”</span></div>`).join('')}
+      ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${u}</div>`).join('')}</div>`}).join('')
+    +(()=>{const w=ranked.find(r=>r.cell.risks.length);return w&&!ranked.slice(0,3).includes(w)?`<p class="small mut">Also considered: <b>${w.cell.name}</b> (#${byId[w.cell.id].rank}) — ${w.cell.risks[0].text.toLowerCase()} ${cite(w.cell.risks[0].src)}.</p>`:''})();
+  // battle
+  const [a,b]=ranked;$('#battle-title').innerHTML=`Location Battle: <span style="color:var(--acc)">${a.cell.name}</span> vs ${b.cell.name}`;
+  $('#d-battle').innerHTML=`<div class="battle">${SC.layers.filter(l=>state.on[l.id]).map(l=>{const va=l.dir==='+'?a.cell.values[l.id]:1-a.cell.values[l.id],vb=l.dir==='+'?b.cell.values[l.id]:1-b.cell.values[l.id];
+    return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#0f766e':'#94a3b8'}"></span></div><div class="lab">${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#0f766e':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
+    <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each layer's contribution direction-adjusted (longer = better for a ${C.shape==='gap'?'gap':SC.noun}).</p>`;
+  drawMap(ranked,byId);bindCites();
+}
+
+function drawMap(ranked,byId){
+  const A=SC.area;$('#d-maparea').textContent=`${SC.aname} · ${A.cells.length} PLR cells · heatmap of ${C.shape==='gap'?'gap score':'composite score'}`;
+  const top3=ranked.slice(0,3).map(r=>r.cell.id);
+  $('#map').innerHTML=`<svg viewBox="-6 -6 ${A.w+12} ${A.h+12}">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${color(byId[c.id].score)}"/>`).join('')}
+   ${A.cells.filter(c=>byId[c.id].cell.modifiers.length).map(c=>`<text x="${c.cx}" y="${c.cy+14}" text-anchor="middle" style="font-size:12px">${state.mode==='future'?'★':'☆'}</text>`).join('')}
+   ${top3.map((id,i)=>{const c=A.cells.find(x=>x.id===id);return `<text x="${c.cx}" y="${c.cy}" text-anchor="middle" style="font-size:13px">#${i+1}</text>`}).join('')}</svg><div class="tip" id="tip"></div>`;
+  $('#legend').innerHTML=`<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0,.25,.5,.75,1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆/★ future development (★ applied)</span><span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+  const tip=$('#tip'),map=$('#map');
+  $$('#map path.cell').forEach(p=>{const r=byId[p.dataset.id],c=r.cell;
+    p.onmousemove=ev=>{const b=map.getBoundingClientRect();tip.style.display='block';let x=ev.clientX-b.left+14,y=ev.clientY-b.top+14;if(x>b.width-230)x-=250;if(y>b.height-170)y-=180;tip.style.left=x+'px';tip.style.top=y+'px';
+      tip.innerHTML=`<b>${c.name}</b> <span style="color:#8fa5b5">#${r.rank} · ${c.id}</span><br>score <b>${r.score.toFixed(2)}</b><table>${SC.layers.map(l=>`<tr><td>${l.label}</td><td><b>${c.values[l.id].toFixed(2)}</b></td><td>[${l.src}]</td></tr>`).join('')}</table>${c.modifiers.map(m=>`★ ${m.label} [${m.src}]`).join('<br>')}${c.risks.map(k=>`⚠ ${k.text} [${k.src}]`).join('<br>')}<div style="color:#8fa5b5;margin-top:3px">click to highlight in findings</div>`};
+    p.onmouseleave=()=>tip.style.display='none';
+    p.onclick=()=>{const el=document.querySelector(`.top[data-id="${c.id}"]`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')}else{tip.innerHTML+=`<div style="color:#fcd34d">not in top-3 (rank #${r.rank})</div>`}};
+  });
+  $$('.top').forEach(t=>{t.onmouseenter=()=>{const p=document.querySelector(`path[data-id="${t.dataset.id}"]`);p&&p.classList.add('hl')};t.onmouseleave=()=>$$('path.hl').forEach(p=>p.classList.remove('hl'))});
+}
+
+function pointSummary(P){
+  const T={'Craft bakery-café':h=>`the last craft bakery on Lausitzer Platz has closed ${cite(6)} and only four registered bakeries remain within 500 m ${cite(2)}${P.fit?", and the operator's six years of bakery experience fit directly":''}`,
+    'Natural-wine bar':h=>`it faces 11 registered bars nearby ${cite(2)}${P.fit?' and a low operator fit':''}`,
+    'Zero-waste grocery':h=>`it has little competition ${cite(3)} but thin margins at this land value ${cite(5)}`};
+  const [top,...rest]=P.H;
+  let s=`The strongest ${P.H.length>1?'':'(and only approved) '}hypothesis is a <b>${top.name.toLowerCase()}</b> (${top.score.toFixed(1)}/10): ${T[top.name]()}.`;
+  rest.forEach(h=>s+=` A ${h.name.toLowerCase()} scores ${h.score.toFixed(1)}: ${T[h.name]()}.`);
+  if(!P.fit)s+=` Operator fit is scored neutral (${P.c.op?'profile not modelled in this mockup':'no operator profile given'}).`;
+  if(P.H.includes(P.Hall[0]))s+=' The main open question is whether oven ventilation is permitted in the building.';
+  return s;
+}
+function renderPoint(){
+  const P=SC, cell=P.area.cells.find(c=>c.id===P.cellId);
+  $('#d-mix').textContent='point · LocalLens';
+  const s=P.sources;
+  $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">The space at <b>Wiener Straße 12</b> lies in PLR Lausitzer Platz ${cite(P.addrSrc)}, one of the district's densest and youngest cells ${cite(9)}. ${pointSummary(P)}</p>`;
+  $('#d-ftitle').textContent='Top-3 business hypotheses';
+  const sev=v=>v>=8?'#0f766e':v>=6?'#5eaaa8':v>=4?'#f59e0b':'#dc2626';
+  const ref=x=>typeof x==='number'?cite(x):`<span class="small mut">(${x})</span>`;
+  $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="rk">#${i+1}</div><b style="font-size:15px">${h.name}</b> <span class="small mut">rank initial #${i+1} → final #${i+1}</span><div><span class="sc">${h.score.toFixed(1)}</span><span class="small mut"> / 10 recommendation score</span></div>
+    ${P.dims.map((d,k)=>`<div class="dim"><span>${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div><div class="small mut" style="margin:-2px 0 4px 128px">${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</div>`).join('')}
+    <div class="fa"><div><h4 style="color:var(--ok)">FOR</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">AGAINST</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">UNKNOWNS → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></div>`).join('');
+  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`Hypothesis Battle: <span style="color:var(--acc)">${a.name}</span> vs ${b.name}`;
+  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#0f766e':'#94a3b8'}"></span></div><div class="lab">${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#0f766e':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
+  // map
+  const A=P.area,hc=['#0f766e','#7c3aed','#d97706'];
+  $('#d-maparea').textContent='the space, its PLR cell, and competitors within 500 m';
+  $('#map').innerHTML=`<svg viewBox="${cell.cx-170} ${cell.cy-105} 340 210">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${c.id===P.cellId?'#99f6e4':'#e2e8f0'}"/>`).join('')}
+    <circle cx="${cell.cx}" cy="${cell.cy}" r="62" fill="none" stroke="#0b1720" stroke-dasharray="4 3"/>
+    ${P.competitors.filter(k=>P.H.includes(P.Hall[k.h])).map(k=>`<circle cx="${k.x}" cy="${k.y}" r="3.6" fill="${hc[k.h]}" stroke="#fff" stroke-width="1"/>`).join('')}
+    <rect x="${cell.cx-6}" y="${cell.cy-6}" width="12" height="12" fill="#dc2626" stroke="#fff" stroke-width="2"/>
+    <text x="${cell.cx}" y="${cell.cy-12}" text-anchor="middle" style="font-size:12px">Wiener Str. 12</text>
+    <text x="${cell.cx}" y="${cell.cy+78}" text-anchor="middle">500 m</text></svg><div class="tip" id="tip"></div>`;
+  $('#legend').innerHTML=`<span style="color:#dc2626">■</span> the space <span style="color:#0f766e">●</span> bakeries <span style="color:#7c3aed">●</span> bars <span style="color:#d97706">●</span> grocery/organic <span style="margin-left:auto" class="small">competitor positions illustrative</span>`;
+  const tip=$('#tip'),map=$('#map');
+  $$('#map path.cell').forEach(p=>{const c=A.cells.find(x=>x.id===p.dataset.id);p.onmousemove=ev=>{const b=map.getBoundingClientRect();tip.style.display='block';tip.style.left=Math.min(ev.clientX-b.left+14,b.width-230)+'px';tip.style.top=(ev.clientY-b.top+14)+'px';tip.innerHTML=`<b>${c.name}</b> <span style="color:#8fa5b5">${c.id}</span>${c.id===P.cellId?'<br>contains the space [1]':''}`};p.onmouseleave=()=>tip.style.display='none'});
+  bindCites();
+}
+
+function renderSources(){
+  const conf={high:'b-ok',medium:'b-part',low:'b-bad'},st={verified:['b-ok','verified'],partial:['b-part','partial']};
+  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span class="badge b-${s.method}">${s.method}</span><span class="badge">${s.tier}</span><span class="badge ${conf[s.conf]}">confidence: ${s.conf}</span><span class="badge ${st[s.status][0]}">${st[s.status][1]}</span></div>
+    <div class="quote small" style="margin:3px 0">“${esc(s.quote)}”</div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></div></div>`).join('');
+  $('#d-nover').innerHTML=SC.rejected.map(r=>`<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${r.claim}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${r.reason}</div><a href="${r.url}" target="_blank" rel="noopener">${r.url}</a></div></div>`).join('');
+}
+function renderTrace(){
+  const per={};TR.forEach(e=>{per[e.role]=per[e.role]||{t:0,s:0,n:0};per[e.role].t+=e.tok;per[e.role].s+=+e.sec;per[e.role].n++});
+  const tot=TR.reduce((a,e)=>[a[0]+e.tok,a[1]+ +e.sec],[0,0]);
+  $('#d-models').innerHTML=`<table><thead><tr><th>Role</th><th>Model</th><th>Calls</th><th>Tokens</th><th>Seconds</th></tr></thead><tbody>${Object.entries(per).map(([r,v])=>`<tr><td>${r}</td><td class="small">${MODELS[r]||'deterministic'}</td><td>${v.n}</td><td>${v.t.toLocaleString()}</td><td>${v.s.toFixed(1)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td></td><td><b>${TR.length}</b></td><td><b>${tot[0].toLocaleString()}</b></td><td><b>${tot[1].toFixed(1)}</b></td></tr></tbody></table>`;
+  $('#d-trace').innerHTML=TR.map(ev=>`<div class="ev ${ev.cls||''}"><span class="w">${ev.type.split(':')[0]}</span><span class="role">${ev.role}</span><span>${esc(ev.text)}<br><span class="w">why: ${esc(ev.why)}</span></span><span class="meta">${ev.tok?ev.tok+' tok · ':''}${ev.sec}s</span></div>`).join('');
+}
+function renderGrade(){
+  const v=SC.sources.filter(s=>s.status==='verified').length,n=SC.sources.length;
+  const g=[['✓',`${v}/${n} citations verified on re-fetch${n>v?`, ${n-v} partial`:''}`],['✓','Every number in the summary comes from a cited source (no model-estimated magnitudes)'],['✓',`${SC.rejected.length} unsupported claim dropped and listed`],[C.shape==='gap'?'✓':'!',C.shape==='gap'?'No paid sources needed':'Footfall not measured — paid slot skipped (no key)'],['✓','Plan approved by the user before research'],['!','verify_citations.py: run against runs/<id>/evidence.jsonl (not part of the mockup)']];
+  $('#d-grade').innerHTML=g.map(r=>`<tr><td style="color:${r[0]==='✓'?'var(--ok)':'var(--warn)'};font-weight:800">${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+}
+function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
+</script>
+</body>
+</html>
