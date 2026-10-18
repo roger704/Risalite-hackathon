@@ -4,7 +4,7 @@
 
 ## Demo video
 
-▶ **[SpotWise_demo.mp4](docs/video/SpotWise_demo.mp4)** (1:57, captions) · [version without captions](docs/video/SpotWise_demo_nocaptions.mp4) · [timing of each section](docs/video/README.md)
+▶ **[Watch on YouTube](https://youtu.be/9fVmrUtZCX8)** · [SpotWise_demo.mp4](docs/video/SpotWise_demo.mp4) (1:57, captions) · [version without captions](docs/video/SpotWise_demo_nocaptions.mp4) · [timing of each section](docs/video/README.md)
 
 A run of "Where is it smart to open a coffee place in Kreuzberg?" from plan and approval through the research trace to the cited dashboard, then slides on how the deep research flow works ([deep research flow spec, PR #16](https://github.com/roger704/Risalite-hackathon/pull/16)).
 
