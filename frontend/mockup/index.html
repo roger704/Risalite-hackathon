@@ -163,7 +163,7 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .lrow:hover,.lrow.pv{background:rgba(0,122,255,.10)}
 .lrow.off{opacity:.5}
 .lrow label{cursor:pointer;font-size:13px}
-.lrow .chip{width:10px;height:10px;border-radius:3px}
+.lrow .lchip{width:10px;height:10px;border-radius:3px}
 .lrow .meta{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--mut)}
 .lrow .w{background:rgba(15,32,43,.08);border-radius:999px;padding:1px 7px;font-weight:700;color:var(--ink)}
 .lrow .hist{grid-column:3/5;width:100%;height:16px;display:block}
@@ -697,7 +697,7 @@ function hist(l,i){const b=new Array(8).fill(0);SC.cells.forEach(c=>b[Math.min(7
   return `<svg class="hist" viewBox="0 0 160 16" preserveAspectRatio="none">${b.map((n,k)=>`<rect x="${k*20+1}" y="${16-n/m*14}" width="18" height="${n/m*14}" rx="2" fill="${LCOL[i%LCOL.length]}" opacity=".45"/>`).join('')}<line class="mk" x1="0" x2="0" y1="0" y2="16" stroke="#0b1720" stroke-width="2.5" visibility="hidden"/></svg>`}
 function histMark(cell){$$('#layers .lrow').forEach(r=>{const ln=r.querySelector('.mk');if(!cell){ln.setAttribute('visibility','hidden');return}const x=cell.values[r.dataset.l]*160;ln.setAttribute('x1',x);ln.setAttribute('x2',x);ln.setAttribute('visibility','visible')})}
 function renderLayers(){
-  $('#layers').innerHTML=SC.layers.map((l,i)=>`<div class="lrow${state.on[l.id]?'':' off'}" data-l="${l.id}" title="${esc(l.why)}"><input type="checkbox" id="ly-${l.id}" ${state.on[l.id]?'checked':''}><span class="chip" style="background:${LCOL[i%LCOL.length]}"></span><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="meta"><span class="w" title="planner default weight">w ${l.w.toFixed(2)}</span><span title="${l.dir==='+'?'higher is better':'lower is better'}">${l.dir==='+'?'↑':'↓'}</span></span>${hist(l,i)}</div>`).join('');
+  $('#layers').innerHTML=SC.layers.map((l,i)=>`<div class="lrow${state.on[l.id]?'':' off'}" data-l="${l.id}" title="${esc(l.why)}"><input type="checkbox" id="ly-${l.id}" ${state.on[l.id]?'checked':''}><span class="lchip" style="background:${LCOL[i%LCOL.length]}"></span><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="meta"><span class="w" title="planner default weight">w ${l.w.toFixed(2)}</span><span title="${l.dir==='+'?'higher is better':'lower is better'}">${l.dir==='+'?'↑':'↓'}</span></span>${hist(l,i)}</div>`).join('');
   SC.layers.forEach(l=>{const row=$(`.lrow[data-l="${l.id}"]`);
     $('#ly-'+l.id).onchange=e=>{state.on[l.id]=e.target.checked;row.classList.toggle('off',!e.target.checked);renderArea()};
     row.onmouseenter=()=>setPreview(l.id);row.onmouseleave=()=>setPreview(null)});
