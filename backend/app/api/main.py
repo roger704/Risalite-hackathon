@@ -11,8 +11,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.application.mobility import station_layer
 from app.application.service import DataService
-from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
+from app.domain import ConnectorError, SnapshotManifest
 
 
 class DatasetResponse(BaseModel):
@@ -32,7 +33,7 @@ class RecordsResponse(BaseModel):
     coverage: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     attribution: list[dict[str, Any]] = Field(default_factory=list)
-    records: list[NormalizedRecord]
+    records: list[dict[str, Any]]
     count: int = Field(ge=0)
     next_cursor: str | None = None
 
@@ -154,6 +155,22 @@ def create_app(
             limit=limit,
             cursor=cursor,
         )
+
+    @application.get("/api/v1/datasets/{dataset_id}/layers/counters")
+    def counters(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        window_id: Annotated[str, Query(min_length=1)],
+        year: Annotated[int, Query(ge=1900, le=2100)],
+    ):
+        unknown = set(request.query_params) - {"snapshot_id", "window_id", "year"}
+        if unknown:
+            raise ConnectorError(
+                "INVALID_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        return station_layer(data, dataset_id, snapshot_id, window_id, year)
 
     return application
 

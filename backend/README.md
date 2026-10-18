@@ -108,6 +108,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
+| `berlin_bicycle_counts` | [Berlin bicycle-counts page](https://daten.berlin.de/datensaetze/radzahldaten-in-berlin), [hourly workbook](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx) | Reviewed edition `2026-06-25`; hourly values from 35 fixed bicycle counters are normalized to daily totals and configured time-window means. Counts measure bicycle traffic only at those counters, not pedestrian footfall, customers, or revenue, and are not projected onto unobserved streets. Attribution: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin; [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0). |
 
 All 542 population codes matched the reviewed LOR code set, and each complete age-band breakdown matched its area total. The population code directory states December 2021. Matching codes establishes identifier compatibility; it does not certify that polygon boundaries were unchanged between source editions. The manifest pins the actual LOR snapshot used by each population import.
 
@@ -238,6 +239,32 @@ The provider includes a changing `timeStamp` in every response, so a fresh provi
 `berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type` (currently `area` only), `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Once a record type has a normalizer, other gdi.berlin layers such as Kitas or schools need only configuration.
 
 Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
+
+## Berlin bicycle counters (`berlin_bicycle_counts`)
+
+Import the reviewed annual workbook with:
+
+```sh
+uv run location-data ingest berlin_bicycle_counts
+```
+
+The `mobility_observation` records preserve counter location and direction, explicit
+Europe/Berlin local intervals, value status, and interval coverage. Daily totals are
+published only when every expected hour is usable; window means require at least 80%
+usable coverage. Missing or implausible hours are never filled with zero. The
+`/api/v1/datasets/{dataset_id}/layers/counters` endpoint returns pinned counter
+points for a selected window and year. These are permanent point counters, not a
+citywide cycling estimate, pedestrian-footfall measure, customer count, or revenue
+proxy. No LOR join is made; `area_code` remains null.
+
+The source labels timestamps in `Europe/Berlin`; the nonexistent spring DST hour is
+excluded, while the repeated autumn hour is flagged because the source's handling is
+undocumented. Two other theme-7 markings occur outside the spring gap: a blank row
+at `2020-10-26 04:00` and the repeated hour at `2021-10-31 02:00`. Their values are
+discarded and counted as missing, with an `unlegended_source_marking` quality flag.
+Directional counters report only their stated direction. The source publishes
+annual workbook editions and notes that construction, detours, network changes,
+replacement transport, and wrong-way cycling can affect counts.
 
 ## Development checks
 

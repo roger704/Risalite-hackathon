@@ -579,3 +579,106 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class MobilityObservation(Record):
+    """Counted traffic at one fixed counter for an explicit local interval.
+
+    A count measures the stated mode at that location only; it is not footfall,
+    customers or revenue and must not be projected onto other streets.
+    """
+
+    geometry: dict
+    location_id: str
+    location_name: str
+    mode: str
+    metric_code: str
+    unit: str
+    aggregation: str
+    interval_start: str
+    interval_end: str
+    timezone: str
+    measurement_status: str
+    value: int | float | None = None
+    value_status: ValueStatus = ValueStatus.MISSING
+    direction: str | None = None
+    window_id: str | None = None
+    expected_intervals: int = 0
+    observed_intervals: int = 0
+    reconstructed_intervals: int = 0
+    implausible_intervals: int = 0
+    missing_intervals: int = 0
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="mobility_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "location_id",
+            "location_name",
+            "mode",
+            "metric_code",
+            "unit",
+            "aggregation",
+            "interval_start",
+            "interval_end",
+            "timezone",
+            "measurement_status",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("direction", "window_id", "area_code"):
+            _optional_text(name, getattr(self, name))
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        null_status = status in {
+            ValueStatus.MISSING,
+            ValueStatus.NOT_APPLICABLE,
+            ValueStatus.SUPPRESSED,
+        }
+        if self.value is None:
+            if not null_status:
+                raise ValidationError("A null mobility value requires a null value_status")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+            or null_status
+        ):
+            raise ValidationError("Mobility values must be nonnegative finite numbers")
+        for name in (
+            "expected_intervals",
+            "observed_intervals",
+            "reconstructed_intervals",
+            "implausible_intervals",
+            "missing_intervals",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{name} must be a nonnegative integer")
+        if (
+            self.observed_intervals
+            + self.reconstructed_intervals
+            + self.implausible_intervals
+            + self.missing_intervals
+            != self.expected_intervals
+        ):
+            raise ValidationError("Mobility interval counts must sum to expected_intervals")
+        if self.aggregation not in {"day", "window"}:
+            raise ValidationError("aggregation must be day or window")
+        if self.aggregation == "window" and self.window_id is None:
+            raise ValidationError("Window observations require a window_id")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["mobility_observation"] = MobilityObservation
