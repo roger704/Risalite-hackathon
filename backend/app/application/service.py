@@ -30,7 +30,7 @@ from app.domain import (
     record_to_dict,
 )
 from app.infrastructure.catalog import Catalog
-from app.infrastructure.storage import read_records, write_records
+from app.infrastructure.storage import read_record_page, read_records, write_records
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -308,12 +308,15 @@ class DataService:
         return path
 
     def _load_records(self, manifest):
+        return read_records(self._snapshot_path(manifest))
+
+    def _snapshot_path(self, manifest) -> Path:
         if len(manifest.normalized_assets) != 1:
             raise ConnectorError("SOURCE_UNAVAILABLE", "Snapshot storage is incomplete")
         path = self._asset_path(manifest.normalized_assets[0])
         if not path.is_file():
             raise ConnectorError("SOURCE_UNAVAILABLE", "Published snapshot asset is missing")
-        return read_records(path)
+        return path
 
     def _snapshot_available(self, manifest) -> bool:
         return (
@@ -422,22 +425,29 @@ class DataService:
                 raise ConnectorError(
                     "INVALID_CURSOR", "Invalid cursor for this snapshot and query"
                 ) from exc
-        records = [
-            record
-            for record in self._load_records(manifest)
-            if (area_code is None or getattr(record, "area_code", None) == area_code)
-            and (metric_code is None or getattr(record, "metric_code", None) == metric_code)
-        ]
-        records.sort(key=lambda record: record.record_id)
-        if offset > len(records):
+        if metric_code is None:
+            total, page = read_record_page(
+                self._snapshot_path(manifest), area_code=area_code, offset=offset, limit=limit
+            )
+        else:
+            records = sorted(
+                (
+                    record
+                    for record in self._load_records(manifest)
+                    if (area_code is None or getattr(record, "area_code", None) == area_code)
+                    and getattr(record, "metric_code", None) == metric_code
+                ),
+                key=lambda record: record.record_id,
+            )
+            total, page = len(records), records[offset : offset + limit]
+        if offset > total:
             raise ConnectorError("INVALID_CURSOR", "Cursor is beyond the matching records")
-        page = records[offset : offset + limit]
         next_offset = offset + len(page)
         next_cursor = (
             base64.urlsafe_b64encode(
                 json.dumps({"query": query_key, "offset": next_offset}).encode()
             ).decode()
-            if next_offset < len(records)
+            if next_offset < total
             else None
         )
         return {
