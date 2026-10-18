@@ -233,6 +233,8 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
+    if options["record_type"] == "residential_location_class":
+        return options
     if options["record_type"] not in {"area", "facility", "road_traffic_segment"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
     if options["record_type"] == "facility":
@@ -270,6 +272,10 @@ class BerlinWFSConnector(FileConnector):
     adapter_version = "1.2.0"
 
     async def fetch(self, request: FetchRequest) -> RawBundle:
+        if request.config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import fetch_development_plans
+
+            return await fetch_development_plans(self, request)
         config = request.config
         if not config.enabled or config.access_validation == "blocked":
             raise ConfigError("Dataset is disabled or blocked")
@@ -378,6 +384,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def normalize(self, raw: RawBundle, config: DatasetConfig) -> NormalizedBatch:
+        if config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import normalize_development_plans
+
+            return normalize_development_plans(raw, config)
         options = _options(config)
         if not raw.assets:
             raise SchemaError("WFS requires at least one GeoJSON asset")
@@ -520,6 +530,10 @@ class BerlinWFSConnector(FileConnector):
             from app.connectors.berlin_wfs_facility import validate_facilities
 
             return validate_facilities(batch)
+        if batch.records and batch.records[0].record_type == "development_plan":
+            from app.connectors.berlin_wfs_plans import validate_development_plans
+
+            return validate_development_plans(batch)
         if batch.records and all(
             isinstance(record, RoadTrafficSegment) for record in batch.records
         ):
@@ -563,6 +577,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def check_parent(self, config: DatasetConfig, records: tuple, parent_records: tuple) -> dict:
+        if config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import check_development_plan_parent
+
+            return check_development_plan_parent(records, parent_records)
         options = _options(config)
         if options["record_type"] == "facility":
             from app.connectors.berlin_wfs_facility import check_facility_parent
