@@ -25,7 +25,10 @@ from langgraph.errors import GraphRecursionError
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 DEFAULT_MODEL = "MiniMaxAI/MiniMax-M3"
 SOURCES_HEADING = re.compile(
-    r"^\s*(#+\s*|\*\*)?(sources|references)\b", re.IGNORECASE | re.MULTILINE
+    r"^[ \t]*(?:#+[ \t]*(?:sources|references)\b[^\n]*"
+    r"|\*\*(?:sources|references)[^*\n]*\*\*:?[ \t]*"
+    r"|(?:sources|references):?[ \t]*)$",
+    re.IGNORECASE | re.MULTILINE,
 )
 THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -150,8 +153,8 @@ def redact(text: str) -> str:
 
 def cited_urls(report: str, urls: set[str]) -> tuple[set[str], set[str]]:
     """Return (urls cited anywhere, urls cited as inline markdown links before the Sources list)."""
-    heading = SOURCES_HEADING.search(report)
-    body = report[: heading.start()] if heading else report
+    headings = list(SOURCES_HEADING.finditer(report))
+    body = report[: headings[-1].start()] if headings else report
     anywhere = {u for u in urls if u in report or u.rstrip("/") in report}
     inline = {u for u in urls if f"]({u}" in body or f"]({u.rstrip('/')}" in body}
     return anywhere, inline
