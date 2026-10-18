@@ -436,3 +436,63 @@ Findings from a second review of deepagents 0.7.28, langchain-tavily 0.2.18, u14
 | Missing connector snapshot or layer | `missing_layers`, renormalized weights, run continues |
 | Prompt injection | `<untrusted_source>` wrapping, no fs/shell tools (O2) |
 | Live run too slow for demo | cache, pre-computed fixture run, wave 2 behind a flag |
+
+### 13.6 Final scoring — open points (for team discussion)
+
+How it works today (S2 `scoring.py` + §5.4–§5.5): per-area normalization (min-max, percentile if skew > 1 and ≥ 5 cells) → weighted mean (competition negative) → rescaled to 0–1 = `score_present`; `score_future = min(1, score_present + Σ accepted future bonuses)`; risks/unknowns do not change scores; a verified `high` risk sets `demoted_by` (rank rule only); recommendation = top-3 by `rank()`; writer explains, never scores.
+
+**O9 — Confidence per cell**
+- A: none (today). B: deterministic level `high|medium|low` from missing layers, OSM↔IHK deviation, number of accepted findings, open unknowns; shown next to the score. C: B plus a numeric uncertainty band.
+- *Recommendation: B.*
+
+**O10 — Absolute statement / go–no-go**
+- Scores are relative: the best cell is always 1.00, even in a weak area.
+- A: relative only, stated explicitly in the report. B: additionally report Berlin-wide percentiles of the raw layer values (e.g. "density p92 Berlin-wide"). C: hard thresholds → go/no-go.
+- *Recommendation: B* (C needs calibration we don't have).
+
+**O11 — Effect of risk severity**
+- A: only `high` demotes (today). B: `high` demotes, `medium` lowers confidence (O9). C: severity penalties on the score.
+- *Recommendation: B* (keeps scores purely data-driven).
+
+**O12 — Future bonus**
+- Flat +0.10 regardless of size, date and distance; Ortsteil-level findings apply to all PLR of the Ortsteil; capped at 1.0, so it cannot affect a cell that is already #1 (see 13.7, example 2).
+- A: as today. B: graded bonus (size class × completion within 3 years), PLR-localized findings only, applied to the raw score before rescaling so the cap does not swallow it. C: no score bonus, future only as a separate "pipeline" indicator.
+- *Recommendation: B.*
+
+### 13.7 Worked examples (what the flow outputs today)
+
+Legend: **[real]** computed from real connector data (S2 fixture `runs/fixtures/friedrichshain-kreuzberg-coffee`, `scoring.py`) or the real Kimi-K3 bake-off run; **[illustrated]** derived by hand from this spec — not implemented.
+
+**Example 1 — "Where is it smart to open a café in Friedrichshain-Kreuzberg?"** (Bezirk, 36 PLR) **[real]**
+
+| Rank | PLR | Score | Residents/km² | 18–45 | Cafés OSM | Cafés IHK | Departures 07–10 |
+|---|---|---|---|---|---|---|---|
+| 1 | Wismarplatz | 1.00 | 31,512 | 56 % | 4 | 1 | 0 |
+| 2 | Richard-Sorge-Viertel | 0.77 | 20,825 | 49 % | 3 | 0 | 0 |
+| 3 | Hausburgviertel | 0.77 | 29,914 | 57 % | 6 | 4 | 0 |
+| 4 | Traveplatz | 0.75 | 26,012 | 60 % | 7 | 2 | 0 |
+| 5 | Prinzenstraße | 0.72 | 21,298 | 43 % | 3 | 0 | 0 |
+| 35 | Oranienplatz | 0.02 | 15,844 | 40 % | 34 | 7 | 0 |
+| 36 | Chamissokiez | 0.00 | 14,775 | 43 % | 32 | 14 | 0 |
+
+Interpretation: dense, young residential PLR with few cafés win; established café clusters lose on competition. 1.00 means "best within this area", not "good location". **Transit is 0 in all 36 PLR**, so the 0.25 weight has no effect (cause not investigated — possibly service date vs feed validity or stop matching; needs the data team). Dropping the IHK layer (O5 variant, OSM 0.25) keeps #1, moves Hausburgviertel to #2 and replaces Prinzenstraße with Forckenbeckplatz in the top 5 **[real]**. IHK = 0 next to 3 OSM cafés pushes cells up; per §5.4 this should become an `unknown`.
+
+**Example 2 — "Where is it smart to open a café in Kreuzberg?"** (Ortsteil, 19 PLR; re-normalized over these cells only) **[real]**
+
+| Rank | PLR | Score v0 | Residents/km² | 18–45 | OSM | IHK |
+|---|---|---|---|---|---|---|
+| 1 | Prinzenstraße | 1.00 | 21,298 | 43 % | 3 | 0 |
+| 2 | Reichenberger Straße West | 0.76 | 22,382 | 50 % | 17 | 7 |
+| 3 | Lausitzer Platz | 0.70 | 23,092 | 40 % | 13 | 4 |
+| 4 | Wrangelkiez | 0.68 | 19,507 | 50 % | 23 | 6 |
+| 5 | Graefekiez Süd | 0.67 | 20,980 | 40 % | 11 | 2 |
+
+Web only (Kimi-K3 bake-off, no data stage) **[real]**: #1 Moritzplatz/Wassertorplatz/Lindenstraße corridor (supply gap in the district centre concept, Prinzessinnenstraße 29 with 114 apartments Q3 2027, Markgrafen Kontor mid-2028, Dragonerareal 452 flats 2027–2029, lowest rents ~16 €/m²); #2 Kottbusser Tor; #3 Hermannplatz; Bergmann-/Wrangelkiez saturated and expensive (documented 2023 rent-driven closure).
+
+Merge per spec **[illustrated]**: wave 2 researches the top 3 with their profiles; a verified, PLR-localized "Prinzessinnenstraße 29" finding adds +0.10 to Prinzenstraße, which changes nothing because it is already at the 1.0 cap (O12); the Kottbusser Tor opportunity vs 34 OSM cafés at Oranienplatz becomes an `unknown`, not a score change; a verified `high` skeptic risk on Prinzenstraße would rank it behind Reichenberger Straße West while its score stays 1.00. Data and web independently point to the same area — the strongest statement the flow can make, provided localization confirms the projects lie in that PLR.
+
+**Example 3 — "Where should I open a café in Neukölln?"** **[illustrated]**: `search_areas` returns Bezirk and Ortsteil Neukölln → `needs_clarification` / `area_candidates`; nothing is computed before the user picks one.
+
+**Example 4 — "Is Oranienstraße 25 a good place for a café?"** (T1): T1 is not specified in detail (§6, `candidates.json`). The surrounding PLR are at the bottom of the T2 ranking (Oranienplatz 0.02, 34 OSM cafés), but T1 asks an absolute question the relative score cannot answer (O10).
+
+**Example 5 — "Where are Kita places missing in Friedrichshain-Kreuzberg?"** (T3): `main` has no Kita connector and no T3 scoring config; only the 0–6 age band is available. The flow cannot produce a reliable ranking today and the report should say so.
