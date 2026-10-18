@@ -1499,3 +1499,4 @@ class PopulationBlock(Record):
 
 RECORD_TYPES["population_block"] = PopulationBlock
 NormalizedRecord = NormalizedRecord | PopulationBlock
+NormalizedRecord = NormalizedRecord | Address | Building

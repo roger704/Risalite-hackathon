@@ -223,6 +223,28 @@ def address_to_buildings(
     }
 
 
+def address_to_buildings_for_record(index: BuildingIndex, address: object) -> dict:
+    """Adapt address-like records with street_name, house_number, optional suffix/code, and WGS84 point geometry."""
+    house_number = getattr(address, "house_number", None)
+    if type(house_number) is not int or house_number < 0:
+        raise ValueError("address.house_number must be a nonnegative integer")
+    try:
+        point = shape(getattr(address, "geometry", None))
+    except Exception as exc:
+        raise ValueError("address.geometry must be a WGS84 Point") from exc
+    if point.geom_type != "Point" or point.is_empty:
+        raise ValueError("address.geometry must be a WGS84 Point")
+    return address_to_buildings(
+        index,
+        street_name=getattr(address, "street_name", None),
+        house_number=str(house_number),
+        house_number_suffix=getattr(address, "house_number_suffix", None),
+        street_code=getattr(address, "street_code", None),
+        lon=point.x,
+        lat=point.y,
+    )
+
+
 def building_to_parcels(
     building,
     parcels,

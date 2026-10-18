@@ -1,11 +1,12 @@
 """Synthetic-only spatial association tests for ALKIS buildings and future parcels."""
 
-from shapely.geometry import box, mapping
+from shapely.geometry import Point, box, mapping
 
-from app.domain import Building
+from app.domain import Address, Building
 from app.geo.buildings import (
     BuildingIndex,
     address_to_buildings,
+    address_to_buildings_for_record,
     building_to_parcels,
     buildings_at_point,
 )
@@ -32,6 +33,21 @@ def parcel(record_id, bounds):
         (),
         {"record_id": record_id, "geometry": mapping(box(*bounds))},
     )()
+
+
+def address(record_id, point, street_name, house_number, suffix=None, street_code=None):
+    return Address(
+        source_id="berlin_addresses",
+        snapshot_id="synthetic-addresses",
+        source_record_id=record_id,
+        record_id=f"address:{record_id}",
+        geometry=mapping(Point(*point)),
+        street_name=street_name,
+        address_type="house_number",
+        street_code=street_code,
+        house_number=house_number,
+        house_number_suffix=suffix,
+    )
 
 
 def test_point_query_returns_all_overlapping_containers():
@@ -96,6 +112,73 @@ def test_address_multiple_buildings_is_ambiguous_and_suffix_match_wins():
     assert all(not item["base_number_only"] for item in with_suffix["matches"])
     base_only = address_to_buildings(BuildingIndex([base]), "Kreuzbergstraße", "19", "A")
     assert base_only["matches"][0]["base_number_only"] is True
+
+
+def test_real_address_record_maps_to_unique_own_address_building():
+    record = building(
+        "own-address",
+        (13.4, 52.5, 13.401, 52.501),
+        address_labels=("Kreuzbergstraße 19",),
+        address_reference_kind="house_number",
+        street_codes=("04786",),
+    )
+    address_record = address(
+        "1001",
+        (13.4005, 52.5005),
+        "Kreuzbergstraße",
+        19,
+        street_code="04786",
+    )
+
+    result = address_to_buildings_for_record(BuildingIndex([record]), address_record)
+
+    assert result["status"] == "unique"
+    assert result["matches"][0]["record_id"] == record.record_id
+    assert result["matches"][0]["match_methods"] == [
+        "address_reference",
+        "contains_address_point",
+    ]
+    assert result["matches"][0]["street_code_consistent"] is True
+
+
+def test_real_address_record_can_match_two_buildings_ambiguously():
+    first = building(
+        "first-address-match",
+        (13.4, 52.5, 13.401, 52.501),
+        address_labels=("Kreuzbergstraße 19",),
+        address_reference_kind="house_number",
+    )
+    second = building(
+        "second-address-match",
+        (13.4, 52.5, 13.401, 52.501),
+        address_labels=("Kreuzbergstraße 19",),
+        address_reference_kind="house_number",
+    )
+    address_record = address("1002", (13.4005, 52.5005), "Kreuzbergstraße", 19)
+
+    result = address_to_buildings_for_record(BuildingIndex([first, second]), address_record)
+
+    assert result["status"] == "ambiguous"
+    assert {item["record_id"] for item in result["matches"]} == {
+        first.record_id,
+        second.record_id,
+    }
+
+
+def test_real_address_suffix_matches_base_number_building_as_base_only():
+    base = building(
+        "base-number",
+        (13.4, 52.5, 13.401, 52.501),
+        address_labels=("Kreuzbergstraße 19",),
+        address_reference_kind="house_number",
+    )
+    address_record = address("1003", (13.4005, 52.5005), "Kreuzbergstraße", 19, suffix="A")
+
+    result = address_to_buildings_for_record(BuildingIndex([base]), address_record)
+
+    assert result["status"] == "unique"
+    assert result["matches"][0]["record_id"] == base.record_id
+    assert result["matches"][0]["base_number_only"] is True
 
 
 def test_pseudonumber_kind_and_street_code_consistency_are_reported():
