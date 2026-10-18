@@ -18,6 +18,7 @@ ADAPTERS: dict[str, str] = {
     "bicycle_counts": "app.connectors.bicycle_counts:BicycleCountsConnector",
     "berlin_environment": "app.connectors.berlin_environment:BerlinEnvironmentConnector",
     "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
+    "berlin_wfs_addresses": "app.connectors.berlin_addresses:BerlinAddressConnector",
     "households": "app.connectors.households:HouseholdsConnector",
 }
 
