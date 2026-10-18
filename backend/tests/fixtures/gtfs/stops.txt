@@ -1,0 +1,8 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,wheelchair_boarding
+S1,Station One,52.5,13.4,1,,
+P1a,Platform One A,52.5001,13.4001,0,S1,1
+P1b,Platform One B,52.5002,13.4002,0,S1,
+E1,Entrance One,52.5003,13.4003,2,S1,0
+N1,Node One,52.5004,13.4004,3,S1,0
+B2,Bus Stop Two,52.51,13.41,0,,0
+B3,Bus Stop Three,52.52,13.42,0,,1

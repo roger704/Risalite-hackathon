@@ -1,0 +1,42 @@
+{
+  "space": {
+    "address": "Oranienstraße, Berlin",
+    "district": "Kreuzberg",
+    "plr_id": "02000402",
+    "plr_name": "Kreuzberg Nord",
+    "size": "120 m²"
+  },
+  "operator": {"concept": "independent café"},
+  "hypotheses": [
+    {
+      "name": "Third choice",
+      "score": 7.2,
+      "rank_initial": 3,
+      "rank_final": 3,
+      "dimensions": [{"name": "Demand", "score": 7, "why": "Good footfall.", "evidence_ids": ["p1"]}],
+      "for": [{"text": "Visible corner.", "evidence_ids": ["p1"]}],
+      "against": [{"text": "High rent.", "evidence_ids": []}],
+      "unknowns": [{"text": "Lease terms.", "suggested_validation": "Ask landlord."}]
+    },
+    {
+      "name": "First choice",
+      "score": 8.8,
+      "rank_initial": 2,
+      "rank_final": 1,
+      "dimensions": [{"name": "Transit", "score": 9, "why": "Near U-Bahn.", "evidence_ids": ["p1"]}],
+      "for": [{"text": "Strong transit.", "evidence_ids": ["p1"]}],
+      "against": [{"text": "Small frontage.", "evidence_ids": []}],
+      "unknowns": [{"text": "Noise level.", "suggested_validation": "Visit at closing time."}]
+    },
+    {
+      "name": "Second choice",
+      "score": 8.1,
+      "rank_initial": 1,
+      "rank_final": 2,
+      "dimensions": [{"name": "Rent", "score": 8, "why": "Moderate rent.", "evidence_ids": []}],
+      "for": [{"text": "Flexible unit.", "evidence_ids": []}],
+      "against": [{"text": "Less footfall.", "evidence_ids": []}],
+      "unknowns": [{"text": "Opening hours.", "suggested_validation": "Check permits."}]
+    }
+  ]
+}

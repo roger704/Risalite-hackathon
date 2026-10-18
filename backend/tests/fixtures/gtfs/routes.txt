@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+R1,A,1,Metro One,1
+R2,A,2,Bus Two,3

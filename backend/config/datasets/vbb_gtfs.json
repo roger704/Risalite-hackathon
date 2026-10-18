@@ -1,0 +1,55 @@
+{
+  "dataset_id": "vbb_gtfs",
+  "provider": "Verkehrsverbund Berlin-Brandenburg GmbH (VBB)",
+  "adapter": "gtfs",
+  "landing_url": "https://unternehmen.vbb.de/digitale-services/datensaetze/",
+  "resource_url": "https://www.vbb.de/gtfs",
+  "allowed_hosts": [
+    "www.vbb.de"
+  ],
+  "license_id": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Verkehrsverbund Berlin-Brandenburg GmbH (VBB), GTFS-Fahrplandaten, CC BY 4.0",
+  "redistribution_status": "allowed_with_attribution",
+  "access_validation": "validated",
+  "boundary_edition": "not_applicable",
+  "source_edition": "20261015-20261212",
+  "reference_period": "2026-10-15/2026-12-12",
+  "max_download_bytes": 100000000,
+  "timeout_seconds": 120.0,
+  "parser_options": {
+    "max_unpacked_bytes": 800000000,
+    "valid_from": "2026-10-15",
+    "valid_to": "2026-12-12",
+    "reviewed_sha256": "1328a75246d9ce72d9a01def4a37ab9bcf36cd87e079c29a0f351daab3b7897d",
+    "timezone": "Europe/Berlin",
+    "service_date": "2026-11-10",
+    "service_windows": [
+      {
+        "start": "07:00:00",
+        "end": "10:00:00"
+      },
+      {
+        "start": "16:00:00",
+        "end": "19:00:00"
+      }
+    ],
+    "stop_location_types": [
+      0,
+      1,
+      2
+    ],
+    "foreign_key_max_orphan_ratio": 0.0,
+    "refresh_after_days": 7,
+    "limitations": [
+      "Scheduled supply is not passengers or footfall.",
+      "Straight-line proximity is not walking time.",
+      "GTFS-RT is out of scope.",
+      "wheelchair_boarding 0 means no information, not inaccessible.",
+      "StopService area_code stays null until the scoring PR's LOR spatial join.",
+      "The feed covers all of Berlin-Brandenburg, not just Berlin.",
+      "VBB groups only some platforms under a parent station; nearby tram/bus stops of a hub (e.g. Alexanderplatz) are separate StopService keys, so hub-level supply needs distance-based aggregation in the scoring layer.",
+      "Counting rule: active service-day departures are counted once per station, trip, and frequency run in each half-open window."
+    ]
+  }
+}
