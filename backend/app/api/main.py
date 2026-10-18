@@ -205,9 +205,7 @@ def create_app(
         if fmt == "sources.csv":
             body = "\ufeff" + body
         disposition = "inline" if fmt == "report.html" else "attachment"
-        headers = {
-            "Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'
-        }
+        headers = {"Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'}
         return Response(content=body, media_type=media_type, headers=headers)
 
     return application
