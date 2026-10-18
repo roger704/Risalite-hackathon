@@ -41,7 +41,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def _normalize_evidence(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_evidence(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized = []
     number = 0
     for entry in entries:
@@ -84,6 +84,6 @@ def load_run(run_dir: Path) -> RunBundle:
     candidates = _read_json(candidates_path) if candidates_path.is_file() else None
     geojson_path = run_dir / "cells.geojson"
     geojson = _read_json(geojson_path) if geojson_path.is_file() else None
-    evidence = _normalize_evidence(_read_jsonl(run_dir / "evidence.jsonl"))
+    evidence = normalize_evidence(_read_jsonl(run_dir / "evidence.jsonl"))
     trace = _read_jsonl(run_dir / "trace.jsonl")
     return RunBundle(run, cells, geojson, candidates, evidence, trace)
