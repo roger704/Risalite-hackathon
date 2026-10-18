@@ -230,6 +230,7 @@ function stopLive() {
   GEN++;
   clearTimeout(timer); timer = null;
   clearTimeout(doneT); doneT = null;
+  M3.pending = null;
   if (STREAM_CTRL) { STREAM_CTRL.abort(); STREAM_CTRL = null; }
   if (EXPORT_CTRL) { EXPORT_CTRL.abort(); EXPORT_CTRL = null; }
   if (EXPORT_WINDOW && !EXPORT_WINDOW.closed) EXPORT_WINDOW.close();
@@ -546,7 +547,14 @@ function init3D() {
   const map = M3.map, t = setTimeout(() => { if (!M3.loaded) fail3D('map tiles did not load'); }, 15000);
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.on('error', () => { if (!M3.loaded) { clearTimeout(t); fail3D('map style did not load'); } });
-  map.on('load', () => { clearTimeout(t); M3.loaded = true; setup3D(); if (M3.pending) paint3D(...M3.pending); });
+  map.on('load', () => {
+    clearTimeout(t);
+    M3.loaded = true;
+    setup3D();
+    if (M3.pending && M3.pending[0] === GEN && R?.cells && !R.candidates) {
+      paint3D(M3.pending[1], M3.pending[2]);
+    }
+  });
   new ResizeObserver(() => M3.map && M3.map.resize()).observe($('#map3d'));
 }
 function setup3D() {
@@ -652,7 +660,7 @@ function setCells3D(gj) {
   fit3D(1500);
 }
 function paint3D(ranked, byId) {
-  M3.pending = [ranked, byId];
+  M3.pending = [GEN, ranked, byId];
   if (!M3.map) { init3D(); return; }
   M3.map.resize();
   if (!M3.loaded) return;
@@ -685,6 +693,7 @@ function markers3D(ranked, byId) {
   });
 }
 function clear3D() {
+  M3.pending = null;
   M3.mk.forEach(m => m.remove()); M3.mk = []; M3.byId = null;
   if (!M3.loaded) return;
   M3.map.setPaintProperty('cells-fill', 'fill-color', NEUT3D);
@@ -693,6 +702,7 @@ function clear3D() {
 
 /* ---------- point (T1) ---------- */
 function renderPoint() {
+  M3.pending = null;
   const P = R.candidates, ok = new Set(APPROVAL?.hypothesis_ids || P.hypotheses.map(h => h.id));
   const H = P.hypotheses.filter(h => ok.has(h.id)).sort((a, b) => a.rank_final - b.rank_final);
   $('#d-ftitle').textContent = 'Top-3 business hypotheses';

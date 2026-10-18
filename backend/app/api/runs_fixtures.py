@@ -744,6 +744,29 @@ def export_run(
     summary = payload.get("report_md", "")
     if run["shape"] == "point":
         summary = _renumber_fixture_citations(summary, evidence)
+    if payload.get("fixture_notice"):
+        summary = (
+            f"> **Demo fixture, not a computed answer:** {payload['fixture_notice']}\n\n" + summary
+        )
+    plan = dict(run.get("plan") or {})
+    approved_subquestions = (run.get("approval") or {}).get("subquestions")
+    plan["subquestions"] = [
+        {
+            "id": subquestion["id"],
+            "text": subquestion["text"],
+            "approved": approved_subquestions is None or subquestion["id"] in approved_subquestions,
+        }
+        for subquestion in plan.get("sub_questions", [])
+    ]
+    trace = payload.get("trace") or _events(run)
+    trace = [
+        {
+            **event,
+            "role": event.get("role") or event.get("agent"),
+            "tokens": (event.get("tokens_in") or 0) + (event.get("tokens_out") or 0),
+        }
+        for event in trace
+    ]
     bundle = RunBundle(
         run={
             "run_id": run["run_id"],
@@ -751,7 +774,7 @@ def export_run(
             "role": run.get("role"),
             "shape": run["shape"],
             "created_at": run.get("created_at_utc") or datetime.now(UTC).isoformat(),
-            "plan": run.get("plan") or {},
+            "plan": plan,
             "summary": summary,
             "models": {
                 role: value.get("model")
@@ -763,7 +786,7 @@ def export_run(
         geojson=payload.get("cells_geojson"),
         candidates=payload.get("candidates"),
         evidence=evidence,
-        trace=payload.get("trace") or _events(run),
+        trace=trace,
     )
     mix = Mix(layers_on=layers, mode=mode)
     media_type, renderer = EXPORT_FORMATS[fmt]

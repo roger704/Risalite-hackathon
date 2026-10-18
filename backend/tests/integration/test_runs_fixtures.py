@@ -1,3 +1,4 @@
+import copy
 import json
 import re
 
@@ -419,6 +420,62 @@ def test_fixture_exports_require_auth_and_unknown_formats_are_not_found(client):
     assert missing.status_code == wrong.status_code == unknown_run.status_code == 404
     assert unknown_format.status_code == 404
     assert unknown_format.json()["error"]["code"] == "UNKNOWN_FORMAT"
+
+
+@pytest.mark.parametrize(
+    ("question", "shape"),
+    [
+        ("Where are Kitas missing in Neukölln?", "gap"),
+        ("Where should a coffee place open in Neukölln?", "location"),
+    ],
+)
+def test_fixture_notice_is_in_markdown_and_html_exports(client, question, shape):
+    run, headers = finish_run(client, question)
+    assert run["shape"] == shape
+
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers).json()
+    assert result["fixture_notice"] == FIXTURE_NOTICE
+
+    for fmt in ("report.md", "report.html"):
+        response = client.get(f"/runs/{run['run_id']}/export/{fmt}", headers=headers)
+
+        assert response.status_code == 200
+        assert FIXTURE_NOTICE in response.text
+
+
+def test_fixture_markdown_export_lists_approved_subquestions(client):
+    run, headers = finish_run(client)
+    stored_plan = copy.deepcopy(RUNS[run["run_id"]]["plan"])
+
+    response = client.get(
+        f"/runs/{run['run_id']}/export/report.md",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert all(subquestion["text"] in response.text for subquestion in stored_plan["sub_questions"])
+    assert RUNS[run["run_id"]]["plan"] == stored_plan
+
+
+def test_fixture_markdown_export_attributes_trace_roles_and_tokens(client):
+    run, headers = finish_run(client)
+    stored_trace = copy.deepcopy(RUNS[run["run_id"]]["result"]["trace"])
+
+    response = client.get(
+        f"/runs/{run['run_id']}/export/report.md",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    rows = [line for line in response.text.splitlines() if line.startswith("| Classifier |")]
+    assert rows
+    assert int(rows[0].split("|")[4].strip()) > 0
+    assert not any(
+        line.split("|")[1].strip().lower() == "unknown"
+        for line in response.text.splitlines()
+        if line.startswith("|")
+    )
+    assert RUNS[run["run_id"]]["result"]["trace"] == stored_trace
 
 
 def test_fixture_export_rejects_runs_before_replay_finishes(client, monkeypatch):
