@@ -10,7 +10,7 @@
 
 Hard rules:
 
-1. No LLM computes numbers. Scores are computed deterministically from layer values (S2 `build_cells`).
+1. No LLM computes numbers. Scores are computed deterministically from layer values (scoring v2, §5.8).
 2. No sentence in the report without a ledger id. Citations that are not in the ledger are stripped.
 3. OSM and IHK café counts are never added up; IHK is a cross-check for OSM.
 4. A future development counts only if the source dates it after today. A magnitude is attached only if the source states a number.
@@ -25,12 +25,13 @@ Hard rules:
 | E3 | Approval | **HTTP pause before the agent** (`awaiting_approval` → `POST /runs/{id}/approve`); not deepagents `interrupt_on`. Mid-run `interrupt_on` for budget extension is a stretch | confirmed (A) |
 | E4 | Skeptic | **Skeptic subagent collects counter-evidence, a structured review call judges severity** on verified risks only; fallback flag = review call only | **proposed (C), pending confirmation** |
 | E5 | Fallback | Same tools and ledger in a fixed staged pipeline (u14app-style: queries → search → extract → record → fact-check → write), switchable via `RESEARCH_MODE=agent|staged` | confirmed |
-| E6 | Ownership | S1 owns the complete research flow incl. ledger, fact-checker, writer, events, HTTP API. S2 owns connectors/scoring/`cells.json` builder, S3 owns the frontend | confirmed |
+| E6 | Ownership | S1 owns the complete research flow incl. ledger, fact-checker, writer, events, HTTP API. S1 also owns the scoring engine logic (S11, §5.8); S2 owns connectors and raw layer values (via #36), S3 owns the frontend | confirmed |
 | E7 | Contracts | Event, ledger, finding, plan, data port as in §9; frozen after review | proposed |
 | E8 | Models | Configurable per role; default routing from the bake-off in §10 | proposed |
 | D1 | Contracts | S3 contracts (`backend/app/contracts`, PR #19) are the source of truth; this spec's additions (§9.6, M1–M6) are added there | confirmed (C), 2026-10-18 |
 | D2 | Data input | Data stage reads the area-summary API (PR #36) plus ports for Kitas (#38), centres (#41), B-Pläne (#43), forecast (#48) | confirmed (C) |
-| D3 | T2 layers | Cleaned `coffee_v1`: IHK only as cross-check, transit fix, plus block density (#37) and centre proximity (#41); mockup adopts real layer names | confirmed (B) |
+| D3 | T2 layers | Cleaned `coffee_v1`: IHK only as cross-check, transit fix, plus block density (#37) and centre proximity (#41); mockup adopts real layer names; superseded in detail by `coffee_v2` (§5.8.2) | confirmed (B) |
+| S1–S11 | Scoring engine | `scoring v2` (§5.8): new engine re-using the structure of PR #14; values via #36 (S2); saturation + agglomeration instead of café counts; IHK cross-check only; percentile normalization; area **and** Berlin reference; signed graded future modifiers; rule-based confidence; tiers, stability, `rank()`; one rule for S2/S3 with golden vectors; engine logic owned by S1 | confirmed, 2026-10-18 |
 | D4 | Future modifiers | Structured first (B-Pläne, forecast), web supplements | confirmed (B) |
 | D5 | T3 | Second template `kita_gap_v1` if #38 exposes approved places, otherwise mockup preview only | confirmed (B, conditional) |
 | D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data) | confirmed (B); owner to confirm |
@@ -149,8 +150,8 @@ IHK (`56114`, `561141`) is not a scored layer; it feeds the cross-check in 5.2. 
 - **Source (D2):** values come from the area-summary API (PR #36), which returns per value `status`, `unit`, `sources`, `reference_period` and `calculation{id, version, method}` from pinned snapshots; these fields are copied into the dataset ledger entry. Template-specific ports add Kitas (#38), centres (#41), B-Pläne (#43) and the population forecast (#48).
 - **T2 layers (D3):** density (block-based, #37, aggregated to PLR), share 18–45, competition = OSM cafés (IHK only for the cross-check below), transit departures (all-zero fixture must be fixed before use), centre proximity (#41). Weights are set in the template; there is no cost layer (no land-value connector), so cost stays a web topic.
 - **Structured future modifiers (D4):** B-Pläne and forecast growth localized to a PLR become `future` modifiers before any web research, with the dataset entry as evidence (no web fact-check needed).
-- **Dependency status (2026-10-18):** the S2 scoring engine (`backend/app/scoring/{scoring,build,layers,locate}.py`, `coffee_v1`) exists only on `devin/1792330050-s2-scoring`; PR #14 was closed unmerged with 6 open review findings, and `main` has only `backend/app/scoring/__init__.py`. Landing it (with D3/D8 applied) is a prerequisite for this flow; owner to confirm.
-- Normalization and score v0 are S2's `build_cells` (min–max within area, percentile if skewed; `score = Σ w·dir·value`, re-normalized).
+- **Dependency status (2026-10-18):** the S2 scoring engine (`backend/app/scoring/{scoring,build,layers,locate}.py`, `coffee_v1`) exists only on `devin/1792330050-s2-scoring`; PR #14 was closed unmerged with 6 open review findings, and `main` has only `backend/app/scoring/__init__.py`. PR #14 is **not** landed; S1 builds scoring v2 (§5.8) instead and re-uses its structure (S1, S11).
+- Normalization and score v0 are computed by scoring v2 (§5.8). The layer table above is the earlier proposal; the adopted T2 layer set is `coffee_v2` (§5.8.2).
 - **OSM ↔ IHK cross-check** per cell: if both counts ≥ 3 and `max/min > 2`, add an unknown `"café coverage: OSM {n} vs IHK {m}"` to the cell. Threshold is a proposal for review.
 - Output: `cells.json` (v0) and the **top-3 profiles**: for each top cell the layer values, ranks within the area, and the two layers that put it on top.
 
@@ -192,11 +193,11 @@ Each researcher gets the PLR list (`id`, `name`, Ortsteil) to localize findings.
 
 Merge runs **after** fact-check (1) and only reads the **accepted set**: findings with `verification = verified`, plus `partial` findings restricted to their matching evidence ids. Unverified claims therefore never reach modifiers, risks, unknowns or scores. The same accepted set (extended by verified skeptic risks) is used for `cells.json` v1, the final `cells.json` and the writer, so no modifier appears in one and vanishes in another.
 
-- `future` findings localized to a PLR (web findings that duplicate a structured B-Plan modifier are merged into it) → modifier `{type: "future", bonus: 0.10, magnitude?}` on that cell; `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
+- `future` findings localized to a PLR (web findings that duplicate a structured B-Plan modifier are merged into it) → modifier `{type: "future", bonus, magnitude?}` on that cell (signed, graded and capped per §5.8.4); `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
 - `risk` findings → `risks[]` on the cell (severity assigned later).
 - A web finding that contradicts a layer (e.g. "café scene saturated" for a low-competition cell) → `unknowns[]` as `{text, suggested_validation}`.
 - Every finding, modifier and risk carries its `subquestion_id`; unticking a sub-question at approval removes the linked layers, modifiers and risks (M1).
-- `score_future` is recomputed by S2 `build_cells` → `cells.json` v1. Final `cells.json` is rebuilt after rescore from the accepted set.
+- `score_future` is recomputed by scoring v2 (§5.8) → `cells.json` v1. Final `cells.json` is rebuilt after rescore from the accepted set.
 
 ### 5.5 Skeptic (E4 = C, pending confirmation)
 
@@ -230,6 +231,67 @@ Runs twice: (1) on all research findings and dataset entries before merge, (2) o
 
 - One `NebiusGateway.synthesize` call. Input: verified findings (no raw page text), final cells (top-3 with values, modifiers, risks, unknowns), the plan. Output model: summary (3–6 sentences), per top-3 cell 2–4 reasons, risks, unknowns, each sentence with `claim_type` and `evidence_ids`.
 - Post-processing: drop any sentence whose ids are not in the verified set; render `report.md` with `[n]` citations mapped to ledger ids.
+
+### 5.8 Scoring engine v2 (adopted 2026-10-18, S1–S11)
+
+Replaces the PR #14 engine (closed unmerged). Kept from PR #14: deterministic layers per PLR, template JSON with weights/directions/required flags, `normalize()` (ties averaged, constant layer → 0.5), exclusion of cells with a missing required layer **before** normalization, re-weighting over present optional layers with `missing_layers[]`, one dataset ledger entry per layer, weight 0 = unticked, sort by score then id. Fixed defects (analysis 2026-10-18): GTFS stops not reprojected to EPSG:25833 (transit 0 everywhere), independent latest snapshots (LOR/population mismatch), OSM+IHK summed (Spearman 0.82 on the F-Kreuzberg fixture), raw café counts, density over total PLR area, morning-only transit, area-only rescale, cap swallowing the future bonus, no confidence, no `rank()`, `locate` normalizing over a different cell set, modifiers without evidence check.
+
+#### 5.8.1 Pipeline
+
+```
+raw layer values (S2 via #36 + ports; snapshot compatibility checked there)
+→ eligibility: residents ≥ 2,000 and all required layers present     → excluded_cells[{id, name, reason}]
+→ transform per layer (template: none | log1p | per_10k_residents | cap_p99)
+→ percentile normalization (ties averaged; n < 5 → min–max + note)
+    a) within the selected area   → values[], score_present (ranking)
+    b) against all 542 Berlin PLR → score_berlin (absolute placement; reference cached per snapshot set)
+→ weighted mean; direction "-" as 1 − p; weights re-normalized over present layers; no final rescale
+→ future modifiers (§5.8.4) → score_future = clamp01(score_present + Σ bonus)
+→ confidence (§5.8.5) → tier + rank() + stability (§5.8.6)
+```
+
+`score_berlin` bands: ≥ 0.70 "above Berlin average", 0.40–0.70 "average", < 0.40 "below average". This is a placement, not a go/no-go.
+
+#### 5.8.2 T2 layer set `coffee_v2`
+
+| Layer | Definition | Source | Dir | Weight |
+|---|---|---|---|---|
+| `residents_block_density` | residents / km² of populated block area in the PLR | #37 (fallback: population / PLR area, confidence −1) | + | 0.25 |
+| `young_adult_share` | residents 18–45 / total | population | + | 0.10 |
+| `footfall_proxy` | OSM complementary POIs (`bakery`, `restaurant`, `fast_food`) per km², `log1p` | OSM `osm_v1` | + | 0.15 |
+| `transit` | scheduled departures 07–10 + 16–19 at stations in the PLR or ≤ 400 m, `log1p` | VBB GTFS / #36 transit | + | 0.15 |
+| `centre_proximity` | distance to the nearest StEP centre, weighted by centre type | #41 | − | 0.10 |
+| `cafe_saturation` | OSM `coffee_shop` per 10,000 residents (denominator ≥ 2,000) | OSM | − | 0.25 |
+| `cafe_crosscheck` | OSM vs IHK café count; not a score layer; if both ≥ 3 and max/min > 2 → confidence −1 and an unknown | IHK | – | 0 |
+
+Required: `residents_block_density`, `cafe_saturation`. Weights are starting values, not calibrated. Rent/land value has no connector and stays a web topic (unknown, not a layer).
+
+#### 5.8.3 Templates sharing the engine
+
+- `kita_gap_v1` (T3): gap = (children 0–6 × coverage target − `permitted_places_known_sum`) / children 0–6, direction +, percentile; coverage target is a template parameter (proposal 0.9, must be sourced); > 20 % of facilities without capacity in a PLR → confidence low.
+- T1 data dimensions: same layer functions over the address catchment (walking isochrone #45, fallback 500 m), placed by percentile against the same Berlin reference and scaled to 0–10.
+
+#### 5.8.4 Future modifiers
+
+Signed per template (`future_effects`, §6). Size class from the quoted number: small ±0.03 (< 200 dwellings or equivalent), medium ±0.06, large ±0.10 (≥ 1,000); no number → ±0.03. Only completion ≤ 2031 counts (later → text only). Sum per cell capped at ±0.15. Only with a verified evidence id; structured B-Plan/forecast modifiers take precedence and absorb duplicate web findings.
+
+#### 5.8.5 Confidence
+
+Start `high`; one step down per reason (floor `low`): optional layer missing · fallback layer used · OSM/IHK cross-check deviates · residents < 3,000 · verified medium risk · `top3_share` < 0.5. Output `confidence`, `confidence_reasons[]`; the writer must state a caveat for `low`.
+
+#### 5.8.6 Tiers, rank and stability
+
+- `tier`: cells within 0.02 of the previous cell share a tier; the UI shows "tied".
+- `rank()` as §5.5 (high risk → `demoted_by`, scores unchanged); medium risk → confidence −1 only.
+- `top3_share`: share of 200 weight perturbations (±30 %, fixed seed) in which the cell is top-3.
+
+#### 5.8.7 Output additions (`cells.json`)
+
+`score_berlin`, `confidence`, `confidence_reasons[]`, `tier`, `top3_share`, `excluded_cells[].reason`, `layers[].transform`, `layers[].reference`.
+
+#### 5.8.8 Required tests
+
+WGS84 stops against EPSG:25833 polygons; incompatible snapshots rejected; OSM and IHK never summed; minimum-population exclusion; `locate`/T1 and `cells` use the same eligible set and reference; golden vectors (§9.7) incl. missing layer, tie, demotion, negative T3 bonus, cap.
 
 ## 6. T1 / T3
 
@@ -325,7 +387,7 @@ Per D1 the Pydantic models in `backend/app/contracts` (PR #19: `api.Plan`/`Resea
 
 ### 9.7 One score rule (D8)
 
-S2 (`scoring.py`) and S3 (`frontend/app/scoring.js`) implement the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → signed bonus (per template, §6) added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers incl. a negative T3 bonus, `demoted_by` → expected scores and order) is run by both test suites.
+The scoring v2 Python implementation (S1, §5.8) is authoritative; S3 (`frontend/app/scoring.js`) re-implements only the re-weighting step on the delivered percentiles, with the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → signed bonus (per template, §6) added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers incl. a negative T3 bonus, `demoted_by` → expected scores and order) is run by both test suites.
 
 ## 10. Models (bake-off, 2026-10-18)
 
@@ -477,7 +539,7 @@ Findings from a second review of deepagents 0.7.28, langchain-tavily 0.2.18, u14
 | Prompt injection | `<untrusted_source>` wrapping, no fs/shell tools (O2) |
 | Live run too slow for demo | cache, pre-computed fixture run, wave 2 behind a flag |
 
-### 13.6 Final scoring — open points (for team discussion)
+### 13.6 Final scoring — open points (resolved 2026-10-18 by scoring v2, §5.8: O9 → §5.8.5, O10 → `score_berlin`, O11 → §5.8.6, O12 → §5.8.4)
 
 How it works today (S2 `scoring.py` + §5.4–§5.5): per-area normalization (min-max, percentile if skew > 1 and ≥ 5 cells) → weighted mean (competition negative) → rescaled to 0–1 = `score_present`; `score_future = min(1, score_present + Σ accepted future bonuses)`; risks/unknowns do not change scores; a verified `high` risk sets `demoted_by` (rank rule only); recommendation = top-3 by `rank()`; writer explains, never scores.
 
