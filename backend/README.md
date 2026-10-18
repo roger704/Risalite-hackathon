@@ -106,6 +106,17 @@ The fixture files live in `frontend/fixtures/`. Rebuild them offline with
 
 The records response includes reference and retrieval dates, coverage, warnings, attribution, and pagination. Availability and freshness are separate. Freshness remains `unknown` unless an explicit refresh policy has been configured; a successful download alone does not establish current demographic conditions.
 
+### Area summary
+
+`GET /api/v1/areas/{area_code}/summary` combines the active (or explicitly pinned) `berlin_lor`, `berlin_lor_names`, `berlin_population`, `osm_pois`, `ihk_businesses`, and `vbb_gtfs` snapshots into one provenance-bearing Planungsraum summary. Only `berlin_lor` is required; other datasets degrade to explicit `missing`/`unavailable`/`incompatible` states. Schema, statuses, and a frontend example are in [CONNECTOR_BLUEPRINT.md](../CONNECTOR_BLUEPRINT.md#area-summary).
+
+```sh
+curl --fail --get http://127.0.0.1:8000/api/v1/areas/01100101/summary \
+  --data-urlencode 'category=coffee_shop' --data-urlencode 'include_geometry=false'
+```
+
+Pin snapshots with `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_id`, `osm_snapshot_id`, `ihk_snapshot_id`, `gtfs_snapshot_id`. The first request per snapshot builds an in-memory spatial index (about 1–2 s on the full real snapshots); later requests take about 0.5 s. Synthetic frontend fixtures are in `tests/fixtures/area_summary/`; regenerate them with `UPDATE_AREA_SUMMARY_FIXTURES=1 uv run pytest tests/integration/test_area_summary.py`.
+
 ## Validated sources and meaning
 
 Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic and contain no research findings.
