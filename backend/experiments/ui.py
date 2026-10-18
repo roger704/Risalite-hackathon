@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from deep_research import redact, run_research
+from deep_research import SCORE_WEIGHTS, redact, run_research
 
 INDEX_HTML = (Path(__file__).parent / "ui.html").read_bytes()
 MAX_QUESTION_CHARS = 2000
@@ -119,6 +119,8 @@ class Handler(BaseHTTPRequestHandler):
                 "report": result.report,
                 "verify": result.verify_line(),
                 "searches": result.stats.searches,
+                "hypotheses": result.hypotheses,
+                "weights": SCORE_WEIGHTS,
             }
         )
 

@@ -16,7 +16,7 @@ Copy `.env.example` to `.env` in this directory and fill in the keys. `.env` is 
 | --- | --- |
 | `NEBIUS_API_KEY` | required |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` |
-| `NEBIUS_MODEL` | `MiniMaxAI/MiniMax-M3` |
+| `NEBIUS_MODEL` | `nvidia/Nemotron-3.5-Super-VL` |
 | `TAVILY_API_KEY` | required |
 
 ## Run locally

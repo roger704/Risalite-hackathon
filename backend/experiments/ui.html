@@ -19,6 +19,14 @@
   #status.ok { color: #16a34a; } #status.fail { color: #dc2626; }
   details { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .8rem; }
   #log { font: 12.5px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 260px; overflow: auto; margin: .5rem 0 0; }
+  #hypotheses { display: grid; gap: .75rem; margin-top: 1.25rem; }
+  .card { border: 1px solid var(--border); border-radius: 10px; padding: .8rem 1rem; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  .card h3 { margin: 0; font-size: 1.05rem; }
+  .score { font-size: 1.5rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .score small { font-size: .8rem; color: var(--muted); font-weight: 400; }
+  .where, .criteria, .note { color: var(--muted); font-size: .9rem; margin: .2rem 0; }
+  .card p { margin: .4rem 0; }
   #report { margin-top: 1.25rem; }
   #report a { color: var(--accent); word-break: break-word; }
   #report h1, #report h2, #report h3 { margin: 1.2em 0 .4em; line-height: 1.25; }
@@ -30,11 +38,12 @@
   <p class="sub">DeepAgents &middot; Nebius Token Factory &middot; Tavily web search</p>
   <form id="form">
     <input id="question" required maxlength="2000" autocomplete="off"
-           value="Research specialty coffee competition in Neukölln, Berlin">
+           value="I have a vacant 60 m² shop on Weserstraße in Neukölln. What business fits there? I'm a trained barista with an 80k EUR budget.">
     <button id="run" type="submit">Research</button>
   </form>
   <div id="status"></div>
   <details id="progress" hidden open><summary>Progress</summary><pre id="log"></pre></details>
+  <section id="hypotheses"></section>
   <article id="report"></article>
 </main>
 <script>
@@ -113,6 +122,25 @@ function renderMarkdown(md) {
   return out.join("\n");
 }
 
+const LABELS = { demand: "Demand", competition_gap: "Competition gap", location_fit: "Location fit",
+                 operator_fit: "Operator fit", cost_risk: "Cost/risk" };
+
+function renderHypotheses(items, weights) {
+  if (!items || !items.length) return "";
+  const legend = Object.entries(weights || {})
+    .map(([k, w]) => `${LABELS[k] || k} ${Math.round(w * 100)}%`).join(" · ");
+  const cards = items.map((h, i) => {
+    const criteria = Object.entries(h.scores)
+      .map(([k, v]) => `${LABELS[k] || k} ${v}`).join(" · ");
+    return `<div class="card"><div class="card-head"><h3>${i + 1}. ${escapeHtml(h.title)}</h3>
+      <span class="score">${h.total}<small>/100</small></span></div>
+      ${h.location ? `<div class="where">${escapeHtml(h.location)}</div>` : ""}
+      <p>${escapeHtml(h.summary)}</p><div class="criteria">${criteria}</div></div>`;
+  }).join("");
+  return `<h2>Top business hypotheses</h2>${cards}
+    <div class="note">Score = weighted 0–10 ratings × 10 (${legend}). Decision support, not a probability of success.</div>`;
+}
+
 function setStatus(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
 
 $("form").addEventListener("submit", async (event) => {
@@ -122,6 +150,7 @@ $("form").addEventListener("submit", async (event) => {
   $("run").disabled = true;
   $("log").textContent = "";
   $("report").innerHTML = "";
+  $("hypotheses").innerHTML = "";
   $("progress").hidden = false;
   $("progress").open = true;
   setStatus("Researching… this usually takes 20–90 seconds.");
@@ -157,6 +186,7 @@ $("form").addEventListener("submit", async (event) => {
     } else {
       setStatus(result.ok ? "Verified: Nebius inference, Tavily searches and inline citations"
                           : "Verification failed: report lacks inline Tavily citations", result.ok ? "ok" : "fail");
+      $("hypotheses").innerHTML = renderHypotheses(result.hypotheses, result.weights);
       $("report").innerHTML = renderMarkdown(result.report);
       $("progress").open = false;
     }
