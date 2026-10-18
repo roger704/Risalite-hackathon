@@ -16,6 +16,7 @@
     "license_id": "ODbL-1.0",
     "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
     "attribution": "© OpenStreetMap contributors, ODbL 1.0, https://www.openstreetmap.org/copyright; Berlin extract by Geofabrik GmbH.",
+    "manifest_path": null,
     "coverage_bbox": [13.0, 52.3, 13.9, 52.8]
   },
   "profile": {
@@ -42,10 +43,13 @@
     "max_requests": 500,
     "max_concurrency": 2,
     "timeout_seconds": 10,
-    "status_ttl_seconds": 60
+    "status_ttl_seconds": 60,
+    "budget_window_seconds": 3600,
+    "max_response_bytes": 20000000
   },
   "assumptions": [
     "Walking speed is 5.1 km/h on the OSM pedestrian network from extract 2026-10-17.",
+    "Input coordinates are normalized to six decimal places before routing and cache lookup.",
     "Waiting at crossings and signals is not modelled; the graph was built without elevation.",
     "Ferry segments may be included and are flagged as includes_ferry.",
     "Barriers and access restrictions reflect OSM tags at the extract date; Valhalla pedestrian costing honours barrier nodes and access=no/private.",

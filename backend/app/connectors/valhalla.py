@@ -5,7 +5,9 @@ import json
 import math
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -103,10 +105,18 @@ class ValhallaWalkingClient:
     ):
         self.config = config
         self.cache = cache
-        self.budget = budget or RoutingBudget(config.limits["max_requests"])
+        self._clock = clock
+        self.budget = (
+            budget
+            if budget is not None
+            else RoutingBudget(
+                config.limits["max_requests"],
+                window_seconds=config.limits["budget_window_seconds"],
+                clock=clock if clock is not None else time.monotonic,
+            )
+        )
         self._client = client
         self._owns_client = client is None
-        self._clock = clock
         self._status_cached_at: float | None = None
         self._status_cache: GraphInfo | None = None
         self._semaphore = asyncio.Semaphore(config.limits["max_concurrency"])
@@ -135,13 +145,33 @@ class ValhallaWalkingClient:
 
     async def _request_json(self, method: str, endpoint: str, **kwargs: Any) -> Any:
         try:
-            response = await self._http_client().request(
+            async with self._http_client().stream(
                 method,
                 f"{self._base()}/{endpoint.lstrip('/')}",
                 timeout=self.config.limits["timeout_seconds"],
                 follow_redirects=False,
                 **kwargs,
-            )
+            ) as response:
+                max_bytes = self.config.limits["max_response_bytes"]
+                content_length = response.headers.get("content-length")
+                if content_length is not None:
+                    try:
+                        if int(content_length) > max_bytes:
+                            raise SourceUnavailableError(
+                                "Valhalla response exceeds max_response_bytes", retryable=False
+                            )
+                    except ValueError:
+                        pass
+                chunks = []
+                size = 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise SourceUnavailableError(
+                            "Valhalla response exceeds max_response_bytes", retryable=False
+                        )
+                    chunks.append(chunk)
+                response_content = b"".join(chunks)
         except (
             httpx.TimeoutException,
             httpx.NetworkError,
@@ -160,7 +190,7 @@ class ValhallaWalkingClient:
                 f"Valhalla returned HTTP {response.status_code}", retryable=False
             )
         try:
-            body = response.json()
+            body = json.loads(response_content)
         except (ValueError, json.JSONDecodeError) as exc:
             raise SourceUnavailableError(
                 "Valhalla returned a malformed non-JSON response", retryable=False
@@ -196,10 +226,32 @@ class ValhallaWalkingClient:
                 f"{self.config.engine_version}",
                 retryable=False,
             )
+        manifest_path = self.config.graph.get("manifest_path")
+        graph_source_verified = False
+        if manifest_path is not None:
+            try:
+                manifest = json.loads(Path(manifest_path).expanduser().read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise SourceUnavailableError(
+                    "Unable to read the configured Valhalla graph manifest", retryable=False
+                ) from exc
+            if (
+                not isinstance(manifest, dict)
+                or manifest.get("source_sha256") != self.config.graph["source_sha256"]
+                or manifest.get("source_edition") != self.config.graph["source_edition"]
+                or type(manifest.get("tileset_last_modified")) is not int
+                or manifest["tileset_last_modified"] != body["tileset_last_modified"]
+            ):
+                raise SourceUnavailableError(
+                    "Serving Valhalla graph does not match the pinned routing config",
+                    retryable=False,
+                )
+            graph_source_verified = True
         graph_info = GraphInfo(
             engine_version=version,
             tileset_last_modified=body["tileset_last_modified"],
             graph_version=self.config.graph_version(body["tileset_last_modified"]),
+            graph_source_verified=graph_source_verified,
         )
         self._status_cache = graph_info
         self._status_cached_at = now
@@ -207,8 +259,8 @@ class ValhallaWalkingClient:
 
     def _coordinate(self, value: Coordinate | str | Sequence[float]) -> Coordinate:
         if isinstance(value, str):
-            return parse_coordinate(value, self.config)
-        if isinstance(value, Coordinate):
+            coordinate = parse_coordinate(value, self.config)
+        elif isinstance(value, Coordinate):
             coordinate = value
         else:
             try:
@@ -223,7 +275,14 @@ class ValhallaWalkingClient:
                 "COORDINATE_OUT_OF_COVERAGE",
                 f"Coordinates must be lon,lat (WGS84) inside [{west}, {south}, {east}, {north}]",
             )
-        return coordinate
+        return Coordinate(round(float(coordinate.lon), 6), round(float(coordinate.lat), 6))
+
+    @staticmethod
+    def _quality_flags(graph: GraphInfo, quality_flags: Sequence[str] = ()) -> tuple[str, ...]:
+        flags = [flag for flag in quality_flags if flag != "graph_source_unverified"]
+        if not graph.graph_source_verified:
+            flags.append("graph_source_unverified")
+        return tuple(dict.fromkeys(flags))
 
     def _routing_metadata(self, graph: GraphInfo) -> dict[str, Any]:
         return {
@@ -236,6 +295,7 @@ class ValhallaWalkingClient:
             "source_url": self.config.graph["source_url"],
             "source_edition": self.config.graph["source_edition"],
             "source_sha256": self.config.graph["source_sha256"],
+            "graph_source_verified": graph.graph_source_verified,
             "graph_license_id": self.config.graph["license_id"],
             "graph_attribution": self.config.graph["attribution"],
             "engine_license_id": self.config.engine_license_id,
@@ -282,7 +342,7 @@ class ValhallaWalkingClient:
             },
             routing=self._routing_metadata(graph),
             assumptions=self.config.assumptions,
-            quality_flags=quality_flags,
+            quality_flags=self._quality_flags(graph, quality_flags),
             failure=failure,
             computed_at=_now_utc(self._clock),
         )
@@ -330,7 +390,15 @@ class ValhallaWalkingClient:
                 coordinates,
             )
             if cached is not None:
-                return self._route_from_dict(cached)
+                result = self._route_from_dict(cached)
+                return replace(
+                    result,
+                    routing={
+                        **result.routing,
+                        "graph_source_verified": graph.graph_source_verified,
+                    },
+                    quality_flags=self._quality_flags(graph, result.quality_flags),
+                )
         self.budget.consume()
         options = dict(self.config.profile["location_options"])
         locations = [
@@ -519,7 +587,7 @@ class ValhallaWalkingClient:
             contours=contours,
             routing=self._routing_metadata(graph),
             assumptions=self.config.assumptions,
-            quality_flags=(),
+            quality_flags=self._quality_flags(graph),
             failure=failure,
             computed_at=_now_utc(self._clock),
         )
@@ -561,7 +629,15 @@ class ValhallaWalkingClient:
                 minutes_key,
             )
             if cached is not None:
-                return self._area_from_dict(cached)
+                result = self._area_from_dict(cached)
+                return replace(
+                    result,
+                    routing={
+                        **result.routing,
+                        "graph_source_verified": graph.graph_source_verified,
+                    },
+                    quality_flags=self._quality_flags(graph, result.quality_flags),
+                )
         self.budget.consume()
         request = {
             "locations": [

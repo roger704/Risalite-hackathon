@@ -12,7 +12,6 @@ from app.connectors.valhalla import ValhallaWalkingClient
 from app.domain.errors import ConnectorError
 from app.domain.routing import (
     DEFAULT_ROUTING_CONFIG,
-    RoutingBudget,
     load_routing_config,
     parse_coordinate,
 )
@@ -60,20 +59,20 @@ async def _execute(args) -> dict:
     )
     config = load_routing_config(args.config or DEFAULT_ROUTING_CONFIG)
     cache = RoutingCache(default_routing_cache_path(data_dir))
-    budget = RoutingBudget(config.limits["max_requests"])
-    async with ValhallaWalkingClient(config, cache=cache, budget=budget) as client:
+    async with ValhallaWalkingClient(config, cache=cache) as client:
         if args.command == "status":
             graph = await client.status()
             return {
                 "available": True,
                 "engine_version": graph.engine_version,
                 "graph_version": graph.graph_version,
+                "graph_source_verified": graph.graph_source_verified,
                 "tileset_last_modified": client._routing_metadata(graph)["tileset_last_modified"],
                 "profile_id": config.profile["profile_id"],
                 "profile_hash": config.profile_hash,
                 "source_edition": config.graph["source_edition"],
                 "limits": dict(config.limits),
-                "budget": {"max_requests": budget.max_requests, "used": budget.used},
+                "budget": client.budget.to_dict(),
             }
         if args.command == "route":
             origin = parse_coordinate(args.origin, config)

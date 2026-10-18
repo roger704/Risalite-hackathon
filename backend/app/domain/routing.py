@@ -4,11 +4,12 @@ import hashlib
 import json
 import math
 import os
-from dataclasses import asdict, dataclass
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import urlsplit
 
 from .errors import ConfigError, ConnectorError
@@ -192,6 +193,8 @@ def _validate_config(values: Any) -> RoutingConfig:
         "max_concurrency",
         "timeout_seconds",
         "status_ttl_seconds",
+        "budget_window_seconds",
+        "max_response_bytes",
     )
     if not isinstance(limits, dict):
         raise ConfigError("Routing limits must be an object")
@@ -199,8 +202,14 @@ def _validate_config(values: Any) -> RoutingConfig:
         value = limits.get(name)
         if not _positive_number(value):
             raise ConfigError(f"Routing limit {name} must be positive")
-        if name not in {"timeout_seconds"} and type(value) is not int:
+        if name not in {"timeout_seconds", "budget_window_seconds"} and type(value) is not int:
             raise ConfigError(f"Routing limit {name} must be an integer")
+
+    manifest_path = graph.get("manifest_path")
+    if manifest_path is not None and (
+        not isinstance(manifest_path, str) or not manifest_path.strip()
+    ):
+        raise ConfigError("Routing graph manifest_path must be a non-empty path or null")
 
     for name in ("assumptions", "limitations"):
         items = values.get(name)
@@ -248,9 +257,14 @@ def load_routing_config(
         raise ConfigError(f"Unable to load routing config: {config_path}") from exc
     values = dict(values) if isinstance(values, dict) else values
     if isinstance(values, dict):
-        override = (env if env is not None else os.environ).get("VALHALLA_BASE_URL")
-        if override:
-            values["base_url"] = override
+        environment = env if env is not None else os.environ
+        base_url = environment.get("VALHALLA_BASE_URL")
+        manifest_path = environment.get("VALHALLA_GRAPH_MANIFEST")
+        if base_url:
+            values["base_url"] = base_url
+        if manifest_path and isinstance(values.get("graph"), dict):
+            values["graph"] = dict(values["graph"])
+            values["graph"]["manifest_path"] = manifest_path
     return _validate_config(values)
 
 
@@ -278,6 +292,10 @@ class Coordinate:
 
 def parse_coordinate(value: str, config: RoutingConfig | None = None) -> Coordinate:
     config = config or load_routing_config()
+    if not isinstance(value, str) or len(value) > 64:
+        raise ConnectorError(
+            "INVALID_COORDINATES", "Coordinates must be formatted as lon,lat (WGS84)"
+        )
     try:
         parts = value.split(",")
         if len(parts) != 2:
@@ -370,6 +388,7 @@ class GraphInfo:
     engine_version: str
     tileset_last_modified: int
     graph_version: str
+    graph_source_verified: bool
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -379,14 +398,31 @@ class GraphInfo:
 class RoutingBudget:
     max_requests: int
     used: int = 0
+    window_seconds: float | None = None
+    clock: Callable[[], float | datetime] = time.monotonic
+    window_start: float = field(init=False)
 
     def __post_init__(self) -> None:
         if type(self.max_requests) is not int or self.max_requests <= 0:
             raise ConfigError("max_requests must be a positive integer")
         if type(self.used) is not int or not 0 <= self.used <= self.max_requests:
             raise ConfigError("Routing budget usage must be within its limit")
+        if self.window_seconds is not None and not _positive_number(self.window_seconds):
+            raise ConfigError("window_seconds must be a positive number or null")
+        if not callable(self.clock):
+            raise ConfigError("clock must be callable")
+        self.window_start = self._clock_seconds()
+
+    def _clock_seconds(self) -> float:
+        value = self.clock()
+        return value.timestamp() if isinstance(value, datetime) else float(value)
 
     def consume(self) -> None:
+        if self.window_seconds is not None:
+            now = self._clock_seconds()
+            if now - self.window_start >= self.window_seconds:
+                self.used = 0
+                self.window_start = now
         if self.used >= self.max_requests:
             raise ConnectorError(
                 "ROUTING_BUDGET_EXCEEDED",
@@ -394,3 +430,10 @@ class RoutingBudget:
                 retryable=True,
             )
         self.used += 1
+
+    def to_dict(self) -> dict[str, int | float | None]:
+        return {
+            "max_requests": self.max_requests,
+            "used": self.used,
+            "window_seconds": self.window_seconds,
+        }

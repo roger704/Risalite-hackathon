@@ -75,8 +75,8 @@ def create_app(
     service: DataService | None = None,
     data_dir: Path | str | None = None,
     config_dir: Path | str | None = None,
-    routing_client: ValhallaWalkingClient | None = None,
     runs_dir: Path | str | None = None,
+    routing_client: ValhallaWalkingClient | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service

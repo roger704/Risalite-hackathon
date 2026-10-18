@@ -20,9 +20,10 @@ container_image="$(read_config container_image)"
 engine_version="$(read_config engine_version)"
 sha12="${source_sha256:0:12}"
 epoch="$(date +%s)"
+build_timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 staging="$work_dir/staging-$epoch-$$"
 source_file="$work_dir/.berlin-$source_edition.osm.pbf"
-target="$work_dir/graphs/$source_edition-$sha12"
+target="$work_dir/graphs/$source_edition-$sha12-$build_timestamp"
 concurrency="${MJOLNIR_CONCURRENCY:-4}"
 
 mkdir -p "$work_dir/graphs" "$staging"
@@ -43,7 +44,7 @@ if [[ "$source_file" == "$work_dir/.berlin-$source_edition.osm.pbf" ]]; then
 fi
 
 if [[ -e "$target" ]]; then
-  echo "Graph output already exists: $target" >&2
+  echo "Graph output path already exists: $target" >&2
   exit 1
 fi
 
@@ -71,9 +72,11 @@ docker run --rm --entrypoint /bin/bash \
 
 tiles_sha256="$(sha256sum "$staging/valhalla_tiles.tar" | cut -d ' ' -f 1)"
 tiles_size="$(stat -c %s "$staging/valhalla_tiles.tar")"
+tileset_last_modified="$(stat -c %Y "$staging/valhalla_tiles.tar")"
 config_sha256="$(sha256sum "$staging/valhalla.json" | cut -d ' ' -f 1)"
 python3 - "$staging/graph_manifest.json" "$source_url" "$source_sha256" "$source_edition" \
-  "$container_image" "$engine_version" "$config_sha256" "$tiles_sha256" "$tiles_size" <<'PY'
+  "$container_image" "$engine_version" "$config_sha256" "$tiles_sha256" "$tiles_size" \
+  "$tileset_last_modified" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -88,6 +91,7 @@ from datetime import datetime, timezone
     config_sha256,
     tiles_sha256,
     tiles_size,
+    tileset_last_modified,
 ) = sys.argv[1:]
 manifest = {
     "source_url": source_url,
@@ -98,6 +102,7 @@ manifest = {
     "valhalla_json_sha256": config_sha256,
     "tiles_tar_sha256": tiles_sha256,
     "tiles_tar_size_bytes": int(tiles_size),
+    "tileset_last_modified": int(tileset_last_modified),
     "built_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
 }
 with open(target, "w", encoding="utf-8") as stream:

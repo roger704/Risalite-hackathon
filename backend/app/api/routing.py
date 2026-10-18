@@ -30,7 +30,12 @@ def _unknown_parameters(request: Request, allowed: set[str]) -> None:
         )
 
 
-def _minutes(value: str) -> list[int | float]:
+def _minutes(value: str, max_contours: int) -> list[int | float]:
+    if not isinstance(value, str) or len(value) > 64 or value.count(",") + 1 > max_contours:
+        raise ConnectorError(
+            "ROUTING_LIMIT_EXCEEDED",
+            f"minutes must contain at most {max_contours} contours in 64 characters",
+        )
     try:
         parsed = []
         for part in value.split(","):
@@ -57,15 +62,13 @@ def routing_router(get_client: Callable[[], Any]) -> APIRouter:
             "available": True,
             "engine_version": graph.engine_version,
             "graph_version": graph.graph_version,
+            "graph_source_verified": graph.graph_source_verified,
             "tileset_last_modified": client._routing_metadata(graph)["tileset_last_modified"],
             "profile_id": client.config.profile["profile_id"],
             "profile_hash": client.config.profile_hash,
             "source_edition": client.config.graph["source_edition"],
             "limits": dict(client.config.limits),
-            "budget": {
-                "max_requests": client.budget.max_requests,
-                "used": client.budget.used,
-            },
+            "budget": client.budget.to_dict(),
             "attribution": _attribution(client.config),
         }
 
@@ -85,7 +88,11 @@ def routing_router(get_client: Callable[[], Any]) -> APIRouter:
         _unknown_parameters(request, {"origin", "minutes"})
         client = get_client()
         start: Coordinate = parse_coordinate(origin, client.config)
-        result = (await client.reachable_area(start, _minutes(minutes))).to_dict()
+        result = (
+            await client.reachable_area(
+                start, _minutes(minutes, client.config.limits["max_contours"])
+            )
+        ).to_dict()
         result["attribution"] = _attribution(client.config)
         result["warnings"] = list(client.config.limitations)
         return result
