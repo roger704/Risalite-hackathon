@@ -292,6 +292,59 @@ async def test_writer_renders_spotwise_sections_with_citations(tmp_path):
     assert "- Unsourced change." in report  # forward-looking, like unknowns: no citation needed
 
 
+async def test_writer_gets_point_hypotheses_and_operator_profile(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.add_web_evidence(web_evidence("https://www.berlin.de/a", snippet=PASSAGE))
+    good = ledger.entries()[0]["evidence_id"]
+    seen: list[str] = []
+
+    def script(messages, _n):
+        seen.append(messages[-1].content)
+        return json.dumps(
+            {
+                "recommendation": [{"text": "Open the bakery.", "evidence_ids": [good]}],
+                "cells": [
+                    {
+                        "cell_id": "bakery",
+                        "reasons": [{"text": "Rents fit the budget.", "evidence_ids": [good]}],
+                    }
+                ],
+            }
+        )
+
+    candidates = {
+        "operator": {"budget_eur": 20000},
+        "hypotheses": [
+            {"id": "bakery", "name": "Bakery", "score": 7.4, "rank_final": 1},
+            {"id": "cafe", "name": "Café", "score": 6.1, "rank_final": 2},
+        ],
+    }
+    finding = Finding(
+        finding_id="f_1",
+        claim="c",
+        quote="q",
+        evidence_ids=[good],
+        claim_type="fact",
+        localization="area",
+        agent="a",
+        status="accepted",
+    )
+    cfg = cfg_with(ScriptedModel(script=script), None)
+    result = {"space": {"address": "Wiener Straße 12"}, "candidates": candidates}
+    report = await write_report("q", result, [finding], ledger, Recorder(), cfg)
+    sent = json.loads(seen[0])
+    assert [c["id"] for c in sent["top_cells"]] == ["bakery", "cafe"]
+    assert sent["operator_profile"] == {"budget_eur": 20000}
+    assert "## Top business hypotheses" in report
+    assert "### 1. Bakery (bakery) — score 7.40" in report
+    assert report.index("Bakery") < report.index("Café")
+
+    seen.clear()
+    area = {"cells": [CELL], "operator": "Budget €20,000; no restaurant experience"}
+    await write_report("q", area, [finding], ledger, Recorder(), cfg)
+    assert json.loads(seen[0])["operator_profile"].startswith("Budget €20,000")
+
+
 # -- record_finding --------------------------------------------------------------------------
 
 

@@ -128,8 +128,9 @@ computed deterministically from Berlin data and fact-checked web findings; do no
 re-score. You get verified findings (claim, quote, evidence ids) and the deterministic result
 (top cells or hypotheses with scores, risks and unknowns). Write in English:
 - summary: 3 to 6 sentences answering the question;
-- recommendation: 1 to 3 sentences stating what is recommended (the first-ranked item) and why
-  it fits, including how any operator details given in the question influenced it;
+- recommendation: 1 to 3 sentences stating what is recommended (the first-ranked item in
+  top_cells) and why it fits, including how the operator_profile or operator details in the
+  question influenced it;
 - for each top cell or hypothesis: 2 to 4 reasons (supporting evidence) and its risks
   (counter-evidence);
 - what_could_change: always 1 to 3 sentences on findings or checks that would change the

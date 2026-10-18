@@ -45,6 +45,9 @@ def top_items(result: dict, limit: int = 3) -> list[dict]:
     cells = result.get("cells")
     if isinstance(cells, dict):
         cells = cells.get("cells")
+    candidates = result.get("candidates")
+    if not isinstance(cells, list) and isinstance(candidates, dict):
+        cells = candidates.get("hypotheses")  # T1: ranked business hypotheses
     items = cells if isinstance(cells, list) else result.get("hypotheses") or []
     items = [dict(c) for c in items if isinstance(c, dict)]
     for item in items:
@@ -55,6 +58,12 @@ def top_items(result: dict, limit: int = 3) -> list[dict]:
         ranked = [by_id[str(w)] for w in wanted if str(w) in by_id]
         return ranked[:limit]
     return [c for c in items if not c.get("incomplete")][:limit]
+
+
+def operator_profile(result: dict) -> Any:
+    candidates = result.get("candidates")
+    parsed = candidates.get("operator") if isinstance(candidates, dict) else None
+    return parsed or result.get("operator") or None
 
 
 def _cited_ids(value: Any) -> set[str]:
@@ -80,7 +89,10 @@ def _sentence(sentence: Sentence, allowed: set[str], *, required: bool = True) -
 
 def _score(item: dict) -> str:
     parts = []
-    for key, label in (("score_present", "score"), ("score_future", "with future")):
+    keys = [("score_present", "score"), ("score_future", "with future")]
+    if not isinstance(item.get("score_present"), (int, float)):
+        keys.insert(0, ("score", "score"))
+    for key, label in keys:
         if isinstance(item.get(key), (int, float)):
             parts.append(f"{label} {item[key]:.2f}")
     if item.get("confidence"):
@@ -100,7 +112,8 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
     sections = {s.cell_id: s for s in report.cells}
     order = list(items) or [s.cell_id for s in report.cells]
     if order:
-        lines += ["## Top locations", ""]
+        point = isinstance(result.get("candidates"), dict)
+        lines += ["## Top business hypotheses" if point else "## Top locations", ""]
     for rank, cell_id in enumerate(order, 1):
         item = items.get(cell_id, {})
         section = sections.get(cell_id) or CellSection(cell_id=cell_id)
@@ -183,8 +196,13 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
                 "id",
                 "name",
                 "parent_name",
+                "rank_final",
+                "score",
                 "score_present",
                 "score_future",
+                "why",
+                "for",
+                "against",
                 "confidence",
                 "confidence_reasons",
                 "modifiers",
@@ -207,8 +225,12 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
         for f in findings
         if f.status != "rejected" and f.verification != "unsupported"
     ]
+    payload: dict[str, Any] = {"question": question, "top_cells": cells, "findings": facts}
+    operator = operator_profile(result)
+    if operator:
+        payload["operator_profile"] = operator
     return json.dumps(
-        {"question": question, "top_cells": cells, "findings": facts},
+        payload,
         ensure_ascii=False,
         indent=1,
         default=str,

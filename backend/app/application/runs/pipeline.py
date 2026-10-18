@@ -540,7 +540,7 @@ async def run_area(ctx: Context) -> dict[str, Any]:
     _apply_layer_approval(cells, ctx.run)
     report = await research.write_report(
         ctx.question,
-        {"area": area_payload, "cells": cells},
+        {"area": area_payload, "cells": cells, "operator": ctx.run.get("profile")},
         [Finding.model_validate(f) for f in accepted(ctx.findings)],
         ctx.ledger,
         ctx.log.emitter("writer"),
@@ -714,7 +714,7 @@ async def run_point(ctx: Context) -> dict[str, Any]:
     )
     report = await research.write_report(
         ctx.question,
-        {"space": space, "candidates": doc},
+        {"space": space, "candidates": doc, "operator": ctx.run.get("profile")},
         [Finding.model_validate(f) for f in accepted(ctx.findings)],
         ctx.ledger,
         ctx.log.emitter("writer"),
