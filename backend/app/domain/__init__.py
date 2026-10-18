@@ -11,6 +11,7 @@ from .errors import (
 )
 from .models import (
     DEVELOPMENT_PLAN_STATUSES,
+    POPULATION_BLOCK_AGE_BANDS,
     PUBLIC_REDISTRIBUTION_STATUSES,
     RECORD_TYPES,
     SCHEMA_VERSION,
@@ -28,6 +29,7 @@ from .models import (
     NormalizedBatch,
     NormalizedRecord,
     Place,
+    PopulationBlock,
     QualityReport,
     RawAsset,
     RawBundle,
@@ -57,6 +59,8 @@ __all__ = [
     "DevelopmentPlan",
     "DEVELOPMENT_PLAN_STATUSES",
     "Place",
+    "POPULATION_BLOCK_AGE_BANDS",
+    "PopulationBlock",
     "RECORD_TYPES",
     "StopService",
     "GreenSpace",
