@@ -490,7 +490,7 @@ Directional counters report only their stated direction. The source publishes
 annual workbook editions and notes that construction, detours, network changes,
 replacement transport, and wrong-way cycling can affect counts.
 
-## Berlin development plans (`berlin_planning`)
+### Berlin development plans (`berlin_planning`)
 
 The connector pages the three WFS layers independently because the provider rejects combined `TYPENAMES` requests: `a_bp_iv` (in procedure), `b_bp_fs` (in force), and `c_bp_ak` (repealed). A complete snapshot requires all three provider layers; single-file `--file` imports are not supported. Procedure statuses are normalized as follows:
 
@@ -506,7 +506,7 @@ Read-only endpoints are `GET /api/v1/planning/plans/near`, `/api/v1/planning/pla
 
 A development plan intersecting or near a location is evidence of a planning procedure only. It is not a claim about building completion, future residents, rental availability, or permitted premises use. Document links are retained only when they are valid HTTP(S) URLs; availability is `not_checked`, and documents are never fetched or extracted. Any future document extraction must be a separate dataset and snapshot referencing the plan `record_id` and source URL.
 
-## Road traffic volumes 2019 (`berlin_traffic_volumes_2019`, `berlin_wfs`)
+### Road traffic volumes 2019 (`berlin_traffic_volumes_2019`, `berlin_wfs`)
 
 This dataset emits `RoadTrafficSegment` records with WGS84 `LineString` or
 `MultiLineString` geometry. `dtv_motor_vehicles_per_day` and
