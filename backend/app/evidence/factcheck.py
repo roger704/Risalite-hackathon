@@ -236,22 +236,24 @@ class FactChecker:
         )
         if not urls:
             return
-        try:
-            page = await self.research.extract(ResearchExtract(urls=urls))
-        except Exception as exc:  # provider down, budget exhausted, ...
-            for url in urls:
-                self._cache[url] = Fetched(None, "tavily-extract", f"{type(exc).__name__}")
-            return
-        failures = {f.get("url"): f.get("reason", "failed") for f in page.failures}
-        for evidence in page.evidence:
-            if evidence.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}:
-                text = evidence.passage or evidence.snippet or ""
-                for url in (evidence.original_url, evidence.canonical_url):
-                    self._cache.setdefault(url, Fetched(text, "tavily-extract"))
-        for url in urls:
-            self._cache.setdefault(
-                url, Fetched(None, "tavily-extract", failures.get(url, "no content returned"))
-            )
+        for start in range(0, len(urls), 20):
+            batch = urls[start : start + 20]
+            try:
+                page = await self.research.extract(ResearchExtract(urls=batch))
+            except Exception as exc:  # provider down, budget exhausted, ...
+                for url in batch:
+                    self._cache[url] = Fetched(None, "tavily-extract", f"{type(exc).__name__}")
+                continue
+            failures = {f.get("url"): f.get("reason", "failed") for f in page.failures}
+            for evidence in page.evidence:
+                if evidence.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}:
+                    text = evidence.passage or evidence.snippet or ""
+                    for url in (evidence.original_url, evidence.canonical_url):
+                        self._cache.setdefault(url, Fetched(text, "tavily-extract"))
+            for url in batch:
+                self._cache.setdefault(
+                    url, Fetched(None, "tavily-extract", failures.get(url, "no content returned"))
+                )
 
     async def fetch(self, entry: dict[str, Any]) -> Fetched:
         url = entry_url(entry)

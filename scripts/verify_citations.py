@@ -41,7 +41,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     research = None
     if not args.offline and os.environ.get("TAVILY_API_KEY"):
-        research = TavilyClient(TavilyConfig.from_env(), ResearchBudget(0, 30, 0, 200_000))
+        research = TavilyClient(TavilyConfig.from_env(), ResearchBudget(0, 100, 0, 200_000))
     checker = FactChecker(
         research=research, snapshot_reader=datasvc_snapshot_reader(), offline=args.offline
     )

@@ -212,6 +212,22 @@ def _point_findings_markdown(bundle: RunBundle) -> list[str]:
     return lines
 
 
+def _live_findings_markdown(bundle: RunBundle) -> list[str]:
+    findings = bundle.run.get("findings") or []
+    if findings:
+        lines = ["### Research findings"]
+        for finding in findings:
+            claim = _text(finding.get("claim") or finding.get("statement"))
+            citations = _citation_list(
+                bundle,
+                finding.get("evidence_ids") or finding.get("cited_evidence_ids"),
+            )
+            lines.append(f"- {claim} {citations}".rstrip())
+        return lines
+    report_md = _text(bundle.run.get("report_md"))
+    return [replace_citations(report_md, bundle.evidence)] if report_md else []
+
+
 def _layers_markdown(bundle: RunBundle) -> list[str]:
     lines = [
         "| Layer | Direction | Weight | Why | Evidence |",
@@ -340,6 +356,8 @@ def render_markdown(bundle: RunBundle, mix: Mix | None = None, share_url: str | 
     )
     if bundle.candidates is not None:
         lines.extend(_point_findings_markdown(bundle))
+    elif bundle.cells is None:
+        lines.extend(_live_findings_markdown(bundle))
     else:
         lines.extend(_area_findings_markdown(bundle, mix))
     if bundle.cells is not None:

@@ -1,11 +1,13 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from app.domain.errors import ValidationError
+from app.domain.research import ExtractionStatus
 from app.evidence.citations import citable, strip_unknown_citations
 from app.evidence.factcheck import FactChecker, fact_check_run
 from app.evidence.judge import judge_run
@@ -166,6 +168,41 @@ async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
     async with checker(snapshot_reader=lambda entry: {"population": 12}) as fc:
         await fact_check_run(tmp_path, fc, recheck=True)
     assert (tmp_path / "report.md").read_text().count("## Could not verify") == 1
+
+
+async def test_prefetch_batches_more_than_thirty_web_entries():
+    entries = [web(f"ev_{index}", f"https://example.org/{index}") for index in range(45)]
+
+    class FakeResearch:
+        def __init__(self):
+            self.calls = []
+            self.fetched = []
+
+        async def extract(self, request):
+            self.calls.append(request.urls)
+            if len(request.urls) > 20:
+                raise RuntimeError("too many URLs")
+            self.fetched.extend(request.urls)
+            evidence = tuple(
+                SimpleNamespace(
+                    extraction_status=ExtractionStatus.OK,
+                    passage=f"Fetched {url}",
+                    snippet="",
+                    original_url=url,
+                    canonical_url=url,
+                )
+                for url in request.urls
+            )
+            return SimpleNamespace(evidence=evidence, failures=())
+
+    research = FakeResearch()
+    async with FactChecker(research=research) as fact_checker:
+        await fact_checker.prefetch(entries)
+        fetched = [await fact_checker.fetch(entry) for entry in entries]
+
+    assert [len(batch) for batch in research.calls] == [20, 20, 5]
+    assert research.fetched == [entry["url"] for entry in entries]
+    assert [item.text for item in fetched] == [f"Fetched {entry['url']}" for entry in entries]
 
 
 async def test_rejected_entry_renumbers_citations_and_cannot_verify(tmp_path):

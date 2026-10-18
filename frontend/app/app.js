@@ -372,6 +372,10 @@ function dash() {
     state = { on: { ...R.defaultOn }, w: { ...R.defaultW }, mode: R.cells.mode_default || 'present' };
     R.defaultRank = SpotWiseScoring.scoreCells(R.cells, R.defaultOn, R.defaultW, 'present');
     renderLayers(); renderArea();
+  } else if ((R.findings || []).length) {
+    $('#layer-card').classList.add('hidden'); $('#battle-card').classList.add('hidden');
+    $('#d-ftitle').textContent = 'Research findings'; $('#d-mix').textContent = 'Live research';
+    $('#d-find').innerHTML = `<h3>Research findings</h3>${R.findings.map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim || f.statement || '')}</b><div class="quote small">“${esc(f.quote || '')}”</div><span class="badge">${esc(f.status || 'accepted')} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || f.cited_evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('')}`;
   } else { $('#d-find').innerHTML = '<p class="mut">The run returned no cells or candidates.</p>'; }
   bindCites();
 }

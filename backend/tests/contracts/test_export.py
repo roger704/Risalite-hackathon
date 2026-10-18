@@ -137,6 +137,69 @@ def test_markdown_sections_top_three_sources_and_default_mix_label():
     assert "[e3]" not in report
 
 
+def test_live_point_markdown_renders_findings_without_cells_or_candidates():
+    bundle = RunBundle(
+        run={
+            "question": "Where should a coffee shop open?",
+            "shape": "point",
+            "summary": "",
+            "report_md": "## Answer\nA live point-run answer.",
+            "findings": [
+                {
+                    "finding_id": "f_1",
+                    "claim": "The area has a dense, young population.",
+                    "evidence_ids": ["ev_live"],
+                }
+            ],
+            "plan": {},
+        },
+        cells=None,
+        geojson=None,
+        candidates=None,
+        evidence=[
+            {
+                "n": 1,
+                "evidence_id": "ev_live",
+                "title": "Live source",
+                "url": "https://example.test/live",
+                "method": "web",
+                "status": "verified",
+                "quote": "Live source quote.",
+            }
+        ],
+        trace=[],
+    )
+
+    report = render_markdown(bundle)
+    findings = report.split("## 3. Findings", 1)[1].split("## 5. Sources", 1)[0]
+
+    assert "The area has a dense, young population. [1]" in findings
+    assert "Top 3 cells" not in findings
+
+
+def test_live_point_markdown_uses_report_when_findings_are_missing():
+    bundle = RunBundle(
+        run={
+            "question": "Where should a coffee shop open?",
+            "shape": "point",
+            "summary": "",
+            "report_md": "## Answer\nA live report without structured findings.",
+            "findings": [],
+            "plan": {},
+        },
+        cells=None,
+        geojson=None,
+        candidates=None,
+        evidence=[],
+        trace=[],
+    )
+
+    report = render_markdown(bundle)
+
+    assert "## Answer\nA live report without structured findings." in report
+    assert "Top 3 cells" not in report
+
+
 def test_markdown_table_escapes_pipes_and_newlines():
     bundle = coffee()
     assert bundle.cells is not None

@@ -277,7 +277,13 @@ def test_live_api_streams_run_and_orders_citable_evidence(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert run["mode"] == "live"
         headers = {"Authorization": f"Bearer {run['run_token']}"}
-        approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+        layer = run["plan"]["layers"][0]
+        approval_layers = [{"id": layer["id"], "enabled": False, "weight": 0.27}]
+        approved = client.post(
+            f"/runs/{run['run_id']}/approve",
+            headers=headers,
+            json={"layers": approval_layers},
+        )
         assert approved.status_code == 200
 
         pending = client.get(f"/runs/{run['run_id']}/result", headers=headers)
@@ -301,9 +307,92 @@ def test_live_api_streams_run_and_orders_citable_evidence(tmp_path, monkeypatch)
         assert result.json()["evidence"][2]["method"] == "wfs"
         assert result.json()["fixture_notice"].startswith("The heatmap layers are demo fixtures")
         assert result.json()["trace"][0]["type"] == "approved"
+        live_cells = result.json()["cells"]
+        assert live_cells is not None
+        approved_layer = next(item for item in live_cells["layers"] if item["id"] == layer["id"])
+        assert approved_layer["enabled"] is False
+        assert approved_layer["weight_default"] == 0.27
         assert (
             client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers).status_code
             == 200
         )
+
+    RUNS.clear()
+
+
+def test_live_pending_result_and_export_keep_fixture_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("RISALITE_LIVE", "1")
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-nebius-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+    RUNS.clear()
+
+    async def unused_run_live(*args, **kwargs):
+        raise AssertionError("pending runs must not start the live runner")
+
+    monkeypatch.setattr("app.research.live.run_live", unused_run_live)
+    with TestClient(create_app(runs_dir=tmp_path)) as client:
+        response = client.post(
+            "/research",
+            json={"question": "Where should a coffee shop open in Kreuzberg?", "role": "operator"},
+        )
+        run = response.json()
+        assert response.status_code == 200
+        assert run["mode"] == "live"
+        assert run["status"] in {"needs_clarification", "awaiting_approval"}
+        headers = {"Authorization": f"Bearer {run['run_token']}"}
+        assert "live_run_dir" not in RUNS[run["run_id"]]
+
+        pending = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+        assert pending.status_code == 202
+        assert pending.json() == {"status": run["status"]}
+
+        exported = client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers)
+        assert exported.status_code == 409
+        assert exported.json()["detail"] == "run not finished"
+
+    RUNS.clear()
+
+
+def test_live_point_result_omits_fixture_candidates_and_exports_findings(tmp_path, monkeypatch):
+    monkeypatch.setenv("RISALITE_LIVE", "1")
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-nebius-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+    RUNS.clear()
+
+    async def canned_run(run_dir, **kwargs):
+        _write_canned_live_run(run_dir)
+        return {"run_id": kwargs["run_id"], "status": "done"}
+
+    monkeypatch.setattr("app.research.live.run_live", canned_run)
+    with TestClient(create_app(runs_dir=tmp_path)) as client:
+        response = client.post(
+            "/research",
+            json={
+                "question": (
+                    "This storefront at Wiener Straße 12 just became available — what is the best use?"
+                ),
+                "role": "operator",
+            },
+        )
+        run = response.json()
+        assert response.status_code == 200
+        assert run["mode"] == "live"
+        assert run["shape"] == "point"
+        assert run["plan"]["area"] is None
+        headers = {"Authorization": f"Bearer {run['run_token']}"}
+        approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+        assert approved.status_code == 200
+
+        streamed = client.get(f"/runs/{run['run_id']}/events", headers=headers)
+        assert streamed.status_code == 200
+        result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+        assert result.status_code == 200
+        assert result.json()["candidates"] is None
+        assert result.json()["cells"] is None
+        assert result.json()["findings"][0]["claim"] == "A live finding."
+        exported = client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers)
+        assert exported.status_code == 200
+        assert "A live finding. [1]" in exported.text
 
     RUNS.clear()

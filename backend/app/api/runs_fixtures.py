@@ -265,13 +265,13 @@ def _response(run: dict) -> dict:
 
 def _make_room_for_run() -> bool:
     while len(RUNS) >= MAX_RUNS:
-        oldest_done = min(
-            (run_id for run_id, run in RUNS.items() if run["status"] == "done"),
+        oldest_terminal = min(
+            (run_id for run_id, run in RUNS.items() if run["status"] in {"done", "failed"}),
             key=lambda run_id: RUNS[run_id].get("created_at", 0),
             default=None,
         )
-        if oldest_done is not None:
-            RUNS.pop(oldest_done)
+        if oldest_terminal is not None:
+            RUNS.pop(oldest_terminal)
             continue
 
         now = time.monotonic()
@@ -350,7 +350,7 @@ async def _execute_live_run(run: dict, run_dir: Path) -> None:
         from app.research.live import run_live
 
         budget = ResearchBudget(6, 6, 14, 200_000)
-        verify_budget = ResearchBudget(0, 30, 0, 200_000)
+        verify_budget = ResearchBudget(0, 100, 0, 200_000)
         gateway = NebiusGateway(
             NebiusConfig.from_env(
                 model=os.environ.get("NEBIUS_MODEL", "nvidia/nemotron-3-super-120b-a12b")
@@ -454,6 +454,17 @@ def _live_trace(run: dict, run_dir: Path) -> list[dict]:
     return events
 
 
+def _apply_layer_approvals(cells: dict, approved_layers: list[dict]) -> dict:
+    for layer in cells["layers"]:
+        layer["enabled"] = True
+    for approved_layer in approved_layers:
+        for layer in cells["layers"]:
+            if layer["id"] == approved_layer["id"]:
+                layer["enabled"] = approved_layer["enabled"]
+                layer["weight_default"] = approved_layer["weight"]
+    return cells
+
+
 def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
     marker_path = run_dir / "result.json"
     if not marker_path.exists():
@@ -483,7 +494,14 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
     evidence = citable + unsupported + fixture_evidence
     evidence_ids = {entry.get("evidence_id") for entry in evidence}
     result_doc.pop("synthetic", None)
-    cells = _read_json("cells.json") if supported else None
+    cells = (
+        _apply_layer_approvals(
+            _read_json("cells.json"),
+            run.get("approval", {}).get("layers", []),
+        )
+        if supported
+        else None
+    )
     if cells is not None:
         for cell in cells.get("cells", []):
             for key in ("modifiers", "risks"):
@@ -509,6 +527,7 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
             else {},
             "cells": cells,
             "cells_geojson": _read_json("cells.geojson") if supported else None,
+            "candidates": None,
             "fixture_notice": (
                 "The heatmap layers are demo fixtures; the web research, citations and trace are live."
             ),
@@ -845,6 +864,8 @@ async def events(
 def result(run_id: str, authorization: str | None = Header(default=None)):
     run = _get_run(run_id, authorization)
     if run.get("mode") == "live":
+        if run["status"] not in {"approved", "running", "done", "failed"}:
+            return JSONResponse(status_code=202, content={"status": run["status"]})
         payload = _live_result_payload(run, Path(run["live_run_dir"]))
         if payload is None:
             return JSONResponse(status_code=202, content={"status": "running"})
@@ -877,14 +898,10 @@ def _result_payload(run: dict) -> dict:
         else None
     )
     result_doc = _read_json(f"result_{'point' if shape == 'point' else 'location'}.json")
-    cells = _read_json("cells.json")
-    for layer in cells["layers"]:
-        layer["enabled"] = True
-    for approved_layer in run.get("approval", {}).get("layers", []):
-        for layer in cells["layers"]:
-            if layer["id"] == approved_layer["id"]:
-                layer["enabled"] = approved_layer["enabled"]
-                layer["weight_default"] = approved_layer["weight"]
+    cells = _apply_layer_approvals(
+        _read_json("cells.json"),
+        run.get("approval", {}).get("layers", []),
+    )
     findings_name = "findings_point.jsonl" if shape == "point" else "findings.jsonl"
     findings_path = _fixture_dir() / findings_name
     findings = _read_jsonl(findings_name) if findings_path.exists() else []
@@ -980,6 +997,8 @@ def export_run(
     )
 
     if run.get("mode") == "live":
+        if run["status"] not in {"approved", "running", "done", "failed"}:
+            raise HTTPException(status_code=409, detail="run not finished")
         payload = _live_result_payload(run, Path(run["live_run_dir"]))
         if payload is None:
             raise HTTPException(status_code=409, detail="run not finished")
@@ -1035,6 +1054,14 @@ def export_run(
             "created_at": run.get("created_at_utc") or datetime.now(UTC).isoformat(),
             "plan": plan,
             "summary": summary,
+            **(
+                {
+                    "report_md": payload.get("report_md", ""),
+                    "findings": payload.get("findings") or [],
+                }
+                if run.get("mode") == "live"
+                else {}
+            ),
             "models": {
                 role: value.get("model")
                 for role, value in metrics.items()
