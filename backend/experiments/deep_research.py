@@ -26,7 +26,7 @@ DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 DEFAULT_MODEL = "MiniMaxAI/MiniMax-M3"
 SOURCES_HEADING = re.compile(
     r"^[ \t]*(?:#+[ \t]*(?:sources|references)\b"
-    r"|\*\*(?:sources|references)[ \t]*:?[ \t]*\*\*"
+    r"|\*\*(?:sources|references)[ \t]*(?::[ \t]*\*\*|\*\*[ \t]*(?::|$))"
     r"|(?:sources|references)[ \t]*(?::|$))",
     re.IGNORECASE | re.MULTILINE,
 )
