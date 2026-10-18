@@ -311,6 +311,14 @@ def normalize_development_plans(raw: RawBundle, config: DatasetConfig) -> Normal
     options = _options(config)
     if not raw.assets:
         raise SchemaError("WFS requires at least one GeoJSON asset")
+    if len(raw.assets) == 1 and (
+        Path(raw.assets[0].path).name == "source"
+        or Path(raw.assets[0].path).name.startswith("source.")
+    ):
+        raise SchemaError(
+            "berlin_planning requires provider download of all three bplan layers; "
+            "single-file local import is not supported"
+        )
     layers = {layer["typename"]: layer for layer in options["layers"]}
     page_data: dict[str, list[dict]] = {typename: [] for typename in layers}
     page_matched: dict[str, int] = {}

@@ -242,7 +242,7 @@ Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test
 
 ### Berlin development plans (`berlin_planning`)
 
-The connector pages the three WFS layers independently because the provider rejects combined `TYPENAMES` requests: `a_bp_iv` (in procedure), `b_bp_fs` (in force), and `c_bp_ak` (repealed). Procedure statuses are normalized as follows:
+The connector pages the three WFS layers independently because the provider rejects combined `TYPENAMES` requests: `a_bp_iv` (in procedure), `b_bp_fs` (in force), and `c_bp_ak` (repealed). A complete snapshot requires all three provider layers; single-file `--file` imports are not supported. Procedure statuses are normalized as follows:
 
 | Published status | Normalized status |
 |---|---|
@@ -252,7 +252,7 @@ The connector pages the three WFS layers independently because the provider reje
 | `Außer Kraft`, `Aufgehoben` | `repealed` |
 | Unknown source value | `unmapped` (original value retained) |
 
-Read-only endpoints are `GET /api/v1/planning/plans/near`, `/api/v1/planning/plans/in-area`, and `/api/v1/planning/plans/{plan_id}`. Geometry is WGS84 GeoJSON; area and radius measurements are projected to EPSG:25833 and distances are straight-line, not walking time.
+Read-only endpoints are `GET /api/v1/planning/plans/near`, `/api/v1/planning/plans/in-area`, and `/api/v1/planning/plans/{plan_id}`. Geometry is WGS84 GeoJSON; spatial queries use EPSG:25833. Radius membership uses straight-line distance less than or equal to the requested radius, not walking time. Intersection area and area shares are measured against a 64-segment radius disc, so a plan within the true radius can have zero disc intersection area at the polygonal disc edge.
 
 A development plan intersecting or near a location is evidence of a planning procedure only. It is not a claim about building completion, future residents, rental availability, or permitted premises use. Document links are retained only when they are valid HTTP(S) URLs; availability is `not_checked`, and documents are never fetched or extracted. Any future document extraction must be a separate dataset and snapshot referencing the plan `record_id` and source URL.
 

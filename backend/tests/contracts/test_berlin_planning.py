@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +12,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from pyproj import Transformer
-from shapely.geometry import Polygon, mapping, shape
+from shapely.geometry import Point, Polygon, mapping, shape
 from shapely.ops import transform
 
 from app.api.main import create_app
@@ -601,8 +602,32 @@ def test_spatial_index_exact_intersection_shares_radius_and_status_filters():
             index.within_radius(390050, 5820050, invalid_radius)
 
 
+def test_radius_membership_uses_true_circle_beyond_buffer_edge_midpoints():
+    x, y, radius = 390050, 5820050, 100
+    edge_angle = math.pi / 256
+    edge_distance = 99.997
+    edge_x = x + edge_distance * math.cos(edge_angle)
+    edge_y = y + edge_distance * math.sin(edge_angle)
+    edge_plan = _plan("edge", edge_x - 0.0005, edge_y - 0.0005, 0.001)
+    outside_plan = _plan("outside", x + radius + 0.495, y - 0.005, 0.01)
+    index = DevelopmentPlanIndex((edge_plan, outside_plan))
+    forward = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
+    projected_edge = transform(forward.transform, shape(edge_plan.geometry))
+    disc = Point(x, y).buffer(radius, quad_segs=64)
+
+    assert projected_edge.distance(Point(x, y)) < radius
+    assert projected_edge.intersection(disc).area == pytest.approx(0)
+    matches = {match.plan.plan_id: match for match in index.within_radius(x, y, radius)}
+    assert set(matches) == {"edge"}
+    assert matches["edge"].distance_m < radius
+    assert matches["edge"].intersection_area_m2 == pytest.approx(0)
+    assert matches["edge"].query_area_share == pytest.approx(0)
+
+
 class PlanningAPIService:
     def __init__(self):
+        config = configuration()
+        self.configs = {"berlin_planning": config}
         self.plan = _plan("0206101g/1", 390000, 5820000, 100)
         self.plan = replace(
             self.plan,
@@ -626,7 +651,7 @@ class PlanningAPIService:
         return {
             "dataset_id": dataset_id,
             "snapshot_id": snapshot_id,
-            "resource_url": "https://gdi.berlin.de/services/wfs/bplan",
+            "resource_url": self.configs["berlin_planning"].resource_url,
             "landing_url": "https://daten.berlin.de/plans",
             "retrieved_at": "2026-10-18T00:00:00Z",
             "license_id": "DL-DE-ZERO-2.0",
@@ -684,6 +709,11 @@ def test_planning_api_returns_geometry_documents_provenance_guard_and_matches():
             "straight-line metres in EPSG:25833, not walking time"
         )
         assert payload["provenance"]["license_id"] == "DL-DE-ZERO-2.0"
+        assert set(payload["provenance"]["layer_source_urls"]) == {
+            "bplan:a_bp_iv",
+            "bplan:b_bp_fs",
+            "bplan:c_bp_ak",
+        }
         assert payload["quality"]["warnings"] == ["synthetic warning"]
     item = near.json()["plans"][0]
     assert item["plan_id"] == "0206101g/1"
@@ -701,6 +731,18 @@ def test_planning_api_returns_geometry_documents_provenance_guard_and_matches():
     assert in_area.json()["plans"][0]["plan_id"] == "0206101g/1"
     assert detail.json()["plan"]["plan_id"] == "0206101g/1"
     assert detail.json()["plan"]["document_status"] == "linked"
+    assert (
+        dict(parse_qsl(urlsplit(detail.json()["plan"]["source_url"]).query))["TYPENAMES"]
+        == "bplan:b_bp_fs"
+    )
+    assert (
+        dict(
+            parse_qsl(
+                urlsplit(detail.json()["provenance"]["layer_source_urls"]["bplan:b_bp_fs"]).query
+            )
+        )["TYPENAMES"]
+        == "bplan:b_bp_fs"
+    )
 
 
 def test_planning_api_rejects_unknown_filters_and_reports_missing_area():
@@ -749,6 +791,44 @@ def test_development_plan_records_round_trip_through_geoparquet(tmp_path):
     assert isinstance(loaded[0], DevelopmentPlan)
     assert record_from_dict(record_to_dict(loaded[0])) == loaded[0]
     assert shape(loaded[0].geometry).geom_type in {"Polygon", "MultiPolygon"}
+
+
+@pytest.mark.asyncio
+async def test_local_file_import_is_rejected_without_publishing_planning_snapshot(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "berlin_planning.json").write_text(CONFIG_FILE.read_text())
+    lor_values = json.loads((BACKEND / "config/datasets/berlin_lor.json").read_text())
+    lor_values["parser_options"]["expected_rows"] = 2
+    lor_values["source_crs"] = "EPSG:4326"
+    (config_dir / "berlin_lor.json").write_text(json.dumps(lor_values))
+    service = DataService(
+        tmp_path / "data",
+        config_dir,
+        connectors={"lor": LORConnector(), "berlin_wfs": BerlinWFSConnector()},
+    )
+    parent = await service.ingest(
+        "berlin_lor",
+        local_file=BACKEND / "tests/fixtures/lor/areas.geojson",
+    )
+
+    with pytest.raises(
+        SchemaError,
+        match=(
+            "provider download of all three bplan layers; single-file local import is not supported"
+        ),
+    ):
+        await service.ingest(
+            "berlin_planning",
+            local_file=FIXTURES / "a_bp_iv.json",
+            parent_snapshot_id=parent.snapshot_id,
+        )
+
+    dataset = next(
+        item for item in service.list_datasets() if item["dataset_id"] == "berlin_planning"
+    )
+    assert dataset["latest_snapshot_id"] is None
+    assert dataset["availability"] == "unavailable"
 
 
 @pytest.mark.asyncio
@@ -832,5 +912,17 @@ async def test_failed_refresh_preserves_latest_snapshot_and_api_records(tmp_path
             "/api/v1/planning/plans/0206101g/1",
             params={"snapshot_id": first.snapshot_id},
         )
+        assert response.status_code == 200
+        records_path = service._snapshot_path(
+            service.catalog.get("berlin_planning", first.snapshot_id)
+        )
+        assert records_path.name == "records.parquet"
+        records_path.unlink()
+        unavailable = client.get(
+            "/api/v1/planning/plans/0206101g/1",
+            params={"snapshot_id": first.snapshot_id},
+        )
     assert response.status_code == 200
     assert response.json()["plan"]["plan_id"] == "0206101g/1"
+    assert unavailable.status_code == 503
+    assert unavailable.json()["error"]["code"] == "SOURCE_UNAVAILABLE"

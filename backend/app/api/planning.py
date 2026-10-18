@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from pyproj import Transformer
 
+from app.connectors.berlin_wfs_plans import _layer_resource_url
 from app.domain import ConnectorError, DevelopmentPlan, NotFoundError, record_from_dict
 from app.geo.development_plans import (
     EXCLUDED_CLAIMS,
@@ -35,9 +36,21 @@ def _plan_index(service, snapshot_id: str) -> DevelopmentPlanIndex:
     return DevelopmentPlanIndex(item for item in records if isinstance(item, DevelopmentPlan))
 
 
+def _ensure_snapshot_available(service, snapshot_id: str) -> None:
+    service.records(DATASET_ID, snapshot_id, limit=1)
+
+
 def _manifest(service, snapshot_id: str):
     manifest = service.manifest(DATASET_ID, snapshot_id)
     return manifest.model_dump(mode="json") if hasattr(manifest, "model_dump") else manifest
+
+
+def _layer_source_urls(service, manifest: dict) -> dict[str, str]:
+    layers = service.configs[DATASET_ID].parser_options["layers"]
+    return {
+        layer["typename"]: _layer_resource_url(manifest["resource_url"], layer["typename"])
+        for layer in layers
+    }
 
 
 def _warnings(manifest: dict) -> list[str]:
@@ -46,11 +59,11 @@ def _warnings(manifest: dict) -> list[str]:
     return warnings
 
 
-def _response_meta(snapshot_id: str, manifest: dict) -> dict:
+def _response_meta(snapshot_id: str, manifest: dict, layer_source_urls: dict[str, str]) -> dict:
     return {
         "snapshot_id": snapshot_id,
         "provenance": {
-            "source_url": manifest.get("resource_url"),
+            "layer_source_urls": layer_source_urls,
             "landing_url": manifest.get("landing_url"),
             "retrieved_at": manifest.get("retrieved_at"),
             "license_id": manifest.get("license_id"),
@@ -64,10 +77,11 @@ def _response_meta(snapshot_id: str, manifest: dict) -> dict:
     }
 
 
-def _plan_item(plan: DevelopmentPlan, match=None) -> dict:
+def _plan_item(plan: DevelopmentPlan, source_url: str, match=None) -> dict:
     item = {
         "plan_id": plan.plan_id,
         "record_id": plan.record_id,
+        "source_url": source_url,
         "name": plan.name,
         "status": plan.status,
         "raw_status": plan.raw_status,
@@ -126,13 +140,19 @@ def planning_router(get_service) -> APIRouter:
         status: Annotated[list[str] | None, Query()] = None,
     ):
         _unknown_query(request, {"snapshot_id", "lon", "lat", "radius_m", "status"})
+        _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
+        layer_source_urls = _layer_source_urls(data, manifest)
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
         x, y = transformer.transform(lon, lat)
-        matches = _plan_index(data, snapshot_id).within_radius(x, y, radius_m, statuses=status)
+        index = _plan_index(data, snapshot_id)
+        matches = index.within_radius(x, y, radius_m, statuses=status)
         return {
-            **_response_meta(snapshot_id, manifest),
-            "plans": [_plan_item(match.plan, match) for match in matches],
+            **_response_meta(snapshot_id, manifest, layer_source_urls),
+            "plans": [
+                _plan_item(match.plan, layer_source_urls[match.plan.source_layer], match)
+                for match in matches
+            ],
         }
 
     @router.get("/api/v1/planning/plans/in-area")
@@ -144,7 +164,9 @@ def planning_router(get_service) -> APIRouter:
         lor_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
     ):
         _unknown_query(request, {"snapshot_id", "area_code", "lor_snapshot_id"})
+        _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
+        layer_source_urls = _layer_source_urls(data, manifest)
         if lor_snapshot_id is None:
             parent_ids = manifest.get("parent_snapshot_ids", ())
             if not parent_ids:
@@ -175,10 +197,13 @@ def planning_router(get_service) -> APIRouter:
             raise NotFoundError(f"Planungsraum not found: {area_code}")
         matches = _plan_index(data, snapshot_id).intersecting_area(area)
         return {
-            **_response_meta(snapshot_id, manifest),
+            **_response_meta(snapshot_id, manifest, layer_source_urls),
             "area_code": area_code,
             "lor_snapshot_id": lor_snapshot_id,
-            "plans": [_plan_item(match.plan, match) for match in matches],
+            "plans": [
+                _plan_item(match.plan, layer_source_urls[match.plan.source_layer], match)
+                for match in matches
+            ],
         }
 
     @router.get("/api/v1/planning/plans/{plan_id:path}")
@@ -189,11 +214,16 @@ def planning_router(get_service) -> APIRouter:
         data=Depends(get_service),
     ):
         _unknown_query(request, {"snapshot_id"})
+        _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
+        layer_source_urls = _layer_source_urls(data, manifest)
         plans = _plan_index(data, snapshot_id)
         plan = plans.get_plan(plan_id)
         if plan is None:
             raise NotFoundError(f"Development plan not found: {plan_id}")
-        return {**_response_meta(snapshot_id, manifest), "plan": _plan_item(plan)}
+        return {
+            **_response_meta(snapshot_id, manifest, layer_source_urls),
+            "plan": _plan_item(plan, layer_source_urls[plan.source_layer]),
+        }
 
     return router

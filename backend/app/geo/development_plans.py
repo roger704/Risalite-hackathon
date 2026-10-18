@@ -1,4 +1,4 @@
-"""Spatial queries for procedural, not outcome, evidence from development plans."""
+"""Spatial queries for plans; radius membership uses distance, shares use a 64-segment disc."""
 
 from __future__ import annotations
 
@@ -85,13 +85,19 @@ class DevelopmentPlanIndex:
         if not point.is_valid or point.is_empty:
             raise ValueError("x and y must be finite EPSG:25833 coordinates")
         query_geometry = point.buffer(radius_m, quad_segs=64)
-        return self._matches(query_geometry, statuses, distance_from=point)
+        return self._matches(
+            query_geometry,
+            statuses,
+            distance_from=point,
+            radius_m=radius_m,
+        )
 
     def _matches(
         self,
         query_geometry: BaseGeometry,
         statuses: Collection[str] | None,
         distance_from: BaseGeometry | None = None,
+        radius_m: float | None = None,
     ) -> list[PlanMatch]:
         if query_geometry.is_empty or not query_geometry.is_valid or query_geometry.area <= 0:
             return []
@@ -100,22 +106,33 @@ class DevelopmentPlanIndex:
         allowed_statuses = set(statuses) if statuses is not None else None
         matches = []
         query_area = query_geometry.area
-        for index in self._tree.query(query_geometry):
+        candidates = (
+            self._tree.query(distance_from, predicate="dwithin", distance=radius_m)
+            if distance_from is not None
+            else self._tree.query(query_geometry)
+        )
+        for index in candidates:
             index = int(index)
             plan = self._plans[index]
             if allowed_statuses is not None and plan.status not in allowed_statuses:
                 continue
             geometry = self._geometries[index]
             intersection_area = geometry.intersection(query_geometry).area
-            if intersection_area <= 0:
-                continue
+            distance = 0.0
+            if distance_from is None:
+                if intersection_area <= 0:
+                    continue
+            else:
+                distance = geometry.distance(distance_from)
+                if distance > radius_m:
+                    continue
             matches.append(
                 PlanMatch(
                     plan=plan,
                     intersection_area_m2=intersection_area,
                     plan_area_share=min(1.0, max(0.0, intersection_area / geometry.area)),
                     query_area_share=min(1.0, max(0.0, intersection_area / query_area)),
-                    distance_m=0.0 if distance_from is None else geometry.distance(distance_from),
+                    distance_m=distance,
                 )
             )
         return sorted(
