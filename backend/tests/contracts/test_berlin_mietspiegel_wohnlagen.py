@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,8 +17,13 @@ from fastapi.testclient import TestClient
 from shapely.geometry import Point
 
 from app.api.main import create_app
-from app.application.service import DataService
-from app.application.wohnlage_lookup import address_join_key, address_join_report, lookup_wohnlage
+from app.application.service import DataService, _hash
+from app.application.wohnlage_lookup import (
+    _typename_from_url,
+    address_join_key,
+    address_join_report,
+    lookup_wohnlage,
+)
 from app.connectors.berlin_mietspiegel import BerlinWohnlageConnector
 from app.domain import (
     Area,
@@ -356,6 +361,7 @@ def _fake_service(tmp_path, wohnlage_record, address_rows=()):
         license_url="https://www.govdata.de/dl-de/zero-2-0",
         raw_assets=(SimpleNamespace(sha256="a" * 64),),
         quality_report=SimpleNamespace(warnings=("class counts",)),
+        parser_config_hash=_hash(asdict(config)),
     )
     address_manifest = SimpleNamespace(snapshot_id="address-snapshot")
     snapshots = {
@@ -432,6 +438,13 @@ def test_lookup_matched_unclassified_not_found_and_suffix_candidates(tmp_path):
     assert not_found["evidence"]["lookup_key"] == "00001004"
     assert "schluessel" not in not_found["evidence"]
     assert "provider_feature_id" not in not_found["evidence"]
+
+
+@pytest.mark.parametrize("query_key", ["typenames", "TYPENAMES", "typeNames"])
+def test_typename_from_url_query_key_is_case_insensitive(query_key):
+    url = f"https://example.org/wfs?{query_key}=wohnlagenadr2026%3Awohnlagenadr2026"
+
+    assert _typename_from_url(url) == "wohnlagenadr2026:wohnlagenadr2026"
 
 
 @pytest.mark.parametrize("valid_from", [None, "2026", "2026-02-30"])
@@ -658,6 +671,10 @@ def test_service_ingest_preserves_previous_snapshot_and_api_records(tmp_path):
         )
         assert matched.status_code == 200
         assert matched.json()["join_status"] == "matched"
+        current_config = service.configs["berlin_mietspiegel_wohnlagen"]
+        unchanged_body = matched.json()
+        assert unchanged_body["source_links"] == current_config.parser_options["source_links"]
+        assert unchanged_body["limitations"] == current_config.parser_options["limitations"]
         invalid = api.get(
             "/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage",
             params={
@@ -676,7 +693,28 @@ def test_service_ingest_preserves_previous_snapshot_and_api_records(tmp_path):
             == 422
         )
 
-        current_config = service.configs["berlin_mietspiegel_wohnlagen"]
+        moved_warning = (
+            "Registry configuration has changed since this snapshot was published; response "
+            "metadata is taken from the pinned snapshot."
+        )
+        assert moved_warning not in unchanged_body["warnings"]
+
+        changed_links = ["https://example.org/updated-source"]
+        service.configs["berlin_mietspiegel_wohnlagen"] = replace(
+            current_config,
+            parser_options={**current_config.parser_options, "source_links": changed_links},
+        )
+        same_year = api.get(
+            "/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage",
+            params={"snapshot_id": first.snapshot_id, "address_key": "00001004A"},
+        )
+        assert same_year.status_code == 200
+        same_year_body = same_year.json()
+        assert same_year_body["edition"] == "Berliner Mietspiegel 2026"
+        assert same_year_body["source_links"] == [first.landing_url]
+        assert same_year_body["limitations"] == list(first.quality_report.warnings)
+        assert moved_warning in same_year_body["warnings"]
+
         moved_url = current_config.resource_url.replace("wohnlagenadr2026", "wohnlagenadr2028")
         moved_landing_url = current_config.landing_url.replace("2026", "2028")
         moved_options = {
@@ -706,10 +744,6 @@ def test_service_ingest_preserves_previous_snapshot_and_api_records(tmp_path):
         assert historical_body["evidence"]["provider_feature_id"] == "wohnlagenadr2026.00001004A"
         assert historical_body["source_links"] == [first.landing_url]
         assert historical_body["limitations"] == list(first.quality_report.warnings)
-        moved_warning = (
-            "Registry configuration has moved to a different edition; response metadata is "
-            "taken from the pinned snapshot."
-        )
         assert moved_warning in historical_body["warnings"]
 
         historical_not_found = api.get(

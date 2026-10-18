@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -12,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
 
+from app.application.service import _hash
 from app.domain import ConnectorError, NotFoundError
 
 JOIN_METHOD = (
@@ -23,8 +25,9 @@ NOTICE = (
     "residential surroundings. It is not income, purchasing power, commercial suitability, "
     "footfall, shop rent, or a rent amount."
 )
-REGISTRY_EDITION_WARNING = (
-    "Registry configuration has moved to a different edition; response metadata is taken "
+REGISTRY_CONFIG_CHANGED_WARNING = (
+    "Registry configuration has changed since this snapshot was published; response metadata "
+    "is taken "
     "from the pinned snapshot."
 )
 
@@ -81,7 +84,14 @@ def _snapshot_edition(path: Path):
 def _typename_from_url(url: str | None) -> str | None:
     if not isinstance(url, str):
         return None
-    values = parse_qs(urlparse(url).query).get("TYPENAMES")
+    values = next(
+        (
+            values
+            for key, values in parse_qs(urlparse(url).query).items()
+            if key.casefold() == "typenames"
+        ),
+        None,
+    )
     return values[0] if values else None
 
 
@@ -150,24 +160,18 @@ def lookup_wohnlage(
     manifest, wohnlage_path = _snapshot_records(service, dataset_id, snapshot_id)
     year = _snapshot_year(manifest)
     options = config.parser_options
-    config_matches_snapshot = type(options.get("edition_year")) is int and options[
-        "edition_year"
-    ] == int(year)
+    config_matches_snapshot = _hash(asdict(config)) == manifest.parser_config_hash
     snapshot_warnings = list(manifest.quality_report.warnings)
     evidence_typename = _snapshot_typename(manifest)
     if evidence_typename is None and config_matches_snapshot:
         evidence_typename = options.get("typename")
     source_links = (
-        options.get("source_links", [])
-        if config_matches_snapshot
-        else [manifest.landing_url]
-        if manifest.landing_url
-        else []
+        options.get("source_links", []) if config_matches_snapshot else [manifest.landing_url]
     )
     limitations = options.get("limitations", []) if config_matches_snapshot else snapshot_warnings
     response_warnings = list(snapshot_warnings)
     if not config_matches_snapshot:
-        response_warnings.append(REGISTRY_EDITION_WARNING)
+        response_warnings.append(REGISTRY_CONFIG_CHANGED_WARNING)
     base_response = {
         "schema_version": "1.0",
         "dataset_id": dataset_id,
