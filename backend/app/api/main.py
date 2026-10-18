@@ -14,10 +14,12 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
+from app.connectors.valhalla import ValhallaWalkingClient
 from app.domain import (
     ConnectorError,
     ForecastObservation,
@@ -26,7 +28,9 @@ from app.domain import (
     SnapshotManifest,
     record_from_dict,
 )
+from app.domain.routing import load_routing_config
 from app.export import EXPORT_FORMATS, Mix, load_run
+from app.infrastructure.routing_cache import RoutingCache, default_routing_cache_path
 
 
 class DatasetResponse(BaseModel):
@@ -95,6 +99,8 @@ def _error_status(code: str) -> int:
         return 409
     if code in {"SOURCE_UNAVAILABLE", "DATA_UNAVAILABLE", "DATASET_UNAVAILABLE"}:
         return 503
+    if code == "ROUTING_BUDGET_EXCEEDED":
+        return 429
     return 422
 
 
@@ -116,9 +122,11 @@ def create_app(
     data_dir: Path | str | None = None,
     config_dir: Path | str | None = None,
     runs_dir: Path | str | None = None,
+    routing_client: ValhallaWalkingClient | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
+    application.state.routing_client = routing_client
 
     def get_service() -> DataService:
         if application.state.data_service is None:
@@ -127,6 +135,26 @@ def create_app(
                 config_dir=Path(config_dir) if config_dir is not None else None,
             )
         return application.state.data_service
+
+    def get_routing_client() -> ValhallaWalkingClient:
+        if application.state.routing_client is None:
+            configured_data_dir = (
+                Path(data_dir).expanduser().resolve()
+                if data_dir is not None
+                else default_data_dir().resolve()
+            )
+            config = load_routing_config()
+            application.state.routing_client = ValhallaWalkingClient(
+                config,
+                cache=RoutingCache(default_routing_cache_path(configured_data_dir)),
+            )
+        return application.state.routing_client
+
+    @application.on_event("shutdown")
+    async def close_routing_client() -> None:
+        client = application.state.routing_client
+        if client is not None and client._owns_client:
+            await client.__aexit__(None, None, None)
 
     def get_runs_dir() -> Path:
         configured = os.environ.get("RISALITE_RUNS_DIR", "").strip()
@@ -386,6 +414,8 @@ def create_app(
             include_geometry=include_geometry,
             snapshot_ids=pins,
         )
+
+    application.include_router(routing_router(get_routing_client))
 
     @application.get("/api/v1/runs/{run_id:path}/export/{fmt}")
     def export_run(request: Request, run_id: str, fmt: str):
