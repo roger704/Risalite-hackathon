@@ -705,7 +705,7 @@ function initMap(){
   map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
   map.on('error',e=>{if(!M.loaded){clearTimeout(t);fail('map style did not load')}});
   map.on('load',()=>{clearTimeout(t);M.loaded=true;setupBase();
-    const go=()=>{if(!M.ranked||C.shape==='point')return;if($('#s-dash').classList.contains('hidden')){setTimeout(go,150);return}map.resize();setupArea();paint3D()};go()});
+    let n=0;const go=()=>{if(!M.ranked||C.shape==='point')return;if($('#s-dash').classList.contains('hidden')){if(++n<20)setTimeout(go,150);return}map.resize();setupArea();paint3D()};go()});
 }
 function setupBase(){const map=M.map,L=map.getStyle().layers,bl=L.find(l=>l.type==='fill-extrusion');
   M.blayer=bl.id;M.bsrc=bl.source;
