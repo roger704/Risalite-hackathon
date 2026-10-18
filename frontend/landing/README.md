@@ -7,9 +7,6 @@ Single self-contained `index.html` (no build step, no external requests). The he
 
 Each loop follows a different person: Mira (café founder, Kreuzberg, T2), Jonas (district planner, Kita gap in Neukölln, T3) and Aylin (empty storefront in Moabit, T1 point). Viewers can pick a person, jump to a step or pause. Below the hero are short "How it works", "Who it's for" and "Deliverables" sections. With `prefers-reduced-motion` the loop starts paused on the full answer.
 
-```sh
-python3 -m http.server 8765 --directory frontend
-# open http://localhost:8765/landing/   ("Try the demo" links to ../mockup/)
-```
+Served by the API at `/landing/` (Try the demo opens the app at `/`).
 
 The people, places, quotes and `example-*.de` sources in the animation are illustrative examples, not research results.
