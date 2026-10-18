@@ -93,6 +93,17 @@ curl --fail --get http://127.0.0.1:8000/api/v1/datasets/berlin_population/record
   --data-urlencode 'limit=10'
 ```
 
+### Research dashboard
+
+From `backend/`, start the app with `uv run uvicorn app.api.main:app --reload` and open
+<http://127.0.0.1:8000/>. The dashboard uses the root research API. Its temporary run
+stand-in replays synthetic fixtures; set `RISALITE_RUNS=off` to disable it. The dashboard
+and the API share the same origin by default. For a separate API host, append `?api=BASE`
+to the dashboard URL.
+
+The fixture files live in `frontend/fixtures/`. Rebuild them offline with
+`uv run python ../frontend/fixtures/build_fixtures.py --geojson-from ../frontend/fixtures/cells.geojson`.
+
 The records response includes reference and retrieval dates, coverage, warnings, attribution, and pagination. Availability and freshness are separate. Freshness remains `unknown` unless an explicit refresh policy has been configured; a successful download alone does not establish current demographic conditions.
 
 ### Area summary
