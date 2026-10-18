@@ -532,7 +532,7 @@ $('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return
   if(C.shape==='point')C.area='kreuzberg';
   plan()};
 $$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.clar=b.dataset.area;C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
-$('#restart').onclick=()=>{clearInterval(timer);clearHash();show('s-ask')};
+$('#restart').onclick=()=>{clearInterval(timer);clearTimeout(dashT);clearHash();show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
 $('#d-more').onclick=()=>{const c=$('#d-sum').classList.toggle('clamp');$('#d-more').textContent=c?'Read more':'Show less'};
 
@@ -589,7 +589,7 @@ function approvePlan(){
   return true}
 $('#approve').onclick=()=>{if(approvePlan()){TR=traceFor(SC);live()}};
 
-let timer=null;
+let timer=null,dashT=null;
 function live(){
   show('s-live');const box=$('#l-trace');box.innerHTML='';const feed=$('#l-feed');feed.innerHTML='';$('#l-orb').dataset.s='';
   const stages=['classify','plan','approve','research','skeptic','fact-check','write'];
@@ -597,7 +597,7 @@ function live(){
   const stageOf=ev=>({Classifier:'classify',Planner:ev.type==='replan'?'fact-check':'plan','Data researcher':'research','Web researcher':'research',Scorer:'research',Skeptic:'skeptic','Fact-checker':'fact-check',Writer:'write'}[ev.role]);
   let i=0,tok=0,sec=0;
   const step=()=>{
-    if(i>=TR.length){clearInterval(timer);setTimeout(dash,500);return}
+    if(i>=TR.length){clearInterval(timer);dashT=setTimeout(dash,500);return}
     const ev=TR[i++];tok+=ev.tok;sec+=+ev.sec;
     box.insertAdjacentHTML('beforeend',`<div class="ev ${ev.cls||''}"><span class="w">+${sec.toFixed(1)}s</span><span class="role">${ev.role}</span><span>${esc(ev.type)} · ${esc(ev.text)}<br><span class="w">why: ${esc(ev.why)}</span></span><span class="meta">${MODELS[ev.role]||''}${ev.tok?' · '+ev.tok+' tok':''}</span></div>`);
     box.scrollTop=box.scrollHeight;
@@ -743,7 +743,11 @@ function renderGrade(){
 }
 function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;for(let d=el.closest('details');d;d=d.parentElement.closest('details'))d.open=true;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
 /* ---------- exports: report (.md / printable .html), sources (.csv / .bib), share link ---------- */
-const plain=h=>{const d=document.createElement('div');d.innerHTML=String(h??'');return d.textContent.replace(/\s+/g,' ').trim()};
+const plain=h=>new DOMParser().parseFromString(String(h??''),'text/html').body.textContent.replace(/\s+/g,' ').trim();
+function safeRich(h){const walk=n=>[...n.childNodes].map(c=>{if(c.nodeType===3)return esc(c.textContent);if(c.nodeType!==1)return '';const t=c.tagName.toLowerCase(),inner=walk(c);
+  if(t==='a'&&c.classList.contains('cite')&&/^\d+$/.test(c.dataset.n||''))return `<a class="cite" href="#src-${c.dataset.n}">${inner}</a>`;
+  return ['b','strong','i','em','p','br'].includes(t)?(t==='br'?'<br>':`<${t}>${inner}</${t}>`):inner}).join('');
+  return walk(new DOMParser().parseFromString(String(h??''),'text/html').body)}
 const mdc=s=>plain(s).replace(/\|/g,'\\|');
 const stamp=()=>new Date().toISOString().slice(0,16).replace(/[-:T]/g,'').replace(/^(\d{8})/,'$1-');
 const runId=()=>`mockup-${C.shape}-${C.area}`;
@@ -775,7 +779,7 @@ function restoreFromHash(){
   if(!approvePlan())return;
   TR=traceFor(SC);dash();
   if(C.shape!=='point'){const on=p.get('on');
-    if(on&&/^[01]+$/.test(on)&&on.length===SC.layers.length&&on.includes('1'))SC.layers.forEach((l,i)=>state.on[l.id]=on[i]==='1');
+    if(on&&/^[01]+$/.test(on)&&on.length===SC.layers.length)SC.layers.forEach((l,i)=>state.on[l.id]=on[i]==='1');
     state.mode=p.get('mode')==='future'&&hasFut()?'future':'present';renderLayers();renderArea()}
 }
 addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==lastHash)restoreFromHash()});
@@ -861,7 +865,6 @@ table{border-collapse:collapse;width:100%;margin:4px 0 8px}th,td{text-align:left
 function reportHTML(){
   const mi=mixInfo(),pt=C.shape==='point',e=x=>esc(plain(x)),cl=n=>`<a class="cite" href="#src-${n}">[${n}]</a>`;
   const ln=u=>/^https?:\/\//i.test(u)?`<a href="${esc(u)}">${esc(u)}</a>`:esc(u);
-  const cites=h=>String(h).replace(/<a class="cite" data-n="(\d+)">/g,'<a class="cite" href="#src-$1">');
   const ref=x=>typeof x==='number'?cl(x):`<span class="mut">(${e(x)})</span>`;
   const H=[];
   H.push(`<div class="brand">Risal<span>ite</span> report</div><h1>${e(C.q)}</h1><ul class="meta"><li>Shape: <b>${e(C.shape)}</b></li><li>Area: <b>${e(areaLabel())}</b></li>`
@@ -871,7 +874,7 @@ function reportHTML(){
   H.push(`<div class="note">${esc(SYNTH)}</div>`);
   H.push(`<h2>1 · Approved plan</h2><table><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody>${planRows().map(r=>`<tr${r.ok?'':' class="off"'}><td>${r.ok?'✓':'✕ not approved'}</td><td>${esc(r.text)}</td><td>${esc(r.cls)}</td><td class="mut">${esc(r.layers)}</td></tr>`).join('')}</tbody></table>`);
   if(!pt&&SC.paid.length)H.push(`<p class="small mut">Optional paid sources: ${SC.paid.map(p=>`${e(p[0])} (${e(p[1])}) — key not provided, skipped`).join('; ')}</p>`);
-  H.push(`<h2>2 · Summary <span class="mut small">(${pt?'point path':'written for the default mix'})</span></h2><div>${cites($('#d-sum').innerHTML)}</div>`);
+  H.push(`<h2>2 · Summary <span class="mut small">(${pt?'point path':'written for the default mix'})</span></h2><div>${safeRich($('#d-sum').innerHTML)}</div>`);
   const svg=$('#map svg');
   const mapBlock=svg?`<div class="map">${svg.outerHTML}</div><div class="legend">${$('#legend').innerHTML}</div>`:'';
   if(pt){
