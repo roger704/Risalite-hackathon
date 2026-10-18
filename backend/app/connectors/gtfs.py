@@ -440,35 +440,70 @@ class GTFSConnector(FileConnector):
         if skipped_types:
             warnings.append(f"{skipped_types} stops with unselected location_type values skipped")
 
-        # Parent references must resolve to an actual station before any child can be used.
+        # Validate parent types and resolve the complete hierarchy before using child stops.
         parent_orphans = 0
+        direct_orphan_stops = set()
         for index, parent in enumerate(stop_parents):
+            child_type = stop_types[index]
+            if child_type == 1 and parent:
+                raise SchemaError("GTFS station stops cannot have parent_station")
+            if child_type == 4 and not parent:
+                raise SchemaError("GTFS location_type 4 requires a type-0 parent_station")
             if not parent:
                 continue
             parent_index = stop_index.get(parent)
             if parent_index is None:
                 parent_orphans += 1
-            elif stop_types[parent_index] != 1:
-                raise SchemaError(f"GTFS stops.parent_station target {parent!r} is not a station")
+                direct_orphan_stops.add(index)
+                continue
+            if child_type < 0:
+                continue
+            expected_parent_type = 0 if child_type == 4 else 1
+            if stop_types[parent_index] != expected_parent_type:
+                raise SchemaError(
+                    f"GTFS stops.parent_station target {parent!r} must have "
+                    f"location_type {expected_parent_type}"
+                )
         warning = _ratio_check("stops.parent_station", parent_orphans, len(stops), threshold)
         if warning:
             warnings.append(warning)
-        invalid_parent_stops = {
-            stop_index[row["stop_id"]]
-            for row in stops
-            if row.get("parent_station", "").strip()
-            and row["parent_station"].strip() not in stop_index
-        }
+        resolved_station_by_stop: list[str | None] = [None] * len(stop_values)
+        orphaned_parent_stops = set()
+        for index in range(len(stop_values)):
+            chain = []
+            visited = set()
+            current = index
+            while True:
+                if current in visited:
+                    raise SchemaError("GTFS stops.parent_station hierarchy contains a cycle")
+                visited.add(current)
+                chain.append(current)
+                parent = stop_parents[current]
+                if not parent:
+                    break
+                parent_index = stop_index.get(parent)
+                if parent_index is None:
+                    orphaned_parent_stops.add(index)
+                    break
+                current = parent_index
+            if index not in orphaned_parent_stops:
+                station_index = next(
+                    (ancestor for ancestor in chain if stop_types[ancestor] == 1), chain[-1]
+                )
+                resolved_station_by_stop[index] = stop_values[station_index]["stop_id"]
+        cascading_orphans = orphaned_parent_stops - direct_orphan_stops
+        if cascading_orphans:
+            warnings.append(f"{len(cascading_orphans)} stops in orphaned parent chains excluded")
         stop_records = [
             record
             for record in stop_records
-            if stop_index[record.stop_id] not in invalid_parent_stops
+            if stop_index[record.stop_id] not in orphaned_parent_stops
         ]
-        if invalid_parent_stops:
+        if orphaned_parent_stops:
             stop_index = {
                 stop_id: index
                 for stop_id, index in stop_index.items()
-                if index not in invalid_parent_stops
+                if index not in orphaned_parent_stops
             }
 
         route_types = {}
@@ -659,8 +694,9 @@ class GTFSConnector(FileConnector):
         station_keys = []
         station_key_codes = {}
         for stop_code in referenced_stop_codes:
-            parent = stop_parents[stop_code]
-            station = parent if parent else stop_values[stop_code]["stop_id"]
+            station = resolved_station_by_stop[stop_code]
+            if station is None:
+                continue
             if station not in station_key_codes:
                 station_key_codes[station] = len(station_keys)
                 station_keys.append(station)

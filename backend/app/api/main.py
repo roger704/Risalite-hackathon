@@ -12,7 +12,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.service import DataService
-from app.domain import Area, AreaObservation, ConnectorError, SnapshotManifest
+from app.domain import (
+    Area,
+    AreaObservation,
+    ConnectorError,
+    SnapshotManifest,
+    StopService,
+    TransitStop,
+)
 
 
 class DatasetResponse(BaseModel):
@@ -32,7 +39,7 @@ class RecordsResponse(BaseModel):
     coverage: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     attribution: list[dict[str, Any]] = Field(default_factory=list)
-    records: list[Area | AreaObservation]
+    records: list[Area | AreaObservation | TransitStop | StopService]
     count: int = Field(ge=0)
     next_cursor: str | None = None
 

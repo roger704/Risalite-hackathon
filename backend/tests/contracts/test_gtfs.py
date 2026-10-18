@@ -111,6 +111,98 @@ def test_transit_stops_preserve_location_parent_and_wheelchair_values(tmp_path):
     )
 
 
+def test_type_4_boarding_area_parent_is_valid_when_type_is_not_emitted(tmp_path):
+    stops = (FIXTURES / "stops.txt").read_text()
+    stops += "BA1,Boarding Area,52.5005,13.4005,4,P1a,0\n"
+    batch = GTFSConnector().normalize(raw(make_zip(tmp_path, {"stops.txt": stops})), config())
+
+    assert GTFSConnector().validate(batch).valid
+    assert "BA1" not in {
+        record.stop_id for record in batch.records if record.record_type == "transit_stop"
+    }
+
+
+def test_type_4_event_aggregates_at_platform_station_without_double_counting(tmp_path):
+    stops = (FIXTURES / "stops.txt").read_text()
+    stops += "BA1,Boarding Area,52.5005,13.4005,4,P1a,0\n"
+    stop_times = (FIXTURES / "stop_times.txt").read_text()
+    stop_times += "T1,BA1,2,0,0,,07:10:30,07:10:30\n"
+    batch = GTFSConnector().normalize(
+        raw(make_zip(tmp_path, {"stops.txt": stops, "stop_times.txt": stop_times})),
+        config(stop_location_types=[0, 1, 2, 4]),
+    )
+
+    s1_morning = service(batch, "S1", "07:00:00")
+    assert s1_morning.departures == 1
+    assert s1_morning.quality_flags == ("collapsed_duplicate_stop_events=2",)
+    assert "BA1" in {
+        record.stop_id for record in batch.records if record.record_type == "transit_stop"
+    }
+    assert GTFSConnector().validate(batch).valid
+
+
+def test_type_4_without_station_ancestor_uses_topmost_platform_key(tmp_path):
+    stops = (
+        (FIXTURES / "stops.txt")
+        .read_text()
+        .replace(
+            "P1a,Platform One A,52.5001,13.4001,0,S1,1",
+            "P1a,Platform One A,52.5001,13.4001,0,,1",
+        )
+    )
+    stops += "BA1,Boarding Area,52.5005,13.4005,4,P1a,0\n"
+    stop_times = (FIXTURES / "stop_times.txt").read_text()
+    stop_times += "T1,BA1,2,0,0,,07:10:30,07:10:30\n"
+    batch = GTFSConnector().normalize(
+        raw(make_zip(tmp_path, {"stops.txt": stops, "stop_times.txt": stop_times})),
+        config(stop_location_types=[0, 1, 2, 4]),
+    )
+
+    assert service(batch, "P1a", "07:00:00").departures == 1
+    assert GTFSConnector().validate(batch).valid
+
+
+def test_type_0_stop_cannot_have_type_0_parent(tmp_path):
+    stops = (
+        (FIXTURES / "stops.txt")
+        .read_text()
+        .replace(
+            "P1a,Platform One A,52.5001,13.4001,0,S1,1",
+            "P1a,Platform One A,52.5001,13.4001,0,P1b,1",
+        )
+    )
+    with pytest.raises(SchemaError, match="parent_station"):
+        GTFSConnector().normalize(raw(make_zip(tmp_path, {"stops.txt": stops})), config())
+
+
+def test_child_of_orphaned_parent_is_excluded_with_its_ancestor_chain(tmp_path):
+    stops = (
+        (FIXTURES / "stops.txt")
+        .read_text()
+        .replace(
+            "P1a,Platform One A,52.5001,13.4001,0,S1,1",
+            "P1a,Platform One A,52.5001,13.4001,0,MISSING,1",
+        )
+    )
+    stops += "BA1,Boarding Area,52.5005,13.4005,4,P1a,0\n"
+    stop_times = (FIXTURES / "stop_times.txt").read_text()
+    stop_times += "T1,BA1,2,0,0,,07:10:30,07:10:30\n"
+    batch = GTFSConnector().normalize(
+        raw(make_zip(tmp_path, {"stops.txt": stops, "stop_times.txt": stop_times})),
+        config(
+            stop_location_types=[0, 1, 2, 4],
+            foreign_key_max_orphan_ratio=0.5,
+        ),
+    )
+    stop_ids = {record.stop_id for record in batch.records if record.record_type == "transit_stop"}
+    assert {"P1a", "BA1"}.isdisjoint(stop_ids)
+    assert any(
+        "1 orphaned stops.parent_station references excluded" in item for item in batch.warnings
+    )
+    assert any("1 stops in orphaned parent chains excluded" in item for item in batch.warnings)
+    assert GTFSConnector().validate(batch).valid
+
+
 def test_archive_headers_accept_utf8_bom_and_surrounding_whitespace(tmp_path):
     agency = (FIXTURES / "agency.txt").read_text()
     agency = agency.replace("agency_id,", "\ufeff agency_id,").replace(
