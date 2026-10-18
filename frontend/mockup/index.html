@@ -218,9 +218,20 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .qtext:hover{color:var(--acc)}
 #p-qin{font-size:16px;border-radius:12px;padding:9px 14px;animation:pop .35s var(--ease) both}
 .btn.sm{padding:7px 14px;font-size:13px}
-#go,#role,#op{transition:box-shadow .8s var(--ease),transform .8s var(--ease),border-color .8s var(--ease),background .3s}
+#go,.gs-btn,#op{transition:box-shadow .8s var(--ease),transform .8s var(--ease),border-color .8s var(--ease),background .3s}
 .hint{border-color:rgba(0,122,255,.6)!important;box-shadow:0 0 0 4px rgba(0,122,255,.2),0 0 26px rgba(0,122,255,.4)!important}
 #go.hint{transform:scale(1.07)}
+.gs-native{display:none}.gsel{position:relative}
+.gs-btn{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.6);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);color:var(--mut);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04),inset 0 1px 0 rgba(255,255,255,.8)}
+.gs-btn:hover{background:rgba(255,255,255,.88)}.gs-btn.set{color:var(--ink);font-weight:500}
+.gs-btn:focus-visible{outline:0;border-color:rgba(0,122,255,.6);box-shadow:0 0 0 4px rgba(0,122,255,.15)}
+.gs-car{opacity:.55;font-size:11px;transition:transform .3s var(--ease)}.gsel.open .gs-car{transform:rotate(180deg)}
+.gs-menu{position:fixed;z-index:200;min-width:230px;padding:6px;border-radius:16px;background:rgba(250,251,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 14px 44px rgba(31,38,135,.18),inset 0 1px 0 rgba(255,255,255,.9);opacity:0;visibility:hidden;transform:translateY(-6px) scale(.96);transform-origin:top left;transition:opacity .2s var(--ease),transform .3s var(--ease),visibility 0s .3s}
+.gs-menu.open{opacity:1;visibility:visible;transform:none;transition:opacity .2s var(--ease),transform .3s var(--ease)}
+.gs-menu button{display:flex;width:100%;align-items:center;gap:10px;font:inherit;font-size:14px;text-align:left;padding:9px 12px;border:0;border-radius:10px;background:transparent;color:var(--ink);cursor:pointer;transition:background .2s}
+.gs-menu button:hover,.gs-menu button:focus{background:rgba(0,122,255,.1);outline:0}
+.gs-menu [aria-selected=true]{font-weight:600;color:var(--acc)}.gs-ck{margin-left:auto;opacity:0}.gs-menu [aria-selected=true] .gs-ck{opacity:1}
+.qedit{animation:pop .35s var(--ease) both}.qedit .opts{margin-top:10px}.qedit-act{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
 .eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:4px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line)}
@@ -291,7 +302,7 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
   <div class="card">
     <div class="search"><span class="s-ico">🔎</span><textarea id="q" rows="2" placeholder="Where is it smart to open a coffee place in Kreuzberg?"></textarea><button class="btn" id="go">Research ›</button></div>
     <div class="row opts">
-      <label class="field" title="Optional: who is asking">👤 <select id="role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></label>
+      <div class="field" title="Optional: who is asking"><select id="role" aria-label="Role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></div>
       <label class="field grow" id="opwrap" title="Optional, used for storefront questions">🧑‍🍳 <input type="text" id="op" placeholder="Your experience &amp; budget (optional)"></label>
     </div>
     <div id="clar" class="clar hidden">
@@ -312,7 +323,11 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
 <section id="s-plan" class="view hidden">
   <div class="card">
     <div class="qrow" id="p-qview"><span class="q-ico">🔎</span><div class="qtext grow" id="p-q" title="Click to edit"></div><button class="btn ghost sm" id="p-edit">✏️ Edit</button></div>
-    <div class="qrow hidden" id="p-qedit"><span class="q-ico">✏️</span><input type="text" id="p-qin" class="grow" aria-label="Edit your question"><button class="btn ghost sm" id="p-cancel">Cancel</button><button class="btn sm" id="p-save">↻ Re-plan</button></div>
+    <div class="qedit hidden" id="p-qedit">
+      <div class="qrow"><span class="q-ico">✏️</span><input type="text" id="p-qin" class="grow" aria-label="Edit your question"></div>
+      <div class="row opts"><div class="field" title="Optional: who is asking"><select id="p-role" aria-label="Role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></div><label class="field grow" title="Optional, used for storefront questions">🧑‍🍳 <input type="text" id="p-op" placeholder="Your experience &amp; budget (optional)"></label></div>
+      <div class="qedit-act"><button class="btn ghost sm" id="p-cancel">Cancel</button><button class="btn sm" id="p-save">↻ Re-plan</button></div>
+    </div>
     <div class="chips" style="margin-top:10px"><span id="p-class"></span><span id="p-area" class="chips"></span></div>
     <div id="p-why" class="why small" style="margin-top:8px"></div>
     <div id="p-note" class="demo-note hidden"></div>
@@ -624,7 +639,32 @@ function typeSeq(steps,done){
     setTimeout(tick,ci===0?380:18+Math.random()*48)};
   setTimeout(tick,200)}
 const finishTyping=()=>typeDone&&typeDone();
-const guideTargets=()=>[$('#go'),...($('#role').value?[]:[$('#role')]),...($('#op').value.trim()?[]:[$('#op')])];
+const ROLE_ICO={'':'👤','Founder / operator':'🧑‍💼','Urban planner':'🏙️','Investor':'💶','Data analyst':'📊'};
+function glassSelect(sel){
+  sel.classList.add('gs-native');
+  const w=document.createElement('div');w.className='gsel';w.id=sel.id+'-gs';
+  w.innerHTML=`<button type="button" class="gs-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="${sel.id}-menu" aria-label="${esc(sel.getAttribute('aria-label')||'')}"></button>`;
+  const m=document.createElement('div');m.className='gs-menu';m.id=sel.id+'-menu';m.setAttribute('role','listbox');
+  m.innerHTML=[...sel.options].map((o,i)=>`<button type="button" role="option" data-i="${i}"><span>${ROLE_ICO[o.value]||'•'}</span>${esc(o.value?o.text:'No role')}<span class="gs-ck">✓</span></button>`).join('');
+  sel.after(w);document.body.append(m);
+  const b=w.firstChild,items=[...m.children];
+  const sync=()=>{b.innerHTML=`<span>${ROLE_ICO[sel.value]||'👤'}</span><span>${esc(sel.options[sel.selectedIndex].text)}</span><span class="gs-car">⌄</span>`;
+    b.classList.toggle('set',!!sel.value);items.forEach((x,i)=>x.setAttribute('aria-selected',i===sel.selectedIndex))};
+  const open=on=>{if(on===w.classList.contains('open'))return;
+    w.classList.toggle('open',on);m.classList.toggle('open',on);b.setAttribute('aria-expanded',on);
+    if(on){const r=b.getBoundingClientRect();m.style.left=Math.max(8,Math.min(r.left,innerWidth-m.offsetWidth-8))+'px';m.style.top=(r.bottom+8)+'px';items[sel.selectedIndex].focus({preventScroll:true})}};
+  b.onclick=()=>open(!w.classList.contains('open'));
+  b.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true)}};
+  m.onclick=e=>{const x=e.target.closest('[data-i]');if(!x)return;sel.selectedIndex=+x.dataset.i;sel.dispatchEvent(new Event('change',{bubbles:true}));open(false);b.focus()};
+  m.onkeydown=e=>{const i=items.indexOf(document.activeElement);
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();items[(i+(e.key==='ArrowDown'?1:items.length-1))%items.length].focus()}
+    else if(e.key==='Escape'||e.key==='Tab'){open(false);if(e.key==='Escape')b.focus()}};
+  document.addEventListener('click',e=>{if(!w.contains(e.target)&&!m.contains(e.target))open(false)});
+  ['scroll','resize'].forEach(ev=>addEventListener(ev,()=>open(false),{passive:true,capture:true}));
+  sel.addEventListener('change',sync);sel.gsSync=sync;sync()}
+$('#p-role').innerHTML=$('#role').innerHTML;
+glassSelect($('#role'));glassSelect($('#p-role'));
+const guideTargets=()=>[$('#go'),...($('#role').value?[]:[$('#role-gs .gs-btn')]),...($('#op').value.trim()?[]:[$('#op')])];
 function stopGuide(){clearInterval(guideT);guideT=null;$$('.hint').forEach(e=>e.classList.remove('hint'))}
 function startGuide(){
   stopGuide();guideI=0;
@@ -643,11 +683,11 @@ $('#go').onclick=()=>{finishTyping();stopGuide();const q=$('#q').value.trim();if
 $$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.clar=b.dataset.area;C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
 function qEdit(on){
   $('#p-qview').classList.toggle('hidden',on);$('#p-qedit').classList.toggle('hidden',!on);
-  if(on){const i=$('#p-qin');i.value=C.q;i.focus();i.select()}}
+  if(on){$('#p-role').value=C.role||'';$('#p-role').gsSync();$('#p-op').value=C.op||'';const i=$('#p-qin');i.value=C.q;i.focus();i.select()}}
 $('#p-edit').onclick=$('#p-q').onclick=()=>qEdit(true);
 $('#p-cancel').onclick=()=>qEdit(false);
-$('#p-save').onclick=()=>{const v=$('#p-qin').value.trim();if(!v){$('#p-qin').focus();return}$('#q').value=v;qEdit(false);$('#go').onclick()};
-$('#p-qin').onkeydown=e=>{if(e.key==='Enter')$('#p-save').onclick();else if(e.key==='Escape')qEdit(false)};
+$('#p-save').onclick=()=>{const v=$('#p-qin').value.trim();if(!v){$('#p-qin').focus();return}$('#q').value=v;$('#role').value=$('#p-role').value;$('#role').gsSync();$('#op').value=$('#p-op').value.trim();qEdit(false);$('#go').onclick()};
+$('#p-qin').onkeydown=$('#p-op').onkeydown=e=>{if(e.key==='Enter')$('#p-save').onclick();else if(e.key==='Escape')qEdit(false)};
 $('#restart').onclick=()=>{clearInterval(timer);clearTimeout(dashT);clearHash();show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
 $('#d-more').onclick=()=>{const c=$('#d-sum').classList.toggle('clamp');$('#d-more').textContent=c?'Read more':'Show less'};
@@ -657,13 +697,13 @@ function plan(){
   $('#p-q').textContent=C.q;
   $('#p-class').innerHTML=shapeChip();$('#p-why').innerHTML=`💬 ${C.why}`;
   if(C.shape==='point'){
-    $('#p-area').innerHTML=`<span class="chip">🗺️ Wiener Straße 12 · Lausitzer Platz</span><span class="chip" title="Operator profile">🧑‍🍳 ${esc(C.op||'no profile · fit neutral')}</span>`;
+    $('#p-area').innerHTML=`<span class="chip">🗺️ Wiener Straße 12 · Lausitzer Platz</span><span class="chip" title="Operator profile">🧑‍🍳 ${esc(C.op||'no profile · fit neutral')}</span>${C.role?`<span class="chip" title="Role">${ROLE_ICO[C.role]||'👤'} ${esc(C.role)}</span>`:''}`;
     const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
     SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
     $('#p-layers-wrap').innerHTML=`<h2>💡 Business ideas to test</h2><table class="list"><tbody>${SC.H.map((h,i)=>`<tr title="${at(h.dw[2]+'; '+h.dw[1])}"><td><input type="checkbox" checked data-h="${i}"></td><td><span class="emo">${emo(h.name)}</span> ${h.name}</td></tr>`).join('')}</tbody></table><details class="why small"><summary>💬 Why these ideas</summary><ul>${SC.H.map(h=>`<li><b>${h.name}</b> — ${h.dw[2]}; ${h.dw[1]}</li>`).join('')}</ul></details>`;
     $('#p-paid').innerHTML='';
   } else {
-    $('#p-area').innerHTML=`<span class="chip" title="Bezirk ${SC.bez} · PLR granularity">🗺️ ${SC.aname} · ${SC.cells.length} areas</span>`;
+    $('#p-area').innerHTML=`<span class="chip" title="Bezirk ${SC.bez} · PLR granularity">🗺️ ${SC.aname} · ${SC.cells.length} areas</span>${C.role?`<span class="chip" title="Role">${ROLE_ICO[C.role]||'👤'} ${esc(C.role)}</span>`:''}${C.op?`<span class="chip" title="Experience &amp; budget">🧑‍🍳 ${esc(C.op)}</span>`:''}`;
     SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
     const mx=Math.max(...SC.layers.map(l=>l.w));$('#p-layers-wrap').innerHTML=`<h2>⚖️ How we'll score</h2><table id="p-layers" class="list"><tbody>${SC.layers.map(l=>`<tr title="${at(l.why)}"><td><input type="checkbox" checked data-l="${l.id}"></td><td><span class="emo">${emo(l.label)}</span> ${l.label}</td><td class="r"><span class="dirr" title="${l.dir==='+'?'more is better':'less is better'}">${l.dir==='+'?'↑':'↓'}</span> <span class="small mut">${l.w.toFixed(2)}</span> <span class="wbar" title="weight ${l.w.toFixed(2)}"><i style="width:${l.w/mx*100}%"></i></span></td></tr>`).join('')}</tbody></table><details class="why small"><summary>💬 Why these layers</summary><ul>${SC.layers.map(l=>`<li><b>${l.label}</b> — ${l.why}</li>`).join('')}</ul></details>`;
     $('#p-paid').innerHTML=SC.paid.length?` · <span title="Paid sources need an API key; the offline mockup makes no provider calls">🔒 ${SC.paid.map(p=>p[0]).join(', ')} skipped (no key)</span>`:'';
@@ -732,7 +772,7 @@ function live(){
 /* ---------- dashboard ---------- */
 function dash(){
   clearInterval(timer);show('s-dash');
-  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=shapeChip();$('#d-role').textContent=C.role?'👤 '+C.role:'';$('#d-sum').classList.add('clamp');$('#d-more').textContent='Read more';
+  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=shapeChip();$('#d-role').textContent=C.role?(ROLE_ICO[C.role]||'👤')+' '+C.role:'';$('#d-sum').classList.add('clamp');$('#d-more').textContent='Read more';
   const pt=$('#p-sub').cloneNode(true);pt.removeAttribute('id');pt.querySelectorAll('input').forEach((x,i)=>{const ok=SC.planChecks[i];if(!ok)x.closest('tr').style.opacity=.45;x.replaceWith(ok?'✓':'✕ not approved')});$('#d-plan').replaceChildren(pt);
   $('#d-note').innerHTML=SC.note;$('#d-note').classList.toggle('hidden',!SC.note);
   $('#battle-card').classList.toggle('hidden',C.shape==='point'&&SC.H.length<2);
@@ -1021,7 +1061,7 @@ function clearHash(){lastHash='';try{history.replaceState(null,'',location.href.
 function restoreFromHash(){
   const p=new URLSearchParams(location.hash.slice(1)),q=(p.get('q')||'').trim();if(!q)return;
   lastHash=location.hash.slice(1);
-  $('#q').value=q;$('#role').value=p.get('role')||'';$('#op').value=p.get('op')||'';$('#clar').classList.add('hidden');
+  $('#q').value=q;$('#role').value=p.get('role')||'';$('#role').gsSync();$('#op').value=p.get('op')||'';$('#clar').classList.add('hidden');
   C=classify(q);C.q=C.q0=q;C.role=$('#role').value;C.op=$('#op').value;
   if(C.shape==='point')C.area='kreuzberg';
   else if(!C.area){const a=p.get('area');
