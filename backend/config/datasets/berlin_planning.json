@@ -1,0 +1,120 @@
+{
+  "dataset_id": "berlin_planning",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_wfs",
+  "landing_url": "https://daten.berlin.de/datensaetze/bebauungsplanverfahren-in-berlin-wfs-4f574ea7",
+  "resource_url": "https://gdi.berlin.de/services/wfs/bplan?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=bplan:a_bp_iv&OUTPUTFORMAT=application/json&SORTBY=planid",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "DL-DE-ZERO-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin; Bebauungspläne (WFS bplan: im Verfahren, festgesetzt, außer Kraft gesetzt), Datenlizenz Deutschland – Zero – 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 120.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "record_type": "development_plan",
+    "typename": "bplan:a_bp_iv",
+    "page_size": 500,
+    "max_pages": 20,
+    "max_total_bytes": 40000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "id_field": "planid",
+    "id_pattern": "^[0-9A-Za-z][0-9A-Za-z/_-]*$",
+    "layers": [
+      {
+        "typename": "bplan:a_bp_iv",
+        "expected_count_range": [900, 1600],
+        "allowed_statuses": ["in_progress"],
+        "expected_properties": [
+          "gisid", "planid", "planname", "planartname", "verfahrensart", "bereich", "bezirk",
+          "bp_rechtsstand", "afs_behoer", "afs_beschl", "afs_l_aend", "bbg_anfang", "bbg_ende",
+          "aul_anfang", "aul_ende", "ausleg_www", "inhalt", "ersetztteil", "ersetztvoll",
+          "ersetztdurchteil", "ersetztdurchvoll"
+        ]
+      },
+      {
+        "typename": "bplan:b_bp_fs",
+        "expected_count_range": [2400, 3400],
+        "allowed_statuses": ["adopted", "partially_in_force"],
+        "expected_properties": [
+          "gisid", "planid", "planname", "planartname", "verfahrensart", "bereich", "bezirk",
+          "bp_rechtsstand", "afs_behoer", "afs_beschl", "afs_l_aend", "bbg_anfang", "bbg_ende",
+          "aul_anfang", "aul_ende", "festsg_von", "festsg_am", "fsg_gvbl_n", "fsg_gvbl_s",
+          "fsg_gvbl_d", "normkontr", "scan_www", "grund_www", "url_www", "inhalt", "ersetztteil",
+          "ersetztvoll", "ersetztdurchteil", "ersetztdurchvoll"
+        ]
+      },
+      {
+        "typename": "bplan:c_bp_ak",
+        "expected_count_range": [40, 300],
+        "allowed_statuses": ["repealed"],
+        "expected_properties": [
+          "gisid", "planid", "planname", "planartname", "verfahrensart", "bereich", "bezirk",
+          "bp_rechtsstand", "afs_behoer", "afs_beschl", "afs_l_aend", "bbg_anfang", "bbg_ende",
+          "aul_anfang", "aul_ende", "festsg_von", "festsg_am", "fsg_gvbl_n", "fsg_gvbl_s",
+          "fsg_gvbl_d", "normkontr", "scan_www", "grund_www", "url_www", "inhalt", "ersetztteil",
+          "ersetztvoll", "ersetztdurchteil", "ersetztdurchvoll"
+        ]
+      }
+    ],
+    "field_map": {
+      "plan_id": "planid",
+      "name": "planname",
+      "raw_status": "bp_rechtsstand",
+      "district": "bezirk",
+      "plan_type": "planartname",
+      "procedure_type": "verfahrensart",
+      "area_description": "bereich",
+      "land_use_text": "inhalt",
+      "aufstellungsbeschluss_date": "afs_beschl",
+      "festsetzung_date": "festsg_am"
+    },
+    "status_map": {
+      "Im Verfahren": "in_progress",
+      "Öffentliche Auslegung": "in_progress",
+      "In Kraft getreten": "adopted",
+      "Teilweise untergegangen": "partially_in_force",
+      "Teilweise außer Kraft": "partially_in_force",
+      "Teilweise aufgehoben": "partially_in_force",
+      "Außer Kraft": "repealed",
+      "Aufgehoben": "repealed"
+    },
+    "date_fields": [
+      "afs_beschl", "afs_l_aend", "bbg_anfang", "bbg_ende", "aul_anfang", "aul_ende",
+      "festsg_am", "fsg_gvbl_d"
+    ],
+    "min_plausible_date": "1900-01-01",
+    "url_fields": ["scan_www", "grund_www", "url_www", "ausleg_www"],
+    "attribute_fields": [
+      "gisid", "afs_behoer", "festsg_von", "fsg_gvbl_n", "fsg_gvbl_s", "normkontr",
+      "ersetztteil", "ersetztvoll", "ersetztdurchteil", "ersetztdurchvoll"
+    ],
+    "limitations": [
+      "A Bebauungsplan records a planning procedure and its legal scope (Geltungsbereich). Its existence, status or dates are not evidence that construction has started, been permitted or been completed, and the plan area is not the developable or built area.",
+      "Status comes from three WFS layers: bplan:a_bp_iv (im Verfahren), bplan:b_bp_fs (festgesetzt, incl. partially superseded plans) and bplan:c_bp_ak (außer Kraft gesetzt). The raw bp_rechtsstand is kept in raw_status; status is a coarse documented mapping. In-progress procedures can stall for decades (Aufstellungsbeschluss dates back to 1962) or be abandoned.",
+      "land_use_text is the provider's free-text summary of designations (inhalt), copied exactly; it is null for every in-progress plan and for some adopted plans, and does not state dwelling counts, floor area or the share of the plan area per use.",
+      "Plans overlap each other (newer plans replace older ones fully or partly; see ersetzt* attributes), so plan areas or counts must not be summed as if disjoint.",
+      "The layer carries no stand/reference date; currency is the retrieval date. Dates are procedural milestones as published (some are implausible, e.g. year 0209, and are kept with a date_implausible flag).",
+      "document_urls keep only http/https links as published; links are not checked for availability.",
+      "Source access, CRS, paging and field mapping checked 2026-10-18."
+    ]
+  }
+}

@@ -442,6 +442,67 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
+DEVELOPMENT_PLAN_STATUSES = frozenset(
+    {"in_progress", "adopted", "partially_in_force", "repealed", "unmapped"}
+)
+"""Coarse status values for Berlin development-plan procedures."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class DevelopmentPlan(Record):
+    """A Berlin development-plan procedure with WGS84 polygon geometry."""
+
+    geometry: dict[str, Any]
+    plan_id: str
+    name: str | None
+    status: str
+    raw_status: str | None
+    source_layer: str
+    district: str | None
+    plan_type: str | None
+    procedure_type: str | None
+    area_description: str | None
+    land_use_text: str | None
+    aufstellungsbeschluss_date: str | None
+    festsetzung_date: str | None
+    dates: dict[str, str]
+    document_urls: dict[str, str]
+    attributes: dict[str, str]
+    record_type: str = field(default="development_plan", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("plan_id", self.plan_id)
+        _text("source_layer", self.source_layer)
+        if self.status not in DEVELOPMENT_PLAN_STATUSES:
+            raise ValidationError(f"Unsupported development-plan status: {self.status}")
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Development-plan geometry must be a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Development-plan geometry must have coordinates")
+        for name in (
+            "name",
+            "raw_status",
+            "district",
+            "plan_type",
+            "procedure_type",
+            "area_description",
+            "land_use_text",
+            "aufstellungsbeschluss_date",
+            "festsetzung_date",
+        ):
+            _optional_text(name, getattr(self, name))
+        for name in ("dates", "document_urls", "attributes"):
+            value = getattr(self, name)
+            if not isinstance(value, dict) or any(
+                not isinstance(key, str) or not isinstance(item, str) for key, item in value.items()
+            ):
+                raise ValidationError(f"{name} must map strings to strings")
+
+
 @dataclass(frozen=True, kw_only=True)
 class ForecastObservation(Record):
     area_code: str
@@ -651,6 +712,7 @@ NormalizedRecord: TypeAlias = (
     | Business
     | TransitStop
     | StopService
+    | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
 )
@@ -662,6 +724,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
 }
