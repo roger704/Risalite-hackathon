@@ -378,7 +378,7 @@ def _write_canned_live_run(run_dir):
             "method": "tavily-search",
             "url": "https://live.example.org/source",
             "title": "Live source",
-            "snippet": "Live source quote",
+            "snippet": "Stored snippet without the quote",
             "status": "verified",
         },
         {
