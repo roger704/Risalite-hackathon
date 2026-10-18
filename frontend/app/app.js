@@ -374,6 +374,7 @@ function renderArea() {
     $('#d-find').innerHTML = '<p class="mut">Tick at least one layer.</p>';
     $('#battle-card').classList.add('hidden'); $('#legend').innerHTML = '';
     if (map) { const v = map._loaded ? [map.getCenter(), map.getZoom()] : null; resetMap(); if (v) map.setView(...v); }
+    clear3D();
     return;
   }
   const ranked = RisaliteScoring.scoreCells(R.cells, state.on, state.w, state.mode), byId = {};
@@ -412,19 +413,22 @@ function resetMap() { if (map) { map.remove(); map = null; } map = L.map('map', 
 function drawAreaMap(ranked, byId) {
   const gj = R.cells_geojson;
   $('#d-maparea').textContent = `${R.cells.area.name} · ${R.cells.cells.length} PLR cells · heatmap of the ${R.shape === 'gap' ? 'gap' : 'composite'} score`;
-  if (!gj) { $('#map').innerHTML = '<p class="mut" style="padding:12px">No cell geometry (cells.geojson) in this result.</p>'; return; }
+  if (!gj) { show3D(false); $('#map').innerHTML = '<p class="mut" style="padding:12px">No cell geometry (cells.geojson) in this result.</p>'; return; }
+  $('#map-ctl').classList.remove('hidden');
+  if (use3D()) { show3D(true); paint3D(ranked, byId); return; }
+  show3D(false);
   const prevView = map && map._loaded ? [map.getCenter(), map.getZoom()] : null;
   resetMap();
-  const top3 = ranked.slice(0, 3).map(r => r.cell.id), L_ = R.cells.layers;
+  const top3 = ranked.slice(0, 3).map(r => r.cell.id);
   const fid = f => String(f.properties?.id ?? f.id);
   const layer = L.geoJSON(gj, {
     filter: f => byId[fid(f)],
     style: f => ({ fillColor: color(byId[fid(f)].score), fillOpacity: .78, color: top3.includes(fid(f)) ? '#0b1720' : '#fff', weight: top3.includes(fid(f)) ? 2.5 : 1 }),
     onEachFeature: (f, lyr) => {
       const r = byId[fid(f)], c = r.cell;
-      lyr.bindTooltip(`<b>${esc(c.name)}</b> <span style="color:#8fa5b5">#${r.rank} · ${esc(c.id)}</span><br>score <b>${r.score.toFixed(2)}</b><table>${L_.map(l => `<tr style="opacity:${state.on[l.id] ? 1 : .45}"><td>${esc(l.label)}</td><td><b>${layerVal(l, c)}</b></td><td>[${CITE[l.evidence_id] || '?'}]</td></tr>`).join('')}</table>${(c.modifiers || []).map(m => `★ ${esc(m.label)} [${CITE[m.evidence_id] || '?'}]`).join('<br>')}${(c.risks || []).map(k => `<br>⚠ ${esc(k.text)} [${CITE[k.evidence_id] || '?'}]`).join('')}<div style="color:#8fa5b5;margin-top:4px">click for sources</div>`, { sticky: true, className: 'rtip' });
-      lyr.bindPopup(() => `<b>${esc(c.name)}</b><br>${[...new Set([...L_.map(l => l.evidence_id), ...(c.modifiers || []).map(m => m.evidence_id), ...(c.risks || []).map(k => k.evidence_id)])].map(id => { const e = evOf(id); return e ? `<div class="small">[${CITE[id]}] ${link(e.url, e.title || e.url)}</div>` : ''; }).join('')}`);
-      lyr.on('click', () => { const el = document.querySelector(`.top[data-id="${CSS.escape(c.id)}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } });
+      lyr.bindTooltip(tipHTML(r), { sticky: true, className: 'rtip' });
+      lyr.bindPopup(() => srcHTML(c));
+      lyr.on('click', () => flashTop(c.id));
       const center = lyr.getBounds().getCenter();
       const i = top3.indexOf(c.id), star = (c.modifiers || []).length ? (state.mode === 'future' ? '★' : '☆') : '';
       if (i >= 0 || star) L.marker(center, { interactive: false, icon: L.divIcon({ className: 'lbl', html: `${i >= 0 ? '#' + (i + 1) : ''}${star}`, iconSize: [40, 16], iconAnchor: [20, 8] }) }).addTo(map);
@@ -435,7 +439,193 @@ function drawAreaMap(ranked, byId) {
     t.onmouseenter = () => layer.eachLayer(l => { if (fid(l.feature) === t.dataset.id) l.setStyle({ weight: 4, color: '#dc2626' }); });
     t.onmouseleave = () => layer.resetStyle();
   });
-  $('#legend').innerHTML = `<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0, .25, .5, .75, 1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆/★ future development (★ applied)</span><span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+  $('#legend').innerHTML = legendHTML(false);
+}
+
+const tipHTML = r => {
+  const c = r.cell;
+  return `<b>${esc(c.name)}</b> <span style="color:#8fa5b5">#${r.rank} · ${esc(c.id)}</span><br>score <b>${r.score.toFixed(2)}</b><table>${R.cells.layers.map(l => `<tr style="opacity:${state.on[l.id] ? 1 : .45}"><td>${esc(l.label)}</td><td><b>${layerVal(l, c)}</b></td><td>[${CITE[l.evidence_id] || '?'}]</td></tr>`).join('')}</table>${(c.modifiers || []).map(m => `★ ${esc(m.label)} [${CITE[m.evidence_id] || '?'}]`).join('<br>')}${(c.risks || []).map(k => `<br>⚠ ${esc(k.text)} [${CITE[k.evidence_id] || '?'}]`).join('')}<div style="color:#8fa5b5;margin-top:4px">click for sources</div>`;
+};
+const srcHTML = c => `<b>${esc(c.name)}</b><br>${[...new Set([...R.cells.layers.map(l => l.evidence_id), ...(c.modifiers || []).map(m => m.evidence_id), ...(c.risks || []).map(k => k.evidence_id)])].map(id => { const e = evOf(id); return e ? `<div class="small">[${CITE[id]}] ${link(e.url, e.title || e.url)}</div>` : ''; }).join('')}`;
+function flashTop(id) { const el = document.querySelector(`.top[data-id="${CSS.escape(id)}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+const legendHTML = is3D => `<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0, .25, .5, .75, 1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆/★ future development (★ applied)</span>${is3D ? `<span style="margin-left:10px" id="lg-z"></span>` : ''}<span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+
+/* ---------- 3D map: MapLibre GL + OpenFreeMap vector tiles + Berlin TrueDOP 2024 aerial; Leaflet 2D is the fallback ---------- */
+const M3 = { map: null, loaded: false, failed: false, gj: null, cells: [], bCell: new Map(), mk: [], hover: null, hl: null, pending: null, bb: null, tip: null };
+let MAP_VIEW = '3d';
+const STYLE3D = 'https://tiles.openfreemap.org/styles/liberty', NEUT3D = 'hsl(35,8%,88%)';
+const ORTHO = 'https://gdi.berlin.de/services/wms/truedop_2024?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=truedop_2024&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg';
+const use3D = () => MAP_VIEW === '3d' && !!window.maplibregl && !M3.failed;
+function show3D(on) {
+  $('#map').classList.toggle('hidden', on); $('#map3d').classList.toggle('hidden', !on);
+  $('#map-base').classList.toggle('hidden', !on); $('#map-recenter').classList.toggle('hidden', !on);
+  $('#map-view').classList.toggle('hidden', !window.maplibregl || M3.failed);
+  $$('#map-view button').forEach(b => b.classList.toggle('on', b.dataset.v === (on ? '3d' : '2d')));
+}
+$$('#map-view button').forEach(b => b.onclick = () => { MAP_VIEW = b.dataset.v; if (R?.cells) renderArea(); });
+$$('#map-base button').forEach(b => b.onclick = () => {
+  $$('#map-base button').forEach(x => x.classList.toggle('on', x === b));
+  if (M3.loaded) baseStyle3D();
+});
+$('#map-recenter').onclick = () => fit3D(900);
+function fail3D(msg) {
+  if (M3.failed) return;
+  M3.failed = true; M3.loaded = false;
+  try { M3.map && M3.map.remove(); } catch (_) { /* already gone */ }
+  M3.map = null;
+  $('#map-note').textContent = `3D view unavailable (${msg}); showing the 2D map.`;
+  if (R?.cells && !$('#s-dash').classList.contains('hidden')) renderArea();
+}
+function init3D() {
+  try {
+    M3.map = new maplibregl.Map({ container: 'map3d', style: STYLE3D, center: [13.41, 52.495], zoom: 13, pitch: 55, bearing: -12, maxPitch: 70, cooperativeGestures: true, attributionControl: { compact: true } });
+  } catch (_) { fail3D('WebGL not available'); return; }
+  const map = M3.map, t = setTimeout(() => { if (!M3.loaded) fail3D('map tiles did not load'); }, 15000);
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+  map.on('error', () => { if (!M3.loaded) { clearTimeout(t); fail3D('map style did not load'); } });
+  map.on('load', () => { clearTimeout(t); M3.loaded = true; setup3D(); if (M3.pending) paint3D(...M3.pending); });
+  new ResizeObserver(() => M3.map && M3.map.resize()).observe($('#map3d'));
+}
+function setup3D() {
+  const map = M3.map, layers = map.getStyle().layers, bl = layers.find(l => l.type === 'fill-extrusion');
+  M3.blayer = bl?.id; M3.bsrc = bl?.source;
+  const below = (layers.find(l => l.id === 'building') || bl || {}).id;
+  layers.filter(l => /^poi/.test(l.id)).forEach(l => map.setLayoutProperty(l.id, 'visibility', 'none'));
+  if (M3.blayer) { map.setLayerZoomRange(M3.blayer, 13, 24); map.setPaintProperty(M3.blayer, 'fill-extrusion-opacity', ['interpolate', ['linear'], ['zoom'], 13, .55, 14, .92]); }
+  map.addSource('ortho', { type: 'raster', tiles: [ORTHO], tileSize: 256, attribution: 'TrueDOP 2024 © Geoportal Berlin, dl-de/zero-2-0' });
+  map.addLayer({ id: 'ortho', type: 'raster', source: 'ortho', layout: { visibility: $('#map-base .on')?.dataset.b === 'sat' ? 'visible' : 'none' } }, below);
+  map.addSource('cells', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id', attribution: 'PLR: Amt für Statistik Berlin-Brandenburg, CC BY 3.0' });
+  const hov = ['boolean', ['feature-state', 'hover'], false], hl = ['boolean', ['feature-state', 'hl'], false];
+  map.addLayer({ id: 'cells-fill', type: 'fill', source: 'cells', paint: { 'fill-color': NEUT3D, 'fill-opacity': ['case', hov, .82, hl, .8, .6] } }, below);
+  map.addLayer({ id: 'cells-line', type: 'line', source: 'cells', paint: { 'line-color': '#fff', 'line-width': 1.4, 'line-opacity': .9 } }, below);
+  map.addLayer({ id: 'cells-hl', type: 'line', source: 'cells', paint: { 'line-color': '#dc2626', 'line-width': ['case', hl, 4, hov, 2.5, 0] } });
+  if (M3.bsrc) map.addLayer({ id: 'focus-poi', type: 'circle', source: M3.bsrc, 'source-layer': 'poi', filter: poiFilter3D(), minzoom: 13, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.2, 17, 5], 'circle-color': '#b45309', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+  M3.tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'rtip3', offset: 14, maxWidth: '320px' });
+  map.on('mousemove', 'cells-fill', e => {
+    const f = e.features[0], r = f && M3.byId?.[f.properties.id];
+    if (!r) return;
+    hover3D(f.properties.id);
+    map.getCanvas().style.cursor = 'pointer';
+    M3.tip.setLngLat(e.lngLat).setHTML(tipHTML(r)).addTo(map);
+  });
+  map.on('mouseleave', 'cells-fill', () => { hover3D(null); map.getCanvas().style.cursor = ''; M3.tip.remove(); });
+  map.on('click', 'cells-fill', e => {
+    const f = e.features[0], r = f && M3.byId?.[f.properties.id];
+    if (!r) return;
+    M3.tip.remove(); flashTop(r.cell.id);
+    new maplibregl.Popup({ maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(srcHTML(r.cell)).addTo(map);
+  });
+  map.on('idle', assignBuildings3D);
+  map.on('zoomend', zoomHint3D);
+}
+function baseStyle3D() {
+  const sat = $('#map-base .on')?.dataset.b === 'sat', hov = ['boolean', ['feature-state', 'hover'], false], hl = ['boolean', ['feature-state', 'hl'], false];
+  M3.map.setLayoutProperty('ortho', 'visibility', sat ? 'visible' : 'none');
+  M3.map.setPaintProperty('cells-fill', 'fill-opacity', ['case', hov, sat ? .7 : .82, hl, .7, sat ? .38 : .6]);
+}
+const poiFilter3D = () => ['==', ['get', 'subclass'], R?.shape === 'gap' ? 'kindergarten' : 'cafe'];
+function hover3D(id) {
+  if (M3.hover === id || !M3.map) return;
+  if (M3.hover) M3.map.setFeatureState({ source: 'cells', id: M3.hover }, { hover: false });
+  M3.hover = id;
+  if (id) M3.map.setFeatureState({ source: 'cells', id }, { hover: true });
+}
+function highlight3D(id) {
+  if (!M3.loaded) return;
+  if (M3.hl) M3.map.setFeatureState({ source: 'cells', id: M3.hl }, { hl: false });
+  M3.hl = id;
+  if (id) M3.map.setFeatureState({ source: 'cells', id }, { hl: true });
+}
+function ringBB(g) {
+  let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
+  const rings = g.type === 'Polygon' ? [g.coordinates[0]] : g.coordinates.map(p => p[0]);
+  rings.forEach(r => r.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }));
+  return [x0, y0, x1, y1];
+}
+function inRing(r, x, y) { let k = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) k = !k; } return k; }
+function cellAt(x, y) {
+  for (const c of M3.cells) {
+    const b = c.bb;
+    if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
+    const polys = c.g.type === 'Polygon' ? [c.g.coordinates] : c.g.coordinates;
+    if (polys.some(p => inRing(p[0], x, y))) return c.i;
+  }
+  return -1;
+}
+function labelPoint(c) {
+  const ring = c.g.type === 'Polygon' ? c.g.coordinates[0] : c.g.coordinates[0][0];
+  let x = 0, y = 0; ring.forEach(p => { x += p[0]; y += p[1]; });
+  const p = [x / ring.length, y / ring.length];
+  return cellAt(...p) === c.i ? p : [(c.bb[0] + c.bb[2]) / 2, (c.bb[1] + c.bb[3]) / 2];
+}
+function assignBuildings3D() {
+  if (!M3.cells.length || !M3.map || !M3.bsrc) return;
+  for (const f of M3.map.querySourceFeatures(M3.bsrc, { sourceLayer: 'building' })) {
+    if (f.id == null || M3.bCell.has(f.id)) continue;
+    const g = f.geometry, r = g.type === 'Polygon' ? g.coordinates[0] : g.type === 'MultiPolygon' ? g.coordinates[0][0] : null;
+    if (!r) continue;
+    let x = 0, y = 0; r.forEach(p => { x += p[0]; y += p[1]; });
+    const i = cellAt(x / r.length, y / r.length);
+    if (i < 0) continue;
+    M3.bCell.set(f.id, i);
+    M3.map.setFeatureState({ source: M3.bsrc, sourceLayer: 'building', id: f.id }, { i });
+  }
+}
+function zoomHint3D() { const z = $('#lg-z'); if (M3.map) $('#map3d').classList.toggle('far', M3.map.getZoom() < 14); if (z && M3.map) z.textContent = M3.map.getZoom() >= 14 ? 'buildings tinted by their PLR cell' : 'zoom in to tint buildings'; }
+function fit3D(ms) {
+  if (!M3.map || !M3.bb) return;
+  M3.map.fitBounds([[M3.bb[0], M3.bb[1]], [M3.bb[2], M3.bb[3]]], { padding: 30, pitch: 55, bearing: -12, duration: ms });
+}
+function setCells3D(gj) {
+  const map = M3.map, fid = f => String(f.properties?.id ?? f.id);
+  M3.cells = gj.features.filter(f => f.geometry && /Polygon$/.test(f.geometry.type)).map((f, i) => ({ id: fid(f), i, g: f.geometry, bb: ringBB(f.geometry) }));
+  M3.cells.forEach(c => { c.p = labelPoint(c); });
+  map.getSource('cells').setData({ type: 'FeatureCollection', features: M3.cells.map(c => ({ type: 'Feature', properties: { id: c.id, i: c.i }, geometry: c.g })) });
+  M3.bCell.clear();
+  if (M3.bsrc) map.removeFeatureState({ source: M3.bsrc, sourceLayer: 'building' });
+  if (map.getLayer('focus-poi')) map.setFilter('focus-poi', poiFilter3D());
+  M3.bb = M3.cells.reduce((a, c) => [Math.min(a[0], c.bb[0]), Math.min(a[1], c.bb[1]), Math.max(a[2], c.bb[2]), Math.max(a[3], c.bb[3])], [180, 90, -180, -90]);
+  M3.hover = null; M3.hl = null; M3.gj = gj;
+  fit3D(1500);
+}
+function paint3D(ranked, byId) {
+  M3.pending = [ranked, byId];
+  if (!M3.map) { init3D(); return; }
+  M3.map.resize();
+  if (!M3.loaded) return;
+  const map = M3.map;
+  if (M3.gj !== R.cells_geojson) setCells3D(R.cells_geojson);
+  M3.byId = byId;
+  if (!M3.cells.length) return;
+  const cols = M3.cells.map(c => byId[c.id] ? color(byId[c.id].score) : NEUT3D), ex = inp => ['match', inp, ...cols.flatMap((c, i) => [i, c]), NEUT3D];
+  map.setPaintProperty('cells-fill', 'fill-color', ex(['get', 'i']));
+  if (M3.blayer) map.setPaintProperty(M3.blayer, 'fill-extrusion-color', ex(['to-number', ['coalesce', ['feature-state', 'i'], -1]]));
+  markers3D(ranked, byId);
+  $('#legend').innerHTML = legendHTML(true); zoomHint3D();
+  $$('.top').forEach(t => { t.onmouseenter = () => highlight3D(t.dataset.id); t.onmouseleave = () => highlight3D(null); });
+}
+function markers3D(ranked, byId) {
+  M3.mk.forEach(m => m.remove()); M3.mk = [];
+  const top3 = ranked.slice(0, 3).map(r => r.cell.id);
+  M3.cells.forEach(c => {
+    const r = byId[c.id];
+    if (!r) return;
+    const cell = r.cell, k = top3.indexOf(c.id), b = [];
+    if (k >= 0) b.push(`<span class="bd rk" title="Rank ${k + 1}">${k + 1}</span><span class="bd nm">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
+    (cell.modifiers || []).forEach(m => b.push(`<span class="bd fu${state.mode === 'future' ? ' on' : ''}" title="${esc(m.label)}">${state.mode === 'future' ? '★' : '☆'}</span>`));
+    (cell.risks || []).forEach(x => b.push(`<span class="bd rs" title="${esc(x.text)}">⚠</span>`));
+    if (!b.length) return;
+    const el = document.createElement('div');
+    el.className = 'mk3'; el.innerHTML = `<div class="bds">${b.join('')}</div><div class="stem"></div>`;
+    el.querySelector('.bds').onclick = ev => { ev.stopPropagation(); M3.tip.remove(); flashTop(c.id); new maplibregl.Popup({ offset: 30, maxWidth: '300px' }).setLngLat(c.p).setHTML(srcHTML(cell)).addTo(M3.map); };
+    M3.mk.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(c.p).addTo(M3.map));
+  });
+}
+function clear3D() {
+  M3.mk.forEach(m => m.remove()); M3.mk = []; M3.byId = null;
+  if (!M3.loaded) return;
+  M3.map.setPaintProperty('cells-fill', 'fill-color', NEUT3D);
+  if (M3.blayer) M3.map.setPaintProperty(M3.blayer, 'fill-extrusion-color', NEUT3D);
 }
 
 /* ---------- point (T1) ---------- */
@@ -456,6 +646,7 @@ function renderPoint() {
   } else $('#battle-card').classList.add('hidden');
   const S = P.space, hc = ['#0f766e', '#7c3aed', '#d97706', '#be185d'], hidx = Object.fromEntries(P.hypotheses.map((h, i) => [h.id, i]));
   $('#d-maparea').textContent = `the space, its PLR cell, and competitors within ${P.radius_m || 500} m`;
+  show3D(false); $('#map-ctl').classList.add('hidden');
   resetMap().setView([S.lat, S.lon], 15);
   if (R.cells_geojson && S.cell_id) L.geoJSON(R.cells_geojson, { filter: f => String(f.properties?.id ?? f.id) === S.cell_id, style: { color: '#0f766e', weight: 2, fillColor: '#99f6e4', fillOpacity: .35 } }).addTo(map);
   L.circle([S.lat, S.lon], { radius: P.radius_m || 500, color: '#0b1720', weight: 1, dashArray: '4 3', fill: false }).addTo(map);
