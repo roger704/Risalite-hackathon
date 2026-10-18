@@ -153,6 +153,7 @@ def redact(text: str) -> str:
 
 def cited_urls(report: str, urls: set[str]) -> tuple[set[str], set[str]]:
     """Return (urls cited anywhere, urls cited as inline markdown links before the Sources list)."""
+    report = report.replace("\r\n", "\n").replace("\r", "\n")
     headings = list(SOURCES_HEADING.finditer(report))
     body = report[: headings[-1].start()] if headings else report
     anywhere = {u for u in urls if u in report or u.rstrip("/") in report}
