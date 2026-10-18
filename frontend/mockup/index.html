@@ -27,6 +27,7 @@ h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 h2 .n{background:var(--chip);color:var(--mut);font-size:11px;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center}
 h3{font-size:14px;margin:0 0 6px}
 .mut{color:var(--mut)}
+.demo-note{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-top:10px;font-size:13px}
 .small{font-size:12px}
 textarea{width:100%;font:inherit;font-size:17px;padding:14px;border:1px solid #cdd6de;border-radius:10px;resize:vertical;min-height:78px}
 select,input[type=text],input[type=password]{font:inherit;padding:7px 9px;border:1px solid #cdd6de;border-radius:7px;background:#fff}
@@ -148,6 +149,7 @@ details summary{cursor:pointer;font-weight:600}
     <div class="row" style="justify-content:space-between">
       <div><div class="mut small">Question</div><h1 id="p-q"></h1></div>
     </div>
+    <div id="p-note" class="demo-note hidden"></div>
     <div class="grid2" style="margin-top:12px">
       <div><h3>Classification</h3><div id="p-class"></div></div>
       <div><h3>Derived area</h3><div id="p-area"></div></div>
@@ -183,6 +185,7 @@ details summary{cursor:pointer;font-weight:600}
     <h2><span class="n">1</span> Question & approved plan</h2>
     <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
     <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
+    <div id="d-note" class="demo-note hidden"></div>
   </div>
   <div class="dash">
     <div>
@@ -225,7 +228,7 @@ function classify(q){
   const addr=q.match(/([A-ZÄÖÜ][\wäöüß\-]+(?:straße|str\.|platz|damm|allee|ufer))\s*(\d+\w?)/i);
   let shape='location', why='The question asks <i>where</i> to put a business → rank candidate cells across an area.';
   if(/kita|kindergarten|missing|fehlen|lack/.test(t)){shape='gap';why='The question asks where something is <i>missing</i> → compute a supply-vs-demand gap score per cell.'}
-  if(addr||/storefront|this lot|this space|this property|parcel/.test(t)){shape='point';why=`The question is about one specific property${addr?` (“${addr[0]}”)`:''} → evaluate business hypotheses for a parcel + ~100 m neighbourhood.`}
+  if(addr||/storefront|this lot|this space|this property|parcel/.test(t)){shape='point';why=`The question is about one specific property${addr?` (“${esc(addr[0])}”)`:''} → evaluate business hypotheses for a parcel + ~100 m neighbourhood.`}
   let area=null;
   if(/kreuzberg|wiener stra|oranien|wrangel|graefe/.test(t)) area='kreuzberg';
   else if(/neuk[öo]e?lln|reuter|rixdorf|schiller/.test(t)) area='neukoelln';
@@ -244,7 +247,7 @@ const KREUZ = { // demand, young, competition, transit, cost  (hand-tuned demo s
 function scenario(c){
   const area=GEO[c.area], aname=c.area==='kreuzberg'?'Kreuzberg':'Neukölln (Nord)', bez=c.area==='kreuzberg'?'Friedrichshain-Kreuzberg':'Neukölln';
   const bzSlug=c.area==='kreuzberg'?'ba-friedrichshain-kreuzberg':'ba-neukoelln';
-  const coffee=/coffee|caf/.test(c.subject), noun=coffee?'coffee place':c.subject;
+  const noun='coffee place';
   const S=[]; const src=(o)=>{S.push({n:S.length+1,status:'verified',...o});return S.length};
   const sGeo=src({method:'wfs',title:'PLR geometries (lor_2021)',url:WFS('lor_2021:a_lor_plr_2021'),quote:`${area.cells.length} Planungsräume in ${aname}`,tier:'official',conf:'high'});
   let layers,subq,paid,mods={},risks={},unknowns={},rejected=[];
@@ -261,7 +264,7 @@ function scenario(c){
       {id:'supply',label:'Kita places per child',dir:'-',w:.35,src:s2,why:'Supply: fewer places per child → larger gap.'},
       {id:'transit',label:'Transit access',dir:'-',w:.10,src:s3,why:'Poor access makes existing places further out effectively unavailable.'},
       {id:'status',label:'Low social status (MSS)',dir:'+',w:.15,src:s4,why:'Equity: Bezirk planning prioritises low-status areas.'}];
-    subq=[['How many children under 6 live in each PLR?','official geodata','ua_einwohnerdichte_2025'],['How many approved Kita places exist per PLR?','official geodata','kita'],['What does the Bezirk Kita plan say about deficits?','web (Tavily)','berlin.de, *.berlin.de'],['Which closures or openings are announced after today?','web (Tavily)','berlin.de, local press'],['Where is new housing planned?','official geodata','step_wo_2040']];
+    subq=[['How many children under 6 live in each PLR?','official geodata','ua_einwohnerdichte_2025',['demand']],['How many approved Kita places exist per PLR?','official geodata','kita',['supply']],['What does the Bezirk Kita plan say about deficits?','web (Tavily)','berlin.de, *.berlin.de'],['Which closures or openings are announced after today?','web (Tavily)','berlin.de, local press'],['Where is new housing planned?','official geodata','step_wo_2040']];
     paid=[];
     const ids=area.cells.map(x=>x.id);
     mods[ids[11]]=[{label:'Planned housing: ~420 units by 2029',quote:'Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029',src:s6,magnitude:'420 units'}];
@@ -283,10 +286,10 @@ function scenario(c){
     layers=[
       {id:'demand',label:'Population density',dir:'+',w:.30,src:s1,why:'Cafés need resident footfall; density is the cheapest proxy.'},
       {id:'young',label:'Share aged 18–45',dir:'+',w:.15,src:s1,why:'IHK report: specialty coffee grows with a young audience.'},
-      {id:'competition',label:coffee?'Existing cafés (NACE 56 + OSM)':'Existing competitors (NACE 56 + OSM)',dir:'-',w:.25,src:s2,why:'Saturation lowers the chance of a new entrant.'},
+      {id:'competition',label:'Existing cafés (NACE 56 + OSM)',dir:'-',w:.25,src:s2,why:'Saturation lowers the chance of a new entrant.'},
       {id:'transit',label:'Transit access',dir:'+',w:.15,src:s4,why:'Passing commuters add non-resident footfall.'},
       {id:'cost',label:'Land value (cost proxy)',dir:'-',w:.15,src:s5,why:'High BRW → high ground-floor rents.'}];
-    subq=[['Where do many (young) residents live?','official geodata','ua_einwohnerdichte_2025'],['Where are cafés already concentrated?','official geodata + OSM','gewerbedaten (NACE 56), Overpass amenity=cafe'],['Which cells have good transit access?','official geodata','oepnv_ungestoert'],['What does it cost to rent there?','official geodata + web','brw2026, rent reports'],['What do IHK / the Bezirk say about gastronomy?','web (Tavily)','ihk.de, berlin.de'],['Which residential/office projects are coming after today?','web (Tavily)','berlin.de, local press']];
+    subq=[['Where do many (young) residents live?','official geodata','ua_einwohnerdichte_2025',['demand','young']],['Where are cafés already concentrated?','official geodata + OSM','gewerbedaten (NACE 56), Overpass amenity=cafe',['competition']],['Which cells have good transit access?','official geodata','oepnv_ungestoert',['transit']],['What does it cost to rent there?','official geodata + web','brw2026, rent reports',['cost']],['What do IHK / the Bezirk say about gastronomy?','web (Tavily)','ihk.de, berlin.de'],['Which residential/office projects are coming after today?','web (Tavily)','berlin.de, local press']];
     paid=[['hystreet.com','pedestrian footfall counts'],['Google Places','competitor ratings & opening hours']];
     if(c.area==='kreuzberg'){
       mods['02100104']=[{label:'Office campus: ~1,200 workplaces by 2027',quote:'…rund 1.200 Arbeitsplätze, Fertigstellung 2027…',src:s8,magnitude:'1,200 workplaces'}];
@@ -335,33 +338,37 @@ function pointScenario(c){
      for:[['Only one organic shop nearby',a3]],
      against:[['Low operator fit','profile'],['Margins thin at this rent level',a5]],
      unk:[['Willingness to pay for zero-waste in this Kiez','10 short customer interviews']]}];
+  const fit=/bak/i.test(c.op||'');
+  if(!fit)H.forEach(h=>{h.score=Math.round((h.score+(5-h.d[2])/6)*10)/10;h.d[2]=5;h.dw[2]=c.op?'Profile not modelled in this mockup — scored neutral':'No operator profile — scored neutral';h.for=h.for.filter(f=>f[1]!=='profile');h.against=h.against.filter(f=>f[1]!=='profile')});
   const competitors=[];const g=area.cells.find(x=>x.id===cellId);
   for(let i=0;i<22;i++){const r=hash('c'+i),r2=hash('d'+i);competitors.push({x:g.cx+(r-.5)*90,y:g.cy+(r2-.5)*70,h:i%3})}
-  return {c,area,cellId,sources:S,H,dims,competitors,addrSrc:a1,rejected:[{claim:'“Rents on Wiener Straße doubled since 2023”',url:'https://www.example-forum.de/thread/123',reason:'Unsupported: forum post, no figure on re-fetch'}]};
+  return {c,area,cellId,sources:S,H,Hall:H,fit,dims,competitors,addrSrc:a1,rejected:[{claim:'“Rents on Wiener Straße doubled since 2023”',url:'https://www.example-forum.de/thread/123',reason:'Unsupported: forum post, no figure on re-fetch'}]};
 }
 
 /* ---------- trace (trace.jsonl, mock) ---------- */
 function traceFor(sc){
   const c=sc.c, E=[];const e=(role,type,text,why,tok,sec,cls)=>E.push({role,type,text,why,tok,sec,cls});
   e('Classifier','classify',`shape=${c.shape}`,c.why.replace(/<[^>]+>/g,''),812,1.1);
-  e('Planner','plan',`${c.shape==='point'?'3 hypotheses':(sc.layers.length+' layers')} · ${c.shape==='point'?'8':sc.subq.length} sub-questions`,'Per-template defaults; weights unchanged',2140,3.4);
+  const on=i=>sc.sel.has(i), lay=sc.layers?sc.layers.filter(l=>sc.defaultOn[l.id]):[];
+  e('Planner','plan',`${c.shape==='point'?sc.H.length+' hypotheses':(lay.length+' layers')} · ${sc.sel.size} sub-questions approved`,sc.sel.size<sc.nSub?'Plan edited by the user before approval':'Per-template defaults; weights unchanged',2140,3.4);
   if(c.shape==='location') e('Planner','skip','hystreet.com, Google Places','key not provided — skipped',0,0,'skip');
   if(c.shape==='point'){
-    e('Data researcher','tool:wfs','locate("Wiener Straße 12") → adressen_berlin','Ground the space in its PLR before hypothesising',0,.8);
-    e('Data researcher','tool:wfs','gewerbedaten NACE 10.71/56.30/47.11 within 500 m','Count competitors per hypothesis',0,1.6);
-    e('Data researcher','tool:overpass','shop/amenity around:500','Complement NACE with OSM (report separately)',0,2.2);
+    if(on(0))e('Data researcher','tool:wfs','locate("Wiener Straße 12") → adressen_berlin','Ground the space in its PLR before hypothesising',0,.8);
+    if(on(1)){e('Data researcher','tool:wfs','gewerbedaten NACE 10.71/56.30/47.11 within 500 m','Count competitors per hypothesis',0,1.6);
+    e('Data researcher','tool:overpass','shop/amenity around:500','Complement NACE with OSM (report separately)',0,2.2)}
+    if(on(2))e('Data researcher','tool:wfs','brw2026 + wohnlagenadr2026 at the address','Land value and Wohnlage as cost proxies',0,1.1);
     sc.H.forEach(h=>{e('Web researcher','tavily:search',`FOR "${h.name}" — Kreuzberg Lausitzer Platz`,'Find demand signals / openings for this hypothesis',1620,2.9);e('Skeptic','challenge',`AGAINST "${h.name}"`,'Look for saturation, operator gaps, space limits, regulation',1980,3.7)});
     e('Fact-checker','reject',sc.rejected[0].claim,sc.rejected[0].reason,0,1.2,'rej');
     e('Planner','replan','Search rent levels via official BRW instead','Rejected rent claim; use brw2026',540,.9,'re');
-    e('Scorer','score','6 dimensions × 3 hypotheses','Weak-tier evidence cannot carry a recommendation alone',1100,1.4);
+    e('Scorer','score',`6 dimensions × ${sc.H.length} hypotheses`,'Weak-tier evidence cannot carry a recommendation alone',1100,1.4);
   } else {
-    sc.layers.filter((l,i)=>sc.layers.findIndex(x=>x.src===l.src)===i).forEach(l=>e('Data researcher',l.src&&sc.sources[l.src-1].method==='overpass'?'tool:overpass':'tool:wfs',sc.sources[l.src-1].title,l.why,0,(1+hash(l.id)*2).toFixed(1)));
-    e('Data researcher','tool:overpass','amenity=cafe in area','Complement NACE registrations with OSM',0,2.1);
+    lay.filter((l,i)=>lay.findIndex(x=>x.src===l.src)===i).forEach(l=>e('Data researcher',l.src&&sc.sources[l.src-1].method==='overpass'?'tool:overpass':'tool:wfs',sc.sources[l.src-1].title,l.why,0,(1+hash(l.id)*2).toFixed(1)));
+    if(c.shape==='location'&&sc.defaultOn.competition)e('Data researcher','tool:overpass','amenity=cafe in area','Complement NACE registrations with OSM',0,2.1);
     e('Scorer','score',`${sc.cells.length} cells normalised, default mix`,'min–max within area',0,.3);
-    sc.subq.filter(s=>/web/.test(s[1])).forEach(s=>e('Web researcher','tavily:search',`"${s[0]}" site:${s[2].split(',')[0]}`,'Domain-restricted first; widen only if empty',1510,2.6));
+    sc.subq.filter((s,i)=>on(i)&&/web/.test(s[1])).forEach(s=>e('Web researcher','tavily:search',`"${s[0]}" site:${s[2].split(',')[0]}`,'Domain-restricted first; widen only if empty',1510,2.6));
     e('Web researcher','tavily:extract','verbatim quotes for 5 top cells','Quotes are required for every web claim',2900,4.2);
     e('Skeptic','challenge','#1 cell','Look for risks with quote + severity',2210,3.9);
-    if(c.area==='kreuzberg'&&c.shape==='location') e('Skeptic','rescore','Wrangelkiez demoted (high: rents +18 %)','High-severity risk → demote −0.08',0,.1,'re');
+    if(sc.cells.some(x=>x.risks.length)) e('Skeptic','rescore','Wrangelkiez demoted (high: rents +18 %)','High-severity risk → demote −0.08',0,.1,'re');
     e('Fact-checker','reject',sc.rejected[0].claim,sc.rejected[0].reason,0,1.4,'rej');
     e('Planner','replan','Footfall: rely on transit layer; hystreet still skipped','Unsupported claim removed; no free footfall source',610,1,'re');
   }
@@ -401,23 +408,51 @@ function plan(){
   $('#p-q').textContent=C.q;
   $('#p-class').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span> <span class="why">${C.why}</span>`;
   if(C.shape==='point'){
-    $('#p-area').innerHTML=`<b>${C.addr}</b> → parcel + ~100 m neighbourhood, inside PLR <b>Lausitzer Platz</b> (02300315)<div class="small mut" style="margin-top:4px">Operator profile: ${esc(C.op||'— none given (operator-fit scored neutral)')}</div>`;
+    $('#p-area').innerHTML=`<b>Wiener Straße 12</b> → parcel + ~100 m neighbourhood, inside PLR <b>Lausitzer Platz</b> (02300315)<div class="small mut" style="margin-top:4px">Operator profile: ${esc(C.op||'— none given (operator-fit scored neutral)')}</div>`;
     const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
-    $('#p-sub tbody').innerHTML=sq.map(s=>`<tr class="planrow"><td><input type="checkbox" checked></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h3>Business hypotheses (planner)</h3><table><tbody>${SC.H.map(h=>`<tr><td><input type="checkbox" checked></td><td><b>${h.name}</b></td><td class="why">${h.dw[2]}; ${h.dw[1].replace(/\[\d+\]/g,'')}</td></tr>`).join('')}</tbody></table>`;
+    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h3>Business hypotheses (planner)</h3><table><tbody>${SC.H.map((h,i)=>`<tr><td><input type="checkbox" checked data-h="${i}"></td><td><b>${h.name}</b></td><td class="why">${h.dw[2]}; ${h.dw[1].replace(/\[\d+\]/g,'')}</td></tr>`).join('')}</tbody></table>`;
     $('#p-paid tbody').innerHTML='<tr><td colspan=4 class="mut">none for this template</td></tr>';
   } else {
     $('#p-area').innerHTML=`<b>${SC.aname}</b> (Bezirk ${SC.bez}) → <b>${SC.cells.length} PLR cells</b><div class="small mut" style="margin-top:4px">Granularity: PLR (decision A2) — demographics + MSS native per cell.</div>`;
-    $('#p-sub tbody').innerHTML=SC.subq.map(s=>`<tr class="planrow"><td><input type="checkbox" checked></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
+    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
     $('#p-layers-wrap').innerHTML=`<h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody>${SC.layers.map(l=>`<tr><td><input type="checkbox" checked data-l="${l.id}"></td><td>${l.label}</td><td>${l.dir}</td><td>${l.w.toFixed(2)}</td><td><span class="badge b-${SC.sources[l.src-1].method}">${SC.sources[l.src-1].method}</span></td><td class="why">${l.why.replace(/\[\d+\]/,'')}</td></tr>`).join('')}</tbody></table>`;
-    $('#p-paid tbody').innerHTML=SC.paid.length?SC.paid.map((p,i)=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td><span class="badge b-skip" id="ps${i}">key not provided — skipped</span></td><td><input type="password" placeholder="paste key (optional)" data-i="${i}"></td></tr>`).join(''):'<tr><td colspan=4 class="mut">none for this template</td></tr>';
-    $$('#p-paid input').forEach(inp=>inp.oninput=()=>{const b=$('#ps'+inp.dataset.i);if(inp.value){b.className='badge b-ok';b.textContent='key provided — will be used'}else{b.className='badge b-skip';b.textContent='key not provided — skipped'}});
+    $('#p-paid tbody').innerHTML=SC.paid.length?SC.paid.map((p,i)=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td><span class="badge b-skip">key not provided — skipped</span></td><td><input type="password" disabled placeholder="not available in the offline mockup" title="The mockup makes no provider calls"></td></tr>`).join(''):'<tr><td colspan=4 class="mut">none for this template</td></tr>';
   }
+  // keep sub-questions in sync with the layers / hypotheses they feed
+  $$('#p-sub input').forEach(i=>i.onchange=()=>{const s=C.shape==='point'?null:SC.subq[+i.dataset.s];
+    if(s&&s[3])s[3].forEach(l=>{const x=$(`#p-layers input[data-l="${l}"]`);if(x)x.checked=i.checked});
+    if(i.dataset.sh)$(`#p-layers-wrap input[data-h="${i.dataset.sh}"]`).checked=i.checked});
+  $$('#p-layers-wrap input[data-h]').forEach(i=>i.onchange=()=>{$(`#p-sub input[data-sh="${i.dataset.h}"]`).checked=i.checked});
+  SC.note=demoNote();$('#p-note').innerHTML=SC.note;$('#p-note').classList.toggle('hidden',!SC.note);
   show('s-plan');
+}
+function demoNote(){
+  const s=esc(C.subject);
+  if(C.shape==='point'){const a=C.addr&&!/^wiener\s*stra(ß|ss)e\s*12$/i.test(C.addr)?`“${esc(C.addr)}”`:null;
+    return a?`Demo data covers only the storefront at <b>Wiener Straße 12</b>. A real run would evaluate ${a}; this mockup shows the Wiener Straße example instead.`:'';}
+  if(C.shape==='location'&&!/coffee|caf/.test(C.subject))return `Demo data covers cafés only. A real run would pick competitor data for “${s}”; this mockup shows the coffee example instead.`;
+  if(C.shape==='gap'&&!/kita|kindergarten/i.test(C.q))return `Demo data covers Kita gaps only. A real run would model supply and demand for “${s}”; this mockup shows the Kita example instead.`;
+  return '';
 }
 
 $('#approve').onclick=()=>{
-  if(C.shape!=='point'){state.on={};SC.layers.forEach(l=>state.on[l.id]=true);$$('#p-layers input').forEach(i=>state.on[i.dataset.l]=i.checked);SC.defaultOn={...state.on}}
+  SC.sel=new Set($$('#p-sub input').filter(i=>i.checked).map(i=>+i.dataset.s));
+  SC.planChecks=$$('#p-sub input').map(i=>i.checked);
+  if(C.shape==='point'){
+    const hs=$$('#p-layers-wrap input[data-h]').filter(i=>i.checked).map(i=>+i.dataset.h);
+    if(!hs.length){alert('Keep at least one business hypothesis.');return}
+    SC.H=hs.map(i=>SC.Hall[i]).sort((a,b)=>b.score-a.score);
+  } else {
+    state.on={};SC.layers.forEach(l=>state.on[l.id]=true);$$('#p-layers input').forEach(i=>state.on[i.dataset.l]=i.checked);
+    if(!Object.values(state.on).some(Boolean)){alert('Keep at least one scoring layer.');return}
+    SC.defaultOn={...state.on};
+    SC.subq.forEach((s,i)=>{if(SC.sel.has(i))return;
+      if(/after today|planned/.test(s[0]))SC.cells.forEach(c=>c.modifiers=[]);
+      if(/cost to rent/.test(s[0]))SC.cells.forEach(c=>c.risks=[]);
+      if(/IHK/.test(s[0]))C.extra.ihk=null;
+      if(/Kita plan/.test(s[0]))C.extra.planDoc=null;});
+  }
   TR=traceFor(SC);live()};
 
 let timer=null;
@@ -444,20 +479,23 @@ function live(){
 function dash(){
   clearInterval(timer);show('s-dash');
   $('#d-q').textContent=C.q;$('#d-shape').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span>`;$('#d-role').textContent=C.role?'Role: '+C.role:'';
-  $('#d-plan').innerHTML=$('#p-sub').outerHTML.replace(/<input[^>]*>/g,'✓');
+  const pt=$('#p-sub').cloneNode(true);pt.removeAttribute('id');pt.querySelectorAll('input').forEach((x,i)=>{const ok=SC.planChecks[i];if(!ok)x.closest('tr').style.opacity=.45;x.replaceWith(ok?'✓':'✕ not approved')});$('#d-plan').replaceChildren(pt);
+  $('#d-note').innerHTML=SC.note;$('#d-note').classList.toggle('hidden',!SC.note);
+  $('#battle-card').classList.toggle('hidden',C.shape==='point'&&SC.H.length<2);
   renderSources();renderTrace();renderGrade();
   if(C.shape==='point'){$('#layer-card').classList.add('hidden');renderPoint();}
   else{$('#layer-card').classList.remove('hidden');state.mode='present';state.on={...SC.defaultOn};SC.defaultRank=scores(SC,SC.defaultOn,'present');renderSummary();renderLayers();renderArea()}
 }
 
+const hasFut=()=>SC.cells.some(c=>c.modifiers.length);
 function renderSummary(){
   const r=SC.defaultRank.slice(0,3), L=SC.layers, s=n=>SC.sources[n-1];
   $('#d-mix').textContent='written for the default layer mix';
   let h;
   if(C.shape==='gap'){
-    h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. Two announced changes after today would widen the gap further — a closure of two Kitas and ~420 planned housing units (shown under <i>Present + future</i>). One web claim about city-wide rankings could not be verified and was dropped.`;
+    h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${hasFut()?`Two announced changes after today would widen the gap further — a closure of two Kitas and ~420 planned housing units (shown under <i>Present + future</i>).`:''} One web claim about city-wide rankings could not be verified and was dropped.`;
   } else {
-    h=`For a ${SC.noun} in ${SC.aname}, the default mix ranks <b>${r[0].cell.name}</b> first, then <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b> ${cite(SC.sGeo)}. These cells pair high residential density and a young population ${cite(L[0].src)} with fewer existing cafés than the neighbouring hotspots ${cite(L[2].src)}, consistent with the IHK observation that specialty coffee grows in dense, young Kieze ${cite(C.extra.ihk)}. ${C.area==='kreuzberg'?`Wrangelkiez scores highest on demand but was demoted by the skeptic because ground-floor rents are rising sharply ${cite(SC.cells.find(c=>c.id==='02300419').risks[0].src)}. Two announced projects — an office campus at Moritzplatz and 300 flats at Köpenicker Straße — lift those cells under <i>Present + future</i>; the Bezirk's centre concept also prioritises Moritzplatz ${cite(C.extra.zk)}.`:''} Footfall could not be measured: hystreet.com was skipped (no key) and one footfall claim was rejected by the fact-checker.`;
+    h=`For a ${SC.noun} in ${SC.aname}, the default mix ranks <b>${r[0].cell.name}</b> first, then <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b> ${cite(SC.sGeo)}. These cells pair high residential density and a young population ${cite(L[0].src)} with fewer existing cafés than the neighbouring hotspots ${cite(L[2].src)}${C.extra.ihk?`, consistent with the IHK observation that specialty coffee grows in dense, young Kieze ${cite(C.extra.ihk)}`:''}. ${C.area==='kreuzberg'?`${SC.cells.find(c=>c.id==='02300419').risks.length?`Wrangelkiez scores highest on demand but was demoted by the skeptic because ground-floor rents are rising sharply ${cite(SC.cells.find(c=>c.id==='02300419').risks[0].src)}. `:''}${hasFut()?`Two announced projects — an office campus at Moritzplatz and 300 flats at Köpenicker Straße — lift those cells under <i>Present + future</i>; the`:'The'} Bezirk's centre concept ${hasFut()?'also ':''}prioritises Moritzplatz ${cite(C.extra.zk)}.`:''} Footfall could not be measured: hystreet.com was skipped (no key) and one footfall claim was rejected by the fact-checker.`;
   }
   $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">${h}</p>`;
 }
@@ -465,7 +503,7 @@ function renderSummary(){
 function renderLayers(){
   $('#layers').innerHTML=SC.layers.map(l=>`<div class="layer"><input type="checkbox" id="ly-${l.id}" ${state.on[l.id]?'checked':''}><label for="ly-${l.id}">${l.label} ${cite(l.src)}</label><span class="small mut">w ${l.w.toFixed(2)}</span><span class="small mut">${l.dir==='+'?'↑ good':'↓ good'}</span></div>`).join('');
   SC.layers.forEach(l=>$('#ly-'+l.id).onchange=e=>{state.on[l.id]=e.target.checked;renderArea()});
-  $$('#mode button').forEach(b=>{b.classList.toggle('on',b.dataset.m===state.mode);b.onclick=()=>{state.mode=b.dataset.m;$$('#mode button').forEach(x=>x.classList.toggle('on',x===b));renderArea()}});
+  $$('#mode button').forEach(b=>{b.classList.toggle('on',b.dataset.m===state.mode);b.disabled=b.dataset.m==='future'&&!hasFut();b.title=b.disabled?'Future sub-question was not approved':'';b.onclick=()=>{state.mode=b.dataset.m;$$('#mode button').forEach(x=>x.classList.toggle('on',x===b));renderArea()}});
   $('#reset').onclick=()=>{state.on={...SC.defaultOn};state.mode='present';renderLayers();renderArea()};
   bindCites();
 }
@@ -507,25 +545,36 @@ function drawMap(ranked,byId){
   $$('.top').forEach(t=>{t.onmouseenter=()=>{const p=document.querySelector(`path[data-id="${t.dataset.id}"]`);p&&p.classList.add('hl')};t.onmouseleave=()=>$$('path.hl').forEach(p=>p.classList.remove('hl'))});
 }
 
+function pointSummary(P){
+  const T={'Craft bakery-café':h=>`the last craft bakery on Lausitzer Platz has closed ${cite(6)} and only four registered bakeries remain within 500 m ${cite(2)}${P.fit?", and the operator's six years of bakery experience fit directly":''}`,
+    'Natural-wine bar':h=>`it faces 11 registered bars nearby ${cite(2)}${P.fit?' and a low operator fit':''}`,
+    'Zero-waste grocery':h=>`it has little competition ${cite(3)} but thin margins at this land value ${cite(5)}`};
+  const [top,...rest]=P.H;
+  let s=`The strongest ${P.H.length>1?'':'(and only approved) '}hypothesis is a <b>${top.name.toLowerCase()}</b> (${top.score.toFixed(1)}/10): ${T[top.name]()}.`;
+  rest.forEach(h=>s+=` A ${h.name.toLowerCase()} scores ${h.score.toFixed(1)}: ${T[h.name]()}.`);
+  if(!P.fit)s+=` Operator fit is scored neutral (${P.c.op?'profile not modelled in this mockup':'no operator profile given'}).`;
+  if(P.H.includes(P.Hall[0]))s+=' The main open question is whether oven ventilation is permitted in the building.';
+  return s;
+}
 function renderPoint(){
   const P=SC, cell=P.area.cells.find(c=>c.id===P.cellId);
   $('#d-mix').textContent='point · LocalLens';
   const s=P.sources;
-  $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">The space at <b>Wiener Straße 12</b> lies in PLR Lausitzer Platz ${cite(P.addrSrc)}, one of the district's densest and youngest cells ${cite(9)}. The strongest hypothesis is a <b>craft bakery-café</b> (7.8/10): the last craft bakery on Lausitzer Platz has closed ${cite(6)}, only four registered bakeries remain within 500 m ${cite(2)}, and the operator's six years of bakery experience fit directly. A natural-wine bar faces 11 registered bars nearby ${cite(2)} and a low operator fit; a zero-waste grocery has little competition ${cite(3)} but thin margins at this land value ${cite(5)}. The main open question is whether oven ventilation is permitted in the building.</p>`;
+  $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">The space at <b>Wiener Straße 12</b> lies in PLR Lausitzer Platz ${cite(P.addrSrc)}, one of the district's densest and youngest cells ${cite(9)}. ${pointSummary(P)}</p>`;
   $('#d-ftitle').textContent='Top-3 business hypotheses';
   const sev=v=>v>=8?'#0f766e':v>=6?'#5eaaa8':v>=4?'#f59e0b':'#dc2626';
   const ref=x=>typeof x==='number'?cite(x):`<span class="small mut">(${x})</span>`;
   $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="rk">#${i+1}</div><b style="font-size:15px">${h.name}</b> <span class="small mut">rank initial #${i+1} → final #${i+1}</span><div><span class="sc">${h.score.toFixed(1)}</span><span class="small mut"> / 10 recommendation score</span></div>
     ${P.dims.map((d,k)=>`<div class="dim"><span>${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div><div class="small mut" style="margin:-2px 0 4px 128px">${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</div>`).join('')}
     <div class="fa"><div><h4 style="color:var(--ok)">FOR</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">AGAINST</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">UNKNOWNS → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></div>`).join('');
-  const [a,b]=P.H;$('#battle-title').innerHTML=`Hypothesis Battle: <span style="color:var(--acc)">${a.name}</span> vs ${b.name}`;
-  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#0f766e':'#94a3b8'}"></span></div><div class="lab">${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#0f766e':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;
+  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`Hypothesis Battle: <span style="color:var(--acc)">${a.name}</span> vs ${b.name}`;
+  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#0f766e':'#94a3b8'}"></span></div><div class="lab">${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#0f766e':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
   // map
   const A=P.area,hc=['#0f766e','#7c3aed','#d97706'];
   $('#d-maparea').textContent='the space, its PLR cell, and competitors within 500 m';
   $('#map').innerHTML=`<svg viewBox="${cell.cx-170} ${cell.cy-105} 340 210">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${c.id===P.cellId?'#99f6e4':'#e2e8f0'}"/>`).join('')}
     <circle cx="${cell.cx}" cy="${cell.cy}" r="62" fill="none" stroke="#0b1720" stroke-dasharray="4 3"/>
-    ${P.competitors.map(k=>`<circle cx="${k.x}" cy="${k.y}" r="3.6" fill="${hc[k.h]}" stroke="#fff" stroke-width="1"/>`).join('')}
+    ${P.competitors.filter(k=>P.H.includes(P.Hall[k.h])).map(k=>`<circle cx="${k.x}" cy="${k.y}" r="3.6" fill="${hc[k.h]}" stroke="#fff" stroke-width="1"/>`).join('')}
     <rect x="${cell.cx-6}" y="${cell.cy-6}" width="12" height="12" fill="#dc2626" stroke="#fff" stroke-width="2"/>
     <text x="${cell.cx}" y="${cell.cy-12}" text-anchor="middle" style="font-size:12px">Wiener Str. 12</text>
     <text x="${cell.cx}" y="${cell.cy+78}" text-anchor="middle">500 m</text></svg><div class="tip" id="tip"></div>`;

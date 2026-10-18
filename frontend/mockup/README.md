@@ -11,8 +11,8 @@ You can also open `index.html` directly in a browser.
 
 **Covers:**
 
-- Free-text question, optional role and operator profile. The `point` / `location` / `gap` classification is keyword-based, with a stated reason. An unspecified area triggers a clarifying question.
-- Plan approval: sub-questions with their source class, layers with default weights, and paid sources marked "key not provided — skipped" next to a key field.
+- Free-text question, optional role and operator profile. The `point` / `location` / `gap` classification is keyword-based, with a stated reason. An unspecified area triggers a clarifying question. Demo data exists only for cafés (location), Kitas (gap) and the Wiener Straße 12 storefront (point); other subjects or addresses show a note and fall back to that example. Operator fit is scored neutral unless the profile matches the demo bakery profile.
+- Plan approval: sub-questions with their source class, layers with default weights, and paid sources marked "key not provided — skipped" (the key field is disabled; the mockup makes no provider calls). Unticked sub-questions, layers and hypotheses are dropped from the trace and results, and shown as "not approved" in the dashboard.
 - Live investigation view, which replays a mock `trace.jsonl` (stages, *why*, model, tokens, seconds; the skeptic's rescore; the fact-checker's rejection and the replan).
 - Shared dashboard skeleton (sections 1–7 of the spec) for all three templates:
   - **T2 coffee in Kreuzberg / T3 Kita gap in Neukölln:** summary with `[n]` citations ("default mix"), top-3 cells, Location Battle, PLR heatmap with hover values, and a layer panel. The panel has checkboxes and a Present / Present + future toggle, and recomputes score, heatmap and top-3 in the browser.
