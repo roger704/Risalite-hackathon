@@ -9,7 +9,7 @@ import pytest
 
 from app.domain.errors import ValidationError
 from app.domain.research import ExtractionStatus
-from app.evidence.citations import citable, strip_unknown_citations
+from app.evidence.citations import citable, render_citations, strip_unknown_citations
 from app.evidence.factcheck import CheckResult, FactChecker, fact_check_run
 from app.evidence.judge import judge_run
 from app.evidence.ledger import EvidenceLedger, dataset_entry
@@ -87,6 +87,24 @@ def test_strip_unknown_citations_uses_export_numbering():
     result = strip_unknown_citations("A [1]. B [ev_bad]. C [2, 9]. [link](https://x) [^1]", entries)
     assert result.text == "A [1]. B. C [2]. [link](https://x) [^1]"
     assert result.stripped == ("ev_bad", "9")
+
+
+def test_render_citations_drops_marked_sentences_and_keeps_supported_neighbor():
+    entries = [
+        web("ev_drop", "https://example.org/drop", status="verified"),
+        web("ev_keep", "https://example.org/keep", status="verified"),
+    ]
+
+    result = render_citations(
+        "Before-period marker [ev_drop].\n"
+        "After-period marker. [ev_drop]\n"
+        "Dropped sentence [ev_drop]. Kept sentence [ev_keep].",
+        entries,
+        exclude={"ev_drop"},
+    )
+
+    assert result.text == "Kept sentence [2]."
+    assert result.stripped == ("ev_drop", "ev_drop", "ev_drop")
 
 
 async def test_fact_check_run_verifies_partial_and_drops(tmp_path):

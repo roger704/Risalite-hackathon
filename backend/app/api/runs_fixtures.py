@@ -479,6 +479,34 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
     for entry in _path_jsonl(run_dir / "evidence.jsonl"):
         latest_entries[entry.get("evidence_id")] = entry
     web_entries = list(latest_entries.values())
+    findings = _path_jsonl(run_dir / "findings.jsonl")
+    for entry in web_entries:
+        evidence_id = entry.get("evidence_id")
+        quote = next(
+            (
+                finding.get("quote")
+                for finding in findings
+                if finding.get("status") == "accepted"
+                and evidence_id in (finding.get("evidence_ids") or [])
+                and finding.get("quote")
+            ),
+            None,
+        )
+        if quote is None:
+            quote = next(
+                (
+                    finding.get("quote")
+                    for finding in findings
+                    if evidence_id in (finding.get("cited_evidence_ids") or [])
+                    and finding.get("quote")
+                ),
+                None,
+            )
+        if quote is None:
+            entry["quote"] = (entry.get("passage") or entry.get("snippet") or "").strip()[:300]
+            entry["quote_source"] = "snippet"
+        else:
+            entry["quote"] = quote
     citable = [entry for entry in web_entries if entry_status(entry) != "unsupported"]
     unsupported = [entry for entry in web_entries if entry_status(entry) == "unsupported"]
     fixture_evidence = (
@@ -511,7 +539,6 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
                     if isinstance(item, dict) and item.get("evidence_id") in evidence_ids
                 ]
     trace = _live_trace(run, run_dir)
-    findings = _path_jsonl(run_dir / "findings.jsonl")
     result_doc.update(
         {
             "run_id": run["run_id"],

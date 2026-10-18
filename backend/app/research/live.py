@@ -23,6 +23,13 @@ from app.evidence.factcheck import FactChecker, fact_check_run
 from app.evidence.ledger import EvidenceLedger
 from app.evidence.trace import TraceWriter
 
+CITATION_RULES = (
+    "Only cite a source for a claim about the target area if the quoted passage or the source "
+    "title explicitly places it in that area (district, Ortsteil, street or postcode inside it). "
+    "Listings, venues or statistics located in other districts must not support claims about "
+    "the target area; the skeptic must exclude any finding whose cited source is located elsewhere."
+)
+
 
 class DroppedEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -378,6 +385,7 @@ async def run_live(
                         "competition, cost, risk, future, other. Also return a two-sentence "
                         "'summary' of the answer."
                     ),
+                    "citation_rules": CITATION_RULES,
                 },
                 output_model=Synthesis,
                 evidence=synthesis_evidence,
@@ -388,16 +396,41 @@ async def run_live(
         by_id = {item.evidence_id: item for item in synthesis_evidence}
         for index, item in enumerate(synthesis.findings, 1):
             ids = [evidence_id for evidence_id in item.evidence_ids if evidence_id in by_id]
-            if (
-                not ids
-                or len(item.quote) > 300
-                or item.quote not in (by_id[ids[0]].passage or by_id[ids[0]].snippet or "")
-            ):
+            if not ids:
+                reject_reason = "The finding did not cite any available evidence."
+            elif len(item.quote) > 300:
+                reject_reason = "The finding quote exceeded 300 characters."
+            elif item.quote not in (by_id[ids[0]].passage or by_id[ids[0]].snippet or ""):
+                reject_reason = (
+                    "The finding did not contain a verbatim quote from its cited evidence."
+                )
+            else:
+                reject_reason = None
+            if reject_reason:
+                finding_id = f"f_{index}"
+                findings.append(
+                    {
+                        "finding_id": finding_id,
+                        "claim": item.claim,
+                        "quote": item.quote,
+                        "evidence_ids": [],
+                        "cited_evidence_ids": list(item.evidence_ids),
+                        "claim_type": item.topic,
+                        "localization": item.localization,
+                        "agent": "web_researcher",
+                        "status": "rejected",
+                        "reject_reason": reject_reason,
+                    }
+                )
                 trace.emit(
                     "finding_rejected",
                     "web_researcher",
-                    "The finding did not contain a verbatim quote from its cited evidence.",
-                    detail={"summary": item.claim, "evidence_ids": ids},
+                    reject_reason,
+                    detail={
+                        "summary": item.claim,
+                        "finding_id": finding_id,
+                        "evidence_ids": list(item.evidence_ids),
+                    },
                 )
                 continue
             finding = {
@@ -430,15 +463,20 @@ async def run_live(
 
         before = _call_usage(budget)
         started = time.monotonic()
+        review_findings = [item for item in findings if item["status"] == "accepted"]
         try:
             review = await gateway.review(
-                context={"question": question, "findings": findings},
+                context={
+                    "question": question,
+                    "findings": review_findings,
+                    "citation_rules": CITATION_RULES,
+                },
                 output_model=Review,
                 evidence=synthesis_evidence,
             )
         finally:
             model_event("skeptic", "Skeptic", before, started)
-        by_finding_id = {item["finding_id"]: item for item in findings}
+        by_finding_id = {item["finding_id"]: item for item in review_findings}
         for challenge in review.challenges:
             finding = by_finding_id.get(challenge.finding_id)
             if finding is None:
@@ -471,13 +509,52 @@ async def run_live(
 
         accepted = [item for item in findings if item["status"] == "accepted"]
         report_lines = ["## Answer", synthesis.summary, "", "## Findings"]
-        report_lines.extend(
-            f"- {item['claim']} [{', '.join(item['evidence_ids'])}]" for item in accepted
-        )
+        for item in accepted:
+            claim = item["claim"].rstrip()
+            punctuation = re.search(r"[.!?]+$", claim)
+            ending = punctuation.group() if punctuation else "."
+            if punctuation:
+                claim = claim[: punctuation.start()].rstrip()
+            report_lines.append(f"- {claim} [{', '.join(item['evidence_ids'])}]{ending}")
         (run_dir / "report.md").write_text("\n".join(report_lines) + "\n", encoding="utf-8")
 
         fact_check_started = time.monotonic()
         fact_report = await fact_check_run(run_dir, checker, trace=trace)
+        findings = [
+            json.loads(line)
+            for line in findings_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if any(
+            finding.get("status") != "accepted"
+            or finding.get("verification") not in {"verified", "partial"}
+            for finding in findings
+        ):
+            report_path = run_dir / "report.md"
+            report = report_path.read_text(encoding="utf-8")
+            answer_heading = "## Answer\n"
+            findings_heading = "## Findings\n"
+            answer_body_start = report.find(answer_heading)
+            findings_start = report.find(findings_heading, answer_body_start + len(answer_heading))
+            if answer_body_start >= 0 and findings_start >= 0:
+                answer_body_start += len(answer_heading)
+                findings_body_start = findings_start + len(findings_heading)
+                surviving = []
+                for line in report[findings_body_start:].splitlines():
+                    if line.startswith("## "):
+                        break
+                    if line.startswith("- "):
+                        surviving.append(line[2:].strip())
+                answer = (
+                    "_Summary rebuilt from the fact-checked findings below; "
+                    "the model's draft referenced claims that were dropped._"
+                )
+                if surviving:
+                    answer += "\n" + " ".join(surviving)
+                report_path.write_text(
+                    report[:answer_body_start] + answer + "\n\n" + report[findings_start:],
+                    encoding="utf-8",
+                )
         fact_count = len(fact_report.evidence) + len(fact_report.findings)
         metric(
             "Fact-checker",

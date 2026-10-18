@@ -114,4 +114,4 @@ async def derive_fit(
 
     options: agent.
     """
-        return await fit.derive_fit(question, prepared, findings, emit, cfg, **options)
+    return await fit.derive_fit(question, prepared, findings, emit, cfg, **options)

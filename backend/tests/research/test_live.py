@@ -14,7 +14,7 @@ from app.domain.research import (
     ResearchBudget,
     WebEvidence,
 )
-from app.evidence.factcheck import FactChecker
+from app.evidence.factcheck import FACT_CHECKED_MARK, CheckResult, FactChecker
 from app.evidence.trace import TraceWriter
 from app.research.live import (
     Challenge,
@@ -26,6 +26,12 @@ from app.research.live import (
 )
 
 QUOTE = "Kreuzberg has a dense and young population around the market square."
+CITATION_RULES = (
+    "Only cite a source for a claim about the target area if the quoted passage or the source "
+    "title explicitly places it in that area (district, Ortsteil, street or postcode inside it). "
+    "Listings, venues or statistics located in other districts must not support claims about "
+    "the target area; the skeptic must exclude any finding whose cited source is located elsewhere."
+)
 
 
 def web_evidence(evidence_id="ev_search", *, extracted=False):
@@ -54,11 +60,23 @@ def web_evidence(evidence_id="ev_search", *, extracted=False):
 
 
 class FakeGateway:
-    def __init__(self, budget, decisions, *, exclude=False):
+    def __init__(
+        self,
+        budget,
+        decisions,
+        *,
+        exclude=False,
+        synthesis_findings=None,
+        summary="Kreuzberg has local demand, though more evidence would improve confidence.",
+    ):
         self.budget = budget
         self.config = type("Config", (), {"model": "fake-model"})()
         self.decisions = iter(decisions)
         self.exclude = exclude
+        self.synthesis_findings = synthesis_findings
+        self.summary = summary
+        self.synthesis_context = None
+        self.review_context = None
         self.review_evidence = []
 
     async def decide(self, context, output_model, evidence=()):
@@ -69,10 +87,13 @@ class FakeGateway:
     async def synthesize(self, context, output_model, evidence=()):
         self.budget.consume_inference_call()
         self.budget.record_tokens(20)
+        self.synthesis_context = context
         selected = evidence[0]
         return Synthesis(
-            summary="Kreuzberg has local demand, though more evidence would improve confidence.",
-            findings=[
+            summary=self.summary,
+            findings=self.synthesis_findings
+            if self.synthesis_findings is not None
+            else [
                 Finding(
                     claim="The market square serves a dense, young population.",
                     topic="demand",
@@ -86,6 +107,7 @@ class FakeGateway:
     async def review(self, context, output_model, evidence=()):
         self.budget.consume_inference_call()
         self.budget.record_tokens(5)
+        self.review_context = context
         self.review_evidence = list(evidence)
         challenges = (
             [
@@ -169,6 +191,8 @@ async def test_live_loop_handles_duplicates_extracts_and_skeptic_exclusion(tmp_p
     assert tavily.search_calls == ["Kreuzberg coffee market"]
     assert tavily.extract_calls == ["https://berlin.example.org/kreuzberg"]
     assert gateway.review_evidence
+    assert gateway.synthesis_context["citation_rules"] == CITATION_RULES
+    assert gateway.review_context["citation_rules"] == CITATION_RULES
     assert result["status"] == "done"
     assert (tmp_path / "evidence.jsonl").exists()
     assert json.loads((tmp_path / "findings.jsonl").read_text().splitlines()[0])["status"] == (
@@ -211,6 +235,141 @@ async def test_live_loop_records_search_budget_exhaustion(tmp_path):
     )
 
 
+@pytest.mark.asyncio
+async def test_live_answer_rebuilds_after_fact_check_drops_a_finding(tmp_path):
+    budget = ResearchBudget(6, 6, 14, 200_000)
+    gateway = FakeGateway(
+        budget,
+        [
+            NextStep(action="search", query="local demand", why="We need local evidence."),
+            NextStep(action="finish", why="The evidence covers the requested area."),
+        ],
+        synthesis_findings=[
+            Finding(
+                claim="Supported demand finding.",
+                topic="demand",
+                quote=QUOTE,
+                evidence_ids=["ev_supported"],
+                localization="Kreuzberg",
+            ),
+            Finding(
+                claim="Dropped unsupported finding.",
+                topic="cost",
+                quote=QUOTE,
+                evidence_ids=["ev_unsupported"],
+                localization="Kreuzberg",
+            ),
+        ],
+        summary="Draft repeats the dropped unsupported finding.",
+    )
+
+    class TwoEvidenceTavily(FakeTavily):
+        async def search(self, request):
+            self.budget.consume_search()
+            self.search_calls.append(request.query)
+            return EvidencePage(
+                (
+                    web_evidence("ev_supported", extracted=True),
+                    web_evidence("ev_unsupported", extracted=True),
+                ),
+                "complete",
+            )
+
+    class MixedChecker(FactChecker):
+        async def check_finding(self, finding, ledger):
+            if finding["finding_id"] == "f_2":
+                return CheckResult("f_2", "finding", "unsupported", 0.2, "No matching support.")
+            return CheckResult(
+                "f_1",
+                "finding",
+                "verified",
+                1.0,
+                "The finding matches its cited passage.",
+                matched_ids=("ev_supported",),
+            )
+
+    await run_live(
+        tmp_path,
+        run_id="run-answer-rebuild",
+        question="Where should a coffee shop open?",
+        area_name="Kreuzberg",
+        role="operator",
+        gateway=gateway,
+        tavily=TwoEvidenceTavily(budget),
+        checker=MixedChecker(offline=True),
+    )
+
+    report = (tmp_path / "report.md").read_text()
+    answer = report.split("## Findings", 1)[0]
+    assert (
+        "_Summary rebuilt from the fact-checked findings below; "
+        "the model's draft referenced claims that were dropped._"
+    ) in answer
+    assert "Draft repeats the dropped unsupported finding." not in answer
+    assert "Supported demand finding [1]." in answer
+    assert "## Could not verify" in report
+    assert "Dropped unsupported finding." in report
+    assert report.rstrip().endswith(FACT_CHECKED_MARK)
+
+
+@pytest.mark.asyncio
+async def test_synthesis_rejections_are_persisted_and_not_fact_checked(tmp_path):
+    budget = ResearchBudget(6, 6, 14, 200_000)
+    gateway = FakeGateway(
+        budget,
+        [
+            NextStep(action="search", query="local demand", why="We need local evidence."),
+            NextStep(action="finish", why="The evidence covers the requested area."),
+        ],
+        synthesis_findings=[
+            Finding(
+                claim="The rejected synthesis claim.",
+                topic="demand",
+                quote="This quote is not in the evidence.",
+                evidence_ids=["ev_search"],
+                localization="Kreuzberg",
+            )
+        ],
+    )
+
+    class TrackingChecker(FactChecker):
+        def __init__(self):
+            super().__init__(offline=True)
+            self.checked_findings = []
+
+        async def check_finding(self, finding, ledger):
+            self.checked_findings.append(finding["finding_id"])
+            return CheckResult(
+                finding["finding_id"], "finding", "verified", 1.0, "Unexpected verification."
+            )
+
+    checker = TrackingChecker()
+    await run_live(
+        tmp_path,
+        run_id="run-synthesis-rejected",
+        question="Where should a coffee shop open?",
+        area_name="Kreuzberg",
+        role="operator",
+        gateway=gateway,
+        tavily=FakeTavily(budget),
+        checker=checker,
+    )
+
+    finding = json.loads((tmp_path / "findings.jsonl").read_text().splitlines()[0])
+    assert finding["status"] == "rejected"
+    assert finding["reject_reason"]
+    assert finding["evidence_ids"] == []
+    assert finding["cited_evidence_ids"] == ["ev_search"]
+    assert finding["claim"] == "The rejected synthesis claim."
+    assert finding["quote"] == "This quote is not in the evidence."
+    assert checker.checked_findings == []
+    assert gateway.review_context["findings"] == []
+    report = (tmp_path / "report.md").read_text()
+    assert "The rejected synthesis claim." not in report
+    assert "## Findings" in report
+    assert "[1]" not in report
+
+
 def _write_canned_live_run(run_dir):
     run_dir.mkdir(parents=True, exist_ok=True)
     entries = [
@@ -230,23 +389,43 @@ def _write_canned_live_run(run_dir):
             "snippet": "Unsupported quote",
             "status": "unsupported",
         },
+        {
+            "evidence_id": "ev_snippet",
+            "method": "tavily-search",
+            "url": "https://live.example.org/snippet",
+            "title": "Snippet source",
+            "snippet": "Snippet fallback " + "x" * 400,
+            "status": "unsupported",
+        },
     ]
     (run_dir / "evidence.jsonl").write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    findings = [
+        {
+            "finding_id": "f_1",
+            "claim": "A live finding.",
+            "quote": "Live source quote",
+            "evidence_ids": ["ev_live"],
+            "claim_type": "demand",
+            "localization": "Kreuzberg",
+            "agent": "web_researcher",
+            "status": "accepted",
+            "verification": "verified",
+        },
+        {
+            "finding_id": "f_2",
+            "claim": "A rejected live finding.",
+            "quote": "Rejected source quote",
+            "evidence_ids": [],
+            "cited_evidence_ids": ["ev_unsupported"],
+            "claim_type": "risk",
+            "localization": "Kreuzberg",
+            "agent": "web_researcher",
+            "status": "rejected",
+            "reject_reason": "The claim is unsupported.",
+        },
+    ]
     (run_dir / "findings.jsonl").write_text(
-        json.dumps(
-            {
-                "finding_id": "f_1",
-                "claim": "A live finding.",
-                "quote": "Live source quote",
-                "evidence_ids": ["ev_live"],
-                "claim_type": "demand",
-                "localization": "Kreuzberg",
-                "agent": "web_researcher",
-                "status": "accepted",
-                "verification": "verified",
-            }
-        )
-        + "\n"
+        "".join(json.dumps(finding) + "\n" for finding in findings)
     )
     (run_dir / "report.md").write_text("## Answer\nA live answer.\n")
     (run_dir / "metrics.json").write_text("{}\n")
@@ -303,9 +482,21 @@ def test_live_api_streams_run_and_orders_citable_evidence(tmp_path, monkeypatch)
 
         result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
         assert result.status_code == 200
-        evidence_ids = [item["evidence_id"] for item in result.json()["evidence"]]
+        payload = result.json()
+        evidence_ids = [item["evidence_id"] for item in payload["evidence"]]
         assert evidence_ids[:2] == ["ev_live", "ev_unsupported"]
-        assert result.json()["evidence"][2]["method"] == "wfs"
+        assert evidence_ids[2] == "ev_snippet"
+        assert payload["evidence"][0]["quote"] == "Live source quote"
+        assert payload["evidence"][1]["quote"] == "Rejected source quote"
+        assert payload["evidence"][2]["quote"] == ("Snippet fallback " + "x" * 400)[:300]
+        assert payload["evidence"][2]["quote_source"] == "snippet"
+        assert payload["evidence"][3]["method"] == "wfs"
+        assert payload["findings"][1]["status"] == "rejected"
+        ledger = [
+            json.loads(line)
+            for line in (tmp_path / run["run_id"] / "evidence.jsonl").read_text().splitlines()
+        ]
+        assert all("quote" not in entry and "quote_source" not in entry for entry in ledger)
         assert result.json()["fixture_notice"].startswith("The heatmap layers are demo fixtures")
         assert result.json()["trace"][0]["type"] == "approved"
         live_cells = result.json()["cells"]
@@ -392,8 +583,15 @@ def test_live_point_result_omits_fixture_candidates_and_exports_findings(tmp_pat
         assert result.json()["candidates"] is None
         assert result.json()["cells"] is None
         assert result.json()["findings"][0]["claim"] == "A live finding."
+        assert result.json()["findings"][1]["status"] == "rejected"
         exported = client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers)
         assert exported.status_code == 200
         assert "A live finding. [1]" in exported.text
+        assert "Dropped or unverified claims" in exported.text
+        dropped_line = next(
+            line for line in exported.text.splitlines() if "A rejected live finding." in line
+        )
+        assert "A rejected live finding." in dropped_line
+        assert "[" not in dropped_line
 
     RUNS.clear()
