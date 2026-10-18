@@ -66,6 +66,37 @@ def test_invalid_mix_layers_use_domain_errors(mix, code):
     assert error.value.code == code
 
 
+def test_rank_cells_imputes_missing_values_with_the_layer_mean():
+    cells = {
+        "layers": [{"id": "competition", "direction": "-", "weight_default": 1}],
+        "cells": [
+            {"id": "A", "values": {"competition": 10}},
+            {"id": "B", "values": {"competition": None}},
+            {"id": "C", "values": {"competition": 0}},
+        ],
+    }
+
+    ranked = rank_cells(cells)
+
+    assert [item.cell["id"] for item in ranked] == ["C", "B", "A"]
+    assert next(item.score for item in ranked if item.cell["id"] == "B") == pytest.approx(0.5)
+
+
+def test_rank_cells_scores_completely_missing_layers_as_zero():
+    cells = {
+        "layers": [{"id": "competition", "direction": "-", "weight_default": 1}],
+        "cells": [
+            {"id": "A", "values": {"competition": None}},
+            {"id": "B", "values": {}},
+        ],
+    }
+
+    ranked = rank_cells(cells)
+
+    assert [item.cell["id"] for item in ranked] == ["A", "B"]
+    assert [item.score for item in ranked] == [0.5, 0.5]
+
+
 def test_citations_are_numbered_and_unsupported_or_unknown_ids_are_removed():
     bundle = coffee()
     assert [entry["n"] for entry in bundle.evidence] == [1, 2, None, 3]

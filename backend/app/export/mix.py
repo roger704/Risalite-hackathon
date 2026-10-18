@@ -1,5 +1,6 @@
 """Dashboard-equivalent deterministic area scoring."""
 
+import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -31,21 +32,47 @@ def rank_cells(cells_doc: dict[str, Any], mix: Mix | None = None) -> list[Ranked
         raise ConnectorError("UNKNOWN_LAYER", "Unknown layer: " + ", ".join(sorted(unknown)))
     mode = mix.mode or cells_doc.get("mode_default", "present")
 
+    cells = cells_doc.get("cells", [])
+    means = {}
+    for layer in layers:
+        layer_id = layer["id"]
+        if layer_id not in selected:
+            continue
+        observed = [
+            value
+            for cell in cells
+            if isinstance(value := cell.get("values", {}).get(layer_id), (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        ]
+        means[layer_id] = sum(observed) / len(observed) if observed else 0
+
     raw_scores = []
-    for cell in cells_doc.get("cells", []):
-        raw = sum(
-            layer.get("weight_default", 0)
-            * (1 if layer.get("direction") == "+" else -1)
-            * cell.get("values", {}).get(layer["id"], 0)
-            for layer in layers
-            if layer["id"] in selected
-        )
+    for cell in cells:
+        raw = 0
+        for layer in layers:
+            layer_id = layer["id"]
+            if layer_id not in selected:
+                continue
+            value = cell.get("values", {}).get(layer_id)
+            if (
+                value is None
+                or not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+            ):
+                value = means[layer_id]
+            raw += (
+                layer.get("weight_default", 0)
+                * (1 if layer.get("direction") == "+" else -1)
+                * value
+            )
         raw_scores.append(raw)
     if not raw_scores:
         return []
     low, high = min(raw_scores), max(raw_scores)
     scored = []
-    for cell, raw in zip(cells_doc.get("cells", []), raw_scores, strict=True):
+    for cell, raw in zip(cells, raw_scores, strict=True):
         base = 0.5 if high == low else (raw - low) / (high - low)
         adjusted = base
         if any(risk.get("severity") == "high" for risk in cell.get("risks", [])):

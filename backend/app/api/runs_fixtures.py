@@ -16,11 +16,13 @@ from pathlib import Path
 from threading import RLock
 from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.contracts.api import ApproveRequest, ResearchRequest
+from app.domain import ConnectorError, NotFoundError
+from app.export import EXPORT_FORMATS, Mix, RunBundle, normalize_evidence
 
 router = APIRouter()
 RUNS: dict[str, dict] = {}
@@ -365,6 +367,7 @@ def research(body: ResearchRequest):
             else None,
             "plan": _plan(shape, matches) if shape == "point" or matches else None,
             "created_at": time.monotonic(),
+            "created_at_utc": datetime.now(UTC).isoformat(),
         }
         if not _store_run(run):
             return JSONResponse(
@@ -603,6 +606,15 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
     delay = max(0.0, float(os.environ.get("RISALITE_REPLAY_DELAY", "0.25")))
     if time.monotonic() - run.get("approved_at", time.monotonic()) < len(trace) * delay:
         return JSONResponse(status_code=202, content={"status": "running"})
+
+    result_doc = _result_payload(run)
+    run["status"] = "done"
+    run["result"] = result_doc
+    return result_doc
+
+
+def _result_payload(run: dict) -> dict:
+    trace = _events(run)
     shape = run["shape"]
     area = (run.get("plan") or {}).get("area") or {}
     area_id = area.get("area_id")
@@ -657,6 +669,133 @@ def result(run_id: str, authorization: str | None = Header(default=None)):
             "trace": trace,
         }
     )
-    run["status"] = "done"
-    run["result"] = result_doc
     return result_doc
+
+
+def _renumber_fixture_citations(report_md: str, evidence: list[dict]) -> str:
+    def renumber(match: re.Match) -> str:
+        index = int(match.group(1)) - 1
+        if index < 0 or index >= len(evidence):
+            return match.group(0)
+        number = evidence[index].get("n")
+        return f"[{number}]" if number is not None else ""
+
+    return re.sub(r"\[(\d+)\]", renumber, report_md)
+
+
+def _export_cells(cells: dict | None) -> dict | None:
+    if cells is None:
+        return None
+    return {
+        **cells,
+        "cells": [
+            {
+                **cell,
+                "unknowns": [
+                    unknown if isinstance(unknown, dict) else {"text": unknown}
+                    for unknown in cell.get("unknowns", [])
+                ],
+            }
+            for cell in cells.get("cells", [])
+        ],
+    }
+
+
+@router.get("/runs/{run_id}/export/{fmt}")
+def export_run(
+    request: Request,
+    run_id: str,
+    fmt: str,
+    authorization: str | None = Header(default=None),
+):
+    run = _get_run(run_id, authorization)
+    if fmt not in EXPORT_FORMATS:
+        raise NotFoundError("Unknown export format", "UNKNOWN_FORMAT")
+    unknown = set(request.query_params) - {"layers", "mode"}
+    if unknown:
+        raise ConnectorError(
+            "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+        )
+    mode = request.query_params.get("mode")
+    if mode is not None and mode not in {"present", "future"}:
+        raise ConnectorError("INVALID_REQUEST", "mode must be present or future")
+    layers_value = request.query_params.get("layers")
+    layers = (
+        frozenset(layer.strip() for layer in layers_value.split(",") if layer.strip())
+        if layers_value is not None
+        else None
+    )
+
+    if run["status"] == "done":
+        payload = run["result"]
+    else:
+        if run["status"] not in {"approved", "running"}:
+            raise HTTPException(status_code=409, detail="run not finished")
+        trace = _events(run)
+        delay = max(0.0, float(os.environ.get("RISALITE_REPLAY_DELAY", "0.25")))
+        if time.monotonic() - run.get("approved_at", time.monotonic()) < len(trace) * delay:
+            raise HTTPException(status_code=409, detail="run not finished")
+        payload = _result_payload(run)
+        run["status"] = "done"
+        run["result"] = payload
+
+    metrics = payload.get("metrics") or {}
+    evidence = normalize_evidence(payload.get("evidence") or [])
+    summary = payload.get("report_md", "")
+    if run["shape"] == "point":
+        summary = _renumber_fixture_citations(summary, evidence)
+    if payload.get("fixture_notice"):
+        summary = (
+            f"> **Demo fixture, not a computed answer:** {payload['fixture_notice']}\n\n" + summary
+        )
+    plan = dict(run.get("plan") or {})
+    approved_subquestions = (run.get("approval") or {}).get("subquestions")
+    plan["subquestions"] = [
+        {
+            "id": subquestion["id"],
+            "text": subquestion["text"],
+            "approved": approved_subquestions is None or subquestion["id"] in approved_subquestions,
+        }
+        for subquestion in plan.get("sub_questions", [])
+    ]
+    trace = payload.get("trace") or _events(run)
+    trace = [
+        {
+            **event,
+            "role": event.get("role") or event.get("agent"),
+            "tokens": (event.get("tokens_in") or 0) + (event.get("tokens_out") or 0),
+        }
+        for event in trace
+    ]
+    bundle = RunBundle(
+        run={
+            "run_id": run["run_id"],
+            "question": run["question"],
+            "role": run.get("role"),
+            "shape": run["shape"],
+            "created_at": run.get("created_at_utc") or datetime.now(UTC).isoformat(),
+            "plan": plan,
+            "summary": summary,
+            "models": {
+                role: value.get("model")
+                for role, value in metrics.items()
+                if isinstance(value, dict) and value.get("model")
+            },
+        },
+        cells=_export_cells(payload.get("cells")),
+        geojson=payload.get("cells_geojson"),
+        candidates=payload.get("candidates"),
+        evidence=evidence,
+        trace=trace,
+    )
+    mix = Mix(layers_on=layers, mode=mode)
+    media_type, renderer = EXPORT_FORMATS[fmt]
+    if fmt.startswith("report."):
+        body = renderer(bundle, mix=mix if run["shape"] != "point" else None)
+    else:
+        body = renderer(bundle)
+    if fmt == "sources.csv":
+        body = "\ufeff" + body
+    disposition = "inline" if fmt == "report.html" else "attachment"
+    headers = {"Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'}
+    return Response(content=body, media_type=media_type, headers=headers)
