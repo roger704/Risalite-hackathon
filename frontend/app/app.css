@@ -33,6 +33,38 @@ select,input[type=text],input[type=password]{font:inherit;padding:7px 9px;border
 .tpl .t{border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;background:#fbfcfd}
 .tpl .t:hover{border-color:var(--acc);background:#f0fdfa}
 .tpl .t b{display:block;margin-bottom:4px}
+.tpl .t .small{display:block}
+.hint{box-shadow:0 0 0 4px rgba(15,118,110,.2),0 0 16px rgba(15,118,110,.3)!important;outline:2px solid var(--acc);outline-offset:2px}
+.role-label{display:inline-flex;align-items:center;gap:8px}
+.gs-native{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.gs-trigger{font:inherit;padding:7px 9px;border:1px solid #cdd6de;border-radius:7px;background:#fff;color:var(--ink);cursor:pointer;text-align:left;min-width:170px}
+.gs-menu{position:fixed;z-index:10000;min-width:180px;padding:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 26px rgba(11,23,32,.2)}
+.gs-option{display:block;width:100%;padding:8px 10px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.gs-option:hover,.gs-option[aria-selected=true],.gs-option.active{background:#e6f4f2}
+.plan-question-row{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.plan-question-copy{min-width:0;flex:1}
+.plan-question{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:24px;font-weight:700}
+.plan-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.plan-edit{display:grid;gap:10px;margin-top:12px;padding:12px;background:#f8fafb;border:1px solid var(--line);border-radius:8px}
+.plan-edit textarea{min-height:56px;font-size:14px}
+.plan-edit-actions{justify-content:flex-end}
+.layer{grid-template-columns:22px minmax(110px,1fr) 54px 60px;gap:6px;padding:7px 0}
+.layer-row{min-width:0}
+.layer-name{display:flex;align-items:center;gap:5px}
+.hist{display:block;width:92px;height:25px;overflow:visible}
+.hist rect{fill:#95bdb8}
+.hist .hist-marker{stroke:#b91c1c;stroke-width:2;display:none}
+.hist .hist-marker.on{display:block}
+.layer-preview{box-sizing:border-box;min-height:29px;padding:6px 9px;margin:4px 0 8px;background:#e6f4f2;border-left:3px solid var(--acc);border-radius:0 6px 6px 0;font-size:12px}
+.layer-preview.hidden{display:block!important;visibility:hidden;pointer-events:none}
+.overlay-panel{margin-top:12px;padding-top:8px;border-top:1px solid var(--line)}
+.overlay-panel summary{font-size:13px}
+.overlay-toggles{display:flex;gap:8px 16px;flex-wrap:wrap;padding-top:8px}
+.overlay-toggles label{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--mut);cursor:pointer}
+.bd.uk{background:#f1f5f9;color:#475569}
+.top{transition:transform .28s ease,opacity .28s ease}
+.top.new-card{animation:rankFade .35s ease both}
+@keyframes rankFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--mut);vertical-align:middle}
 .b-point{background:#ede9fe;color:#5b21b6}.b-location{background:#ccfbf1;color:#115e59}.b-gap{background:#fef3c7;color:#92400e}
 .b-wfs{background:#dbeafe;color:#1e40af}.b-overpass{background:#e0e7ff;color:#3730a3}.b-web{background:#fce7f3;color:#9d174d}.b-pdf{background:#fee2e2;color:#991b1b}.b-api{background:#f3e8ff;color:#6b21a8}
@@ -97,6 +129,8 @@ details summary{cursor:pointer;font-weight:600}
 .fa ul{margin:0;padding-left:16px;font-size:12px}
 .grade td:first-child{width:24px}
 @media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}}
+@media(max-width:600px){.plan-question{font-size:19px}.gs-trigger{min-width:145px}.layer{grid-template-columns:22px minmax(80px,1fr) 45px}.layer>span:last-child{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 #map,#map3d{height:440px;background:#eef3f6;border-radius:8px;overflow:hidden}
 .map-ctl{margin-bottom:8px;gap:8px}
