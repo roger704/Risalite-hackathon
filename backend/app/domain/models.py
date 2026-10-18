@@ -443,6 +443,146 @@ class StopService(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class ForecastObservation(Record):
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    metric_code: str
+    value: float | int
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    scenario: str
+    forecast_edition: str
+    base_period: str
+    age_min: int | None = None
+    age_max_exclusive: int | None = None
+    record_type: str = field(default="forecast_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("metric_code", self.metric_code)
+        _text("scenario", self.scenario)
+        _text("forecast_edition", self.forecast_edition)
+        if self.scenario not in {"middle", "upper", "lower"}:
+            raise ValidationError(f"Unsupported forecast scenario: {self.scenario}")
+        if self.hierarchy == "land":
+            valid_code = self.area_code == "11"
+        elif self.hierarchy == "bezirk":
+            valid_code = (
+                bool(re.fullmatch(r"\d{2}", self.area_code)) and 1 <= int(self.area_code) <= 12
+            )
+        elif self.hierarchy == "prognoseraum":
+            valid_code = (
+                bool(re.fullmatch(r"\d{4}", self.area_code)) and 1 <= int(self.area_code[:2]) <= 12
+            )
+        else:
+            valid_code = False
+        if not valid_code:
+            raise ValidationError(
+                f"Invalid area code {self.area_code!r} for hierarchy {self.hierarchy!r}"
+            )
+        for name in ("reference_period", "base_period"):
+            value = getattr(self, name)
+            try:
+                if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    raise ValueError
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        reference = date.fromisoformat(self.reference_period)
+        base = date.fromisoformat(self.base_period)
+        if reference < base:
+            raise ValidationError("reference_period cannot be before base_period")
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        expected_status = ValueStatus.OBSERVED if reference == base else ValueStatus.FORECAST
+        if status != expected_status:
+            raise ValidationError(
+                f"value_status must be {expected_status.value} for this reference_period"
+            )
+        object.__setattr__(self, "value_status", status)
+        if (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+        ):
+            raise ValidationError("Forecast value must be a finite nonnegative number")
+        if self.unit not in {"persons", "thousand_persons"}:
+            raise ValidationError(f"Unsupported forecast unit: {self.unit}")
+        _text("unit", self.unit)
+        lower, upper = self.age_min, self.age_max_exclusive
+        if lower is None and upper is not None:
+            raise ValidationError("Age bounds must both be null for totals or have an age_min")
+        if lower is not None and (
+            isinstance(lower, bool) or not isinstance(lower, int) or lower < 0
+        ):
+            raise ValidationError("age_min must be a nonnegative integer or null")
+        if upper is not None and (
+            isinstance(upper, bool) or not isinstance(upper, int) or lower is None or upper <= lower
+        ):
+            raise ValidationError("age_max_exclusive must be greater than age_min or null")
+
+
+@dataclass(frozen=True, kw_only=True)
+class AreaIndicatorClass(Record):
+    """Ordinal class a published indicator assigns to an area; not a numeric measurement."""
+
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    indicator_code: str
+    class_code: str | None
+    class_label: str | None
+    class_rank: int | None
+    class_count: int
+    rank_direction: str
+    reference_period: str
+    value_status: ValueStatus | str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="area_indicator_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("indicator_code", self.indicator_code)
+        _text("rank_direction", self.rank_direction)
+        _period(self.reference_period)
+        if type(self.class_count) is not int or self.class_count < 1:
+            raise ValidationError("class_count must be a positive integer")
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status == ValueStatus.FORECAST:
+            raise ValidationError("Area indicator classes cannot be forecasts")
+        if status in {
+            ValueStatus.MISSING,
+            ValueStatus.SUPPRESSED,
+            ValueStatus.NOT_APPLICABLE,
+        }:
+            if any(
+                value is not None for value in (self.class_code, self.class_label, self.class_rank)
+            ):
+                raise ValidationError("Missing classes must have null class fields")
+        else:
+            _text("class_code", self.class_code)
+            _text("class_label", self.class_label)
+            if type(self.class_rank) is not int or not 1 <= self.class_rank <= self.class_count:
+                raise ValidationError("class_rank must be within 1..class_count")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class GridObservation(Record):
     geometry: dict[str, Any]
     grid_id: str
@@ -504,15 +644,25 @@ class GridObservation(Record):
 
 
 NormalizedRecord: TypeAlias = (
-    Area | AreaObservation | Place | Business | TransitStop | StopService | GridObservation
+    Area
+    | AreaObservation
+    | ForecastObservation
+    | Place
+    | Business
+    | TransitStop
+    | StopService
+    | AreaIndicatorClass
+    | GridObservation
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
+    "forecast_observation": ForecastObservation,
     "place": Place,
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
 }
 
@@ -746,10 +896,12 @@ class RetailCenter(Record):
 NormalizedRecord = (
     Area
     | AreaObservation
+    | ForecastObservation
     | Place
     | Business
     | TransitStop
     | StopService
+    | AreaIndicatorClass
     | GridObservation
     | RetailCenter
 )

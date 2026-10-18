@@ -2,7 +2,7 @@
 
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
@@ -15,11 +15,23 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.centers import create_centers_router
+from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
 from app.application.service import DataService
-from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
+from app.connectors.population_forecast import expected_change
+from app.connectors.valhalla import ValhallaWalkingClient
+from app.domain import (
+    ConnectorError,
+    ForecastObservation,
+    NormalizedRecord,
+    NotFoundError,
+    SnapshotManifest,
+    record_from_dict,
+)
+from app.domain.routing import load_routing_config
 from app.export import EXPORT_FORMATS, Mix, load_run
+from app.infrastructure.routing_cache import RoutingCache, default_routing_cache_path
 
 
 class DatasetResponse(BaseModel):
@@ -88,6 +100,8 @@ def _error_status(code: str) -> int:
         return 409
     if code in {"SOURCE_UNAVAILABLE", "DATA_UNAVAILABLE", "DATASET_UNAVAILABLE"}:
         return 503
+    if code == "ROUTING_BUDGET_EXCEEDED":
+        return 429
     return 422
 
 
@@ -109,9 +123,11 @@ def create_app(
     data_dir: Path | str | None = None,
     config_dir: Path | str | None = None,
     runs_dir: Path | str | None = None,
+    routing_client: ValhallaWalkingClient | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
+    application.state.routing_client = routing_client
 
     def get_service() -> DataService:
         if application.state.data_service is None:
@@ -120,6 +136,26 @@ def create_app(
                 config_dir=Path(config_dir) if config_dir is not None else None,
             )
         return application.state.data_service
+
+    def get_routing_client() -> ValhallaWalkingClient:
+        if application.state.routing_client is None:
+            configured_data_dir = (
+                Path(data_dir).expanduser().resolve()
+                if data_dir is not None
+                else default_data_dir().resolve()
+            )
+            config = load_routing_config()
+            application.state.routing_client = ValhallaWalkingClient(
+                config,
+                cache=RoutingCache(default_routing_cache_path(configured_data_dir)),
+            )
+        return application.state.routing_client
+
+    @application.on_event("shutdown")
+    async def close_routing_client() -> None:
+        client = application.state.routing_client
+        if client is not None and client._owns_client:
+            await client.__aexit__(None, None, None)
 
     def get_runs_dir() -> Path:
         configured = os.environ.get("RISALITE_RUNS_DIR", "").strip()
@@ -183,6 +219,10 @@ def create_app(
     ):
         return data.manifest(dataset_id, snapshot_id)
 
+    @application.get("/api/v1/datasets/{dataset_id}/legend")
+    def legend(dataset_id: str, data: Annotated[DataService, Depends(get_service)]):
+        return data.legend(dataset_id)
+
     @application.get("/api/v1/datasets/{dataset_id}/records", response_model=RecordsResponse)
     def records(
         request: Request,
@@ -215,6 +255,126 @@ def create_app(
         )
 
     application.include_router(create_centers_router(get_service))
+
+    @application.get("/api/v1/population-forecast/expected-change")
+    def population_forecast_change(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        area_code: Annotated[str, Query(min_length=1)],
+        target_year: int,
+        scenario: str = "middle",
+        hierarchy: str | None = None,
+        metric_code: str = "population_total",
+        age_min: Annotated[int | None, Query(ge=0)] = None,
+        age_max_exclusive: Annotated[int | None, Query(ge=0)] = None,
+    ):
+        config = data.configs.get("berlin_population_forecast")
+        if config is None:
+            raise ConnectorError("UNKNOWN_DATASET", "Unknown dataset: berlin_population_forecast")
+        if scenario not in {"middle", "upper", "lower"}:
+            raise ConnectorError(
+                "INVALID_FILTER", "scenario must be one of middle, upper, or lower"
+            )
+        if hierarchy is not None and hierarchy not in {"land", "bezirk", "prognoseraum"}:
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "hierarchy must be one of land, bezirk, or prognoseraum",
+            )
+        if re.fullmatch(r"\d{8}", area_code):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "Population forecasts are published only to Prognoseraum resolution; "
+                f"use area_code {area_code[:4]} instead of Planungsraum {area_code}.",
+            )
+        if age_max_exclusive is not None and (age_min is None or age_max_exclusive <= age_min):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "age_max_exclusive must be greater than age_min; provide both for bounded ages",
+            )
+
+        matches: list[ForecastObservation] = []
+        cursor = None
+        while True:
+            page = data.records(
+                "berlin_population_forecast",
+                snapshot_id,
+                area_code=area_code,
+                limit=1000,
+                cursor=cursor,
+            )
+            for item in page["records"]:
+                record = record_from_dict(item)
+                if (
+                    isinstance(record, ForecastObservation)
+                    and record.metric_code == metric_code
+                    and record.scenario == scenario
+                    and record.age_min == age_min
+                    and record.age_max_exclusive == age_max_exclusive
+                    and (hierarchy is None or record.hierarchy == hierarchy)
+                ):
+                    matches.append(record)
+            cursor = page["next_cursor"]
+            if cursor is None:
+                break
+
+        if hierarchy is None:
+            matched_hierarchies = {record.hierarchy for record in matches}
+            if len(matched_hierarchies) > 1:
+                choices = [
+                    f"hierarchy={candidate}"
+                    for candidate in ("land", "bezirk", "prognoseraum")
+                    if candidate in matched_hierarchies
+                ]
+                raise ConnectorError(
+                    "INVALID_FILTER",
+                    f"Area code {area_code} is ambiguous; specify " + " or ".join(choices) + ".",
+                )
+        if not matches:
+            raise ConnectorError(
+                "NOT_FOUND",
+                f"No {scenario} {metric_code} data for area {area_code} and target year "
+                f"{target_year} with the requested age interval.",
+            )
+        base_periods = {record.base_period for record in matches}
+        if len(base_periods) != 1:
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "Forecast records in this snapshot do not share one base period.",
+            )
+        base_period = next(iter(base_periods))
+        try:
+            target_period = date(target_year, 12, 31).isoformat()
+        except ValueError as exc:
+            raise ConnectorError(
+                "INVALID_FILTER", "target_year must be a valid calendar year"
+            ) from exc
+        if date.fromisoformat(target_period) <= date.fromisoformat(base_period):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                f"target_year must be later than the snapshot base period {base_period}.",
+            )
+        bases = [
+            record
+            for record in matches
+            if record.reference_period == base_period and record.value_status == "observed"
+        ]
+        targets = [
+            record
+            for record in matches
+            if record.reference_period == target_period and record.value_status == "forecast"
+        ]
+        common_units = {record.unit for record in bases} & {record.unit for record in targets}
+        preferred_unit = "thousand_persons" if scenario != "middle" else "persons"
+        unit = preferred_unit if preferred_unit in common_units else next(iter(common_units), None)
+        bases = [record for record in bases if record.unit == unit]
+        targets = [record for record in targets if record.unit == unit]
+        if len(bases) != 1 or len(targets) != 1:
+            raise ConnectorError(
+                "NOT_FOUND",
+                f"No {scenario} {metric_code} data for area {area_code} and target year "
+                f"{target_year} with the requested age interval.",
+            )
+        return expected_change(bases[0], targets[0])
 
     def get_area_summaries(
         data: Annotated[DataService, Depends(get_service)],
@@ -257,6 +417,8 @@ def create_app(
             include_geometry=include_geometry,
             snapshot_ids=pins,
         )
+
+    application.include_router(routing_router(get_routing_client))
 
     @application.get("/api/v1/runs/{run_id:path}/export/{fmt}")
     def export_run(request: Request, run_id: str, fmt: str):
