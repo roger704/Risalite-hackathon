@@ -31,6 +31,7 @@ function show(id) {
   });
   const step = $(`#steps span[data-v="${id}"]`), pill = $('#steps .pill');
   if (step && pill) { pill.style.width = `${step.offsetWidth}px`; pill.style.transform = `translateX(${step.offsetLeft - 3}px)`; }
+  if (id !== 's-dash') setMapExpanded(false);
   window.scrollTo(0, 0);
 }
 function err(sel, msg) { const e = $(sel); (e.querySelector('[data-error-message]') || e).textContent = msg; e.classList.toggle('hidden', !msg); }
@@ -833,7 +834,7 @@ function previewColor(r) {
   }
   return color(previewValue(r));
 }
-function resetMap() { if (map) { map.remove(); map = null; } map = L.map('map', { scrollWheelZoom: false }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map); return map; }
+function resetMap() { if (map) { map.remove(); map = null; } map = L.map('map', { scrollWheelZoom: mapExpanded() }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map); return map; }
 function drawAreaMap(ranked, byId) {
   const gj = R.cells_geojson;
   $('#d-maparea').textContent = `${R.cells.area.name} · ${R.cells.cells.length} PLR cells · heatmap of the ${R.shape === 'gap' ? 'gap' : 'composite'} score`;
@@ -850,17 +851,18 @@ function drawAreaMap(ranked, byId) {
     style: f => ({ fillColor: previewColor(byId[fid(f)]), fillOpacity: .78, color: top3.includes(fid(f)) ? '#0b1720' : '#fff', weight: top3.includes(fid(f)) ? 2.5 : 1 }),
     onEachFeature: (f, lyr) => {
       const r = byId[fid(f)], c = r.cell;
-      lyr.bindTooltip(tipHTML(r), { sticky: true, className: 'rtip' });
       lyr.bindPopup(() => srcHTML(c));
-      lyr.on('click', () => flashTop(c.id));
+      lyr.on('click', () => { hideTip(); flashTop(c.id); });
       lyr.on('mouseover', () => setHoverCell(c.id));
-      lyr.on('mouseout', () => setHoverCell(null));
+      lyr.on('mousemove', e => tipFor(r, e.originalEvent));
+      lyr.on('mouseout', () => { hideTip(); setHoverCell(null); });
       const center = lyr.getBounds().getCenter();
       const i = top3.indexOf(c.id), star = (c.modifiers || []).length ? (state.mode === 'future' ? '★' : '☆') : '';
       if (i >= 0 || star) L.marker(center, { interactive: false, icon: L.divIcon({ className: 'lbl', html: `${i >= 0 ? '#' + (i + 1) : ''}${star}`, iconSize: [40, 16], iconAnchor: [20, 8] }) }).addTo(map);
     }
   }).addTo(map);
-  if (prevView) map.setView(...prevView); else map.fitBounds(layer.getBounds(), { padding: [10, 10] });
+  MAP2D_BOUNDS = layer.getBounds();
+  if (prevView) map.setView(...prevView); else map.fitBounds(MAP2D_BOUNDS, { padding: [10, 10] });
   $$('.top').forEach(t => {
     t.onmouseenter = () => layer.eachLayer(l => { if (fid(l.feature) === t.dataset.id) l.setStyle({ weight: 4, color: '#dc2626' }); });
     t.onmouseleave = () => layer.resetStyle();
@@ -869,9 +871,29 @@ function drawAreaMap(ranked, byId) {
 }
 
 const tipHTML = r => {
-  const c = r.cell;
-  return `<b>${esc(c.name)}</b> <span style="color:#8fa5b5">#${r.rank} · ${esc(c.id)}</span><br>score <b>${r.score.toFixed(2)}</b><table>${R.cells.layers.map(l => `<tr style="opacity:${state.on[l.id] ? 1 : .45}"><td>${esc(l.label)}</td><td><b>${layerVal(l, c)}</b></td><td>[${CITE[l.evidence_id] || '?'}]</td></tr>`).join('')}</table>${(c.modifiers || []).map(m => `★ ${esc(m.label)} [${CITE[m.evidence_id] || '?'}]`).join('<br>')}${(c.risks || []).map(k => `<br>⚠ ${esc(k.text)} [${CITE[k.evidence_id] || '?'}]`).join('')}<div style="color:#8fa5b5;margin-top:4px">click for sources</div>`;
+  const c = r.cell, ref = id => `<span class="c">[${CITE[id] || '?'}]</span>`;
+  const rows = R.cells.layers.map(l => `<tr${state.on[l.id] ? '' : ' class="off"'}><td>${esc(l.label)}</td><td class="v">${layerVal(l, c)}</td><td class="c">[${CITE[l.evidence_id] || '?'}]</td></tr>`).join('');
+  const notes = [
+    ...(c.modifiers || []).map(m => `<li class="fu">★ ${esc(m.label)} ${ref(m.evidence_id)}</li>`),
+    ...(c.risks || []).map(k => `<li class="rs">⚠ ${esc(k.text)} ${ref(k.evidence_id)}</li>`),
+    ...(c.unknowns || []).map(u => `<li class="uk">? ${esc(u)}</li>`)
+  ];
+  return `<div class="tt-h"><b>${esc(c.name)}</b><span class="tt-s">${r.score.toFixed(2)}</span></div><div class="tt-m">Rank #${r.rank} of ${R.cells.cells.length} · PLR ${esc(c.id)}</div><table class="tt">${rows}</table>${notes.length ? `<ul class="tt-n">${notes.join('')}</ul>` : ''}<div class="tt-f">Click the cell for sources</div>`;
 };
+/* Hover tooltip lives on <body> (position:fixed) so the map's rounded, overflow-hidden frame never clips it. */
+let tipKey = null;
+function tipFor(r, ev) {
+  const tip = $('#maptip'), key = `${GEN}|${r.cell.id}|${r.score}|${state.mode}`;
+  if (tipKey !== key) { tip.innerHTML = tipHTML(r); tipKey = key; }
+  tip.classList.add('on');
+  const pad = 10, off = 16, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + off, y = ev.clientY + off;
+  if (x + w + pad > innerWidth) x = ev.clientX - off - w;
+  if (y + h + pad > innerHeight) y = ev.clientY - off - h;
+  tip.style.transform = `translate(${Math.round(Math.max(pad, x))}px,${Math.round(Math.max(pad, y))}px)`;
+}
+function hideTip() { $('#maptip').classList.remove('on'); tipKey = null; }
+addEventListener('scroll', hideTip, { passive: true });
 const srcHTML = c => `<b>${esc(c.name)}</b><br>${[...new Set([...R.cells.layers.map(l => l.evidence_id), ...(c.modifiers || []).map(m => m.evidence_id), ...(c.risks || []).map(k => k.evidence_id)])].map(id => { const e = evOf(id); return e ? `<div class="small">[${CITE[id]}] ${link(e.url, e.title || e.url)}</div>` : ''; }).join('')}`;
 function flashTop(id) { const el = document.querySelector(`.top[data-id="${CSS.escape(id)}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
 const legendHTML = is3D => {
@@ -882,7 +904,21 @@ const legendHTML = is3D => {
 
 /* ---------- 3D map: MapLibre GL + OpenFreeMap vector tiles + Berlin TrueDOP 2024 aerial; Leaflet 2D is the fallback ---------- */
 const M3 = { map: null, loaded: false, failed: false, gj: null, cells: [], bCell: new Map(), mk: [], hover: null, hl: null, pending: null, bb: null, tip: null };
-let MAP_VIEW = '3d';
+let MAP_VIEW = '3d', MAP2D_BOUNDS = null;
+function mapExpanded() { return $('#map-card').classList.contains('map-expanded'); }
+function setMapExpanded(on) {
+  if (mapExpanded() === on) return;
+  $('#map-card').classList.toggle('map-expanded', on); document.body.classList.toggle('map-open', on);
+  const b = $('#map-expand'); b.textContent = on ? '✕ Close' : '⤢ Expand'; b.setAttribute('aria-pressed', String(on)); b.title = on ? 'Close the expanded map (Esc)' : 'Expand the map';
+  hideTip();
+  requestAnimationFrame(() => {
+    if (M3.map) { M3.map.resize(); M3.map.cooperativeGestures[on ? 'disable' : 'enable'](); if (use3D()) fit3D(700); }
+    if (map) { map.invalidateSize(); map.scrollWheelZoom[on ? 'enable' : 'disable'](); if (MAP2D_BOUNDS && !use3D()) map.fitBounds(MAP2D_BOUNDS, { padding: [20, 20] }); }
+  });
+}
+$('#map-expand').onclick = () => setMapExpanded(!mapExpanded());
+$('#map-backdrop').onclick = () => setMapExpanded(false);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && mapExpanded() && !e.defaultPrevented) setMapExpanded(false); });
 const STYLE3D = 'https://tiles.openfreemap.org/styles/liberty', NEUT3D = 'hsl(35,8%,88%)';
 const ORTHO = 'https://gdi.berlin.de/services/wms/truedop_2024?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=truedop_2024&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg';
 const use3D = () => MAP_VIEW === '3d' && !!window.maplibregl && !M3.failed;
@@ -908,7 +944,7 @@ function fail3D(msg) {
 }
 function init3D() {
   try {
-    M3.map = new maplibregl.Map({ container: 'map3d', style: STYLE3D, center: [13.41, 52.495], zoom: 13, pitch: 55, bearing: -12, maxPitch: 70, cooperativeGestures: true, attributionControl: { compact: true } });
+    M3.map = new maplibregl.Map({ container: 'map3d', style: STYLE3D, center: [13.41, 52.495], zoom: 13, pitch: 55, bearing: -12, maxPitch: 70, cooperativeGestures: !mapExpanded(), attributionControl: { compact: true } });
   } catch (_) { fail3D('WebGL not available'); return; }
   const map = M3.map, t = setTimeout(() => { if (!M3.loaded) fail3D('map tiles did not load'); }, 15000);
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
@@ -943,22 +979,22 @@ function setup3D() {
     minzoom: 11, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'circle-color': '#2563eb', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.2 }
   });
   applyOverlayVisibility();
-  M3.tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'rtip3', offset: 14, maxWidth: '320px' });
   map.on('mousemove', 'cells-fill', e => {
     const f = e.features[0], r = f && M3.byId?.[f.properties.id];
     if (!r) return;
     hover3D(f.properties.id);
     map.getCanvas().style.cursor = 'pointer';
-    M3.tip.setLngLat(e.lngLat).setHTML(tipHTML(r)).addTo(map);
+    tipFor(r, e.originalEvent);
   });
-  map.on('mouseleave', 'cells-fill', () => { hover3D(null); map.getCanvas().style.cursor = ''; M3.tip.remove(); });
+  map.on('mouseleave', 'cells-fill', () => { hover3D(null); map.getCanvas().style.cursor = ''; hideTip(); });
   map.on('click', 'cells-fill', e => {
     const f = e.features[0], r = f && M3.byId?.[f.properties.id];
     if (!r) return;
-    M3.tip.remove(); flashTop(r.cell.id);
+    hideTip(); flashTop(r.cell.id);
     new maplibregl.Popup({ maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(srcHTML(r.cell)).addTo(map);
   });
   map.on('idle', assignBuildings3D);
+  map.on('render', () => { if (!M3.dq) M3.dq = requestAnimationFrame(() => { M3.dq = 0; declutter3D(); }); });
   map.on('zoomend', zoomHint3D);
 }
 function baseStyle3D() {
@@ -1018,7 +1054,9 @@ function assignBuildings3D() {
 function zoomHint3D() { const z = $('#lg-z'); if (M3.map) $('#map3d').classList.toggle('far', M3.map.getZoom() < 14); if (z && M3.map) z.textContent = M3.map.getZoom() >= 14 ? 'buildings tinted by their PLR cell' : 'zoom in to tint buildings'; }
 function fit3D(ms) {
   if (!M3.map || !M3.bb) return;
-  M3.map.fitBounds([[M3.bb[0], M3.bb[1]], [M3.bb[2], M3.bb[3]]], { padding: 30, pitch: 55, bearing: -12, duration: ms });
+  // Fit in plan view, then tilt: fitBounds with pitch zooms out to the far horizon and leaves the cells tiny.
+  const cam = M3.map.cameraForBounds([[M3.bb[0], M3.bb[1]], [M3.bb[2], M3.bb[3]]], { padding: 24, bearing: -12 });
+  if (cam) M3.map.easeTo({ center: cam.center, zoom: cam.zoom, pitch: 55, bearing: -12, duration: ms });
 }
 function setCells3D(gj) {
   const map = M3.map, fid = f => String(f.properties?.id ?? f.id);
@@ -1056,7 +1094,7 @@ function markers3D(ranked, byId) {
     const r = byId[c.id];
     if (!r) return;
     const cell = r.cell, k = top3.indexOf(c.id), b = [];
-    if (overlayState.top && k >= 0) b.push(`<span class="bd rk" data-kind="top" title="Rank ${k + 1}">${k + 1}</span><span class="bd nm" data-kind="top">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
+    if (overlayState.top && k >= 0) b.push(`<span class="bd rk" data-kind="top" title="Rank ${k + 1}: ${esc(cell.name)} · ${r.score.toFixed(2)}">${k + 1}</span><span class="bd nm" data-kind="top">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
     if (overlayState.future && state.mode === 'future') (cell.modifiers || []).forEach((m, index) => b.push(`<span class="bd fu on" data-kind="future" data-index="${index}" title="${esc(m.label)}">★</span>`));
     if (overlayState.risks) {
       (cell.risks || []).forEach((risk, index) => b.push(`<span class="bd rs" data-kind="risk" data-index="${index}" title="${esc(risk.text)}">⚠</span>`));
@@ -1067,7 +1105,7 @@ function markers3D(ranked, byId) {
     el.className = 'mk3'; el.innerHTML = `<div class="bds">${b.join('')}</div><div class="stem"></div>`;
     el.querySelector('.bds').onclick = ev => {
       const badge = ev.target.closest('[data-kind]'); if (!badge) return;
-      ev.stopPropagation(); M3.tip.remove(); flashTop(c.id);
+      ev.stopPropagation(); hideTip(); flashTop(c.id);
       const index = Number(badge.dataset.index), kind = badge.dataset.kind;
       let html = srcHTML(cell);
       if (kind === 'future') {
@@ -1081,8 +1119,23 @@ function markers3D(ranked, byId) {
       }
       new maplibregl.Popup({ offset: 30, maxWidth: '300px' }).setLngLat(c.p).setHTML(html).addTo(M3.map);
     };
-    M3.mk.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(c.p).addTo(M3.map));
+    const mk = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(c.p).addTo(M3.map);
+    mk.prio = k >= 0 ? k : 9; M3.mk.push(mk);
   });
+  M3.mk.sort((a, b) => a.prio - b.prio);
+  declutter3D();
+}
+/* Hide overlapping badges in priority order: top-3 keep their rank pin (names may collapse), other badges hide until zoomed in. */
+function declutter3D() {
+  const placed = [], hit = r => placed.some(p => r.left < p.right + 3 && r.right > p.left - 3 && r.top < p.bottom + 3 && r.bottom > p.top - 3);
+  M3.mk.forEach(m => m.getElement().classList.remove('cl', 'ch'));
+  for (const m of M3.mk) {
+    const el = m.getElement(), bds = el.querySelector('.bds');
+    let r = bds.getBoundingClientRect();
+    if (hit(r) && el.querySelector('.nm')) { el.classList.add('cl'); r = bds.getBoundingClientRect(); }
+    if (hit(r) && m.prio > 2) { el.classList.add('ch'); continue; }
+    placed.push(r);
+  }
 }
 function clear3D() {
   M3.pending = null;
