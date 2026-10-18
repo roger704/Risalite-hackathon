@@ -226,6 +226,31 @@ async def test_prefetch_batches_more_than_thirty_web_entries():
     assert [item.text for item in fetched] == [f"Fetched {entry['url']}" for entry in entries]
 
 
+async def test_prefetch_batch_uses_timeout_longer_than_single_fetch_timeout(monkeypatch):
+    monkeypatch.setattr("app.evidence.factcheck.FETCH_TIMEOUT_S", 0.01)
+    monkeypatch.setattr("app.evidence.factcheck.PREFETCH_BATCH_TIMEOUT_S", 1.0)
+    entry = web("ev_slow", "https://example.org/slow")
+
+    class SlowResearch:
+        async def extract(self, request):
+            await asyncio.sleep(0.03)
+            evidence = SimpleNamespace(
+                extraction_status=ExtractionStatus.OK,
+                passage="Slow but valid batch",
+                snippet="",
+                original_url=request.urls[0],
+                canonical_url=request.urls[0],
+            )
+            return SimpleNamespace(evidence=(evidence,), failures=())
+
+    async with FactChecker(research=SlowResearch()) as fact_checker:
+        await fact_checker.prefetch([entry])
+        fetched = await fact_checker.fetch(entry)
+
+    assert fetched.text == "Slow but valid batch"
+    assert fetched.reason == ""
+
+
 async def test_fact_check_only_checks_and_prefetches_selected_ids(tmp_path):
     ledger = EvidenceLedger(tmp_path)
     ledger.extend(

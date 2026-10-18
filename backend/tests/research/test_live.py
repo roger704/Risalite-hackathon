@@ -487,7 +487,9 @@ def test_live_api_streams_run_and_orders_citable_evidence(tmp_path, monkeypatch)
         assert evidence_ids[:2] == ["ev_live", "ev_unsupported"]
         assert evidence_ids[2] == "ev_snippet"
         assert payload["evidence"][0]["quote"] == "Live source quote"
-        assert payload["evidence"][1]["quote"] == "Rejected source quote"
+        assert payload["evidence"][1]["quote"] == "Unsupported quote"
+        assert payload["evidence"][1]["quote_source"] == "snippet"
+        assert payload["evidence"][1]["quote"] != payload["findings"][1]["quote"]
         assert payload["evidence"][2]["quote"] == ("Snippet fallback " + "x" * 400)[:300]
         assert payload["evidence"][2]["quote_source"] == "snippet"
         assert payload["evidence"][3]["method"] == "wfs"

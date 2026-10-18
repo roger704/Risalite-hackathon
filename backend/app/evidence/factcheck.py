@@ -58,6 +58,7 @@ REQUERY_METHODS = {"wfs", "wfs-cached", "overpass"}
 DEFAULT_REQUERY_HOSTS = ("gdi.berlin.de", "fbinter.stadt-berlin.de", "overpass-api.de")
 MAX_REDIRECTS = 5
 FETCH_TIMEOUT_S = 10.0
+PREFETCH_BATCH_TIMEOUT_S = float(os.environ.get("RISALITE_FACTCHECK_BATCH_TIMEOUT_S", "90"))
 DEFAULT_FACTCHECK_CONCURRENCY = 8
 FACTCHECK_FILE = "factcheck.json"
 FINDINGS_FILE = "findings.jsonl"
@@ -274,7 +275,7 @@ class FactChecker:
         for start in range(0, len(urls), 20):
             batch = urls[start : start + 20]
             try:
-                async with asyncio.timeout(FETCH_TIMEOUT_S):
+                async with asyncio.timeout(PREFETCH_BATCH_TIMEOUT_S):
                     page = await self.research.extract(ResearchExtract(urls=batch))
             except Exception as exc:  # provider down, budget exhausted, ...
                 reason = self._refetch_failure_reason(type(exc).__name__)
