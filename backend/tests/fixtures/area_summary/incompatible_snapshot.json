@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "SNAPSHOT_INCOMPATIBLE",
+    "dataset_id": null,
+    "message": "berlin_population snapshot berlin_population-synthetic-1 is pinned to ['berlin_lor-synthetic-1'] LOR snapshot(s), not berlin_lor-synthetic-2",
+    "request_id": "<request-id>",
+    "retryable": false
+  }
+}

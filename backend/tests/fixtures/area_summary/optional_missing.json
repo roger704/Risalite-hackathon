@@ -1,0 +1,354 @@
+{
+  "area": {
+    "area_code": "01011101",
+    "area_km2": {
+      "calculation": {
+        "id": "planar_area",
+        "method": "Polygon area in EPSG:25833",
+        "version": "area_summary_v1"
+      },
+      "reference_period": "2023-01-01",
+      "sources": [
+        {
+          "dataset_id": "berlin_lor",
+          "snapshot_id": "berlin_lor-synthetic-1"
+        }
+      ],
+      "status": "derived",
+      "unit": "km2",
+      "value": 0.7552
+    },
+    "boundary": null,
+    "boundary_edition": "2021",
+    "boundary_source": {
+      "dataset_id": "berlin_lor",
+      "snapshot_id": "berlin_lor-synthetic-1"
+    },
+    "hierarchy": "planungsraum",
+    "name": {
+      "calculation": null,
+      "note": "Official LOR name is unavailable; do not invent one.",
+      "reference_period": null,
+      "sources": [],
+      "status": "missing",
+      "unit": null,
+      "value": null
+    },
+    "official_attributes": null
+  },
+  "calculation_version": "area_summary_v1",
+  "competitors": {
+    "category": "coffee_shop",
+    "combination": "not_combined",
+    "note": "Source-specific counts; do not add them as unique businesses.",
+    "sources": [
+      {
+        "dataset_id": "osm_pois",
+        "inventory": "mapped_places",
+        "status": "missing"
+      },
+      {
+        "dataset_id": "ihk_businesses",
+        "inventory": "registered_businesses",
+        "status": "missing"
+      }
+    ]
+  },
+  "geometry_crs": "EPSG:4326",
+  "limitations": [
+    "OSM places and IHK businesses are separate inventories; report their counts side by side and never add them.",
+    "An empty or zero count only describes the pinned extraction, not the real world.",
+    "Scheduled departures measure timetable supply, not passengers or footfall.",
+    "Straight-line distances are not walking times; no routed distance is computed.",
+    "IHK employee size classes are bounds of registered businesses, not headcounts or measured daytime population.",
+    "Registered residents are counted at their principal residence; they are not daytime population or customer demand.",
+    "This endpoint produces no ranking, score, footfall, rent, revenue, vacancy or confidence figure."
+  ],
+  "metric_crs": "EPSG:25833",
+  "not_integrated": [
+    "retail_centers",
+    "planning_context",
+    "households",
+    "population_forecast",
+    "routed_walking_access",
+    "measured_daytime_population"
+  ],
+  "not_provided": [
+    "ranking",
+    "score",
+    "footfall",
+    "rent",
+    "revenue",
+    "vacancy",
+    "confidence"
+  ],
+  "parameters": {
+    "area_code": "01011101",
+    "category": "coffee_shop"
+  },
+  "residents": {
+    "age_bands": [
+      {
+        "age_max_exclusive": 18,
+        "age_min": 0,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "observed",
+          "unit": "persons",
+          "value": 20
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "ratio",
+          "value": 0.2
+        }
+      },
+      {
+        "age_max_exclusive": 65,
+        "age_min": 18,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "observed",
+          "unit": "persons",
+          "value": 60
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "ratio",
+          "value": 0.6
+        }
+      },
+      {
+        "age_max_exclusive": null,
+        "age_min": 65,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "observed",
+          "unit": "persons",
+          "value": 20
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "ratio",
+          "value": 0.2
+        }
+      }
+    ],
+    "density": {
+      "calculation": {
+        "id": "residents_per_km2",
+        "method": "population_total / planar area in EPSG:25833",
+        "version": "area_summary_v1"
+      },
+      "reference_period": "2026-06-30",
+      "sources": [
+        {
+          "dataset_id": "berlin_population",
+          "snapshot_id": "berlin_population-synthetic-1"
+        },
+        {
+          "dataset_id": "berlin_lor",
+          "snapshot_id": "berlin_lor-synthetic-1"
+        }
+      ],
+      "status": "derived",
+      "unit": "persons/km2",
+      "value": 132.4
+    },
+    "measures": "registered residents (principal residence)",
+    "reference_date": "2026-06-30",
+    "status": "available",
+    "total": {
+      "calculation": null,
+      "reference_period": "2026-06-30",
+      "sources": [
+        {
+          "dataset_id": "berlin_population",
+          "snapshot_id": "berlin_population-synthetic-1"
+        }
+      ],
+      "status": "observed",
+      "unit": "persons",
+      "value": 100
+    }
+  },
+  "schema_version": "1.0",
+  "snapshots": [
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Amt für Statistik Berlin-Brandenburg; LOR Vektordaten, CC BY 3.0; transformed to EPSG:4326.",
+      "boundary_edition": "2021",
+      "dataset_id": "berlin_lor",
+      "landing_url": "https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/",
+      "license_id": "CC-BY-3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "parent_snapshot_ids": [],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": null,
+      "resource_url": "https://example.org/synthetic/berlin_lor",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "boundary",
+      "snapshot_id": "berlin_lor-synthetic-1",
+      "source_edition": "2023-01-01",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "dataset_id": "berlin_lor_names",
+      "pinned_by": null,
+      "reason": "No snapshot is published",
+      "role": "names",
+      "snapshot_id": null,
+      "status": "missing"
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Amt für Statistik Berlin-Brandenburg, Einwohnerregisterstatistik Berlin, A I 16 – hj 1 / 26, 2026, CC BY 3.0 DE",
+      "boundary_edition": "2021",
+      "dataset_id": "berlin_population",
+      "landing_url": "https://www.statistik-berlin-brandenburg.de/a-i-16-hj/",
+      "license_id": "CC-BY-3.0-DE",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+      "parent_snapshot_ids": [
+        "berlin_lor-synthetic-1"
+      ],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": "2026-06-30",
+      "resource_url": "https://example.org/synthetic/berlin_population",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "population",
+      "snapshot_id": "berlin_population-synthetic-1",
+      "source_edition": "2026h01",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "dataset_id": "osm_pois",
+      "pinned_by": null,
+      "reason": "No snapshot is published",
+      "role": "places",
+      "snapshot_id": null,
+      "status": "missing"
+    },
+    {
+      "dataset_id": "ihk_businesses",
+      "pinned_by": null,
+      "reason": "No snapshot is published",
+      "role": "businesses",
+      "snapshot_id": null,
+      "status": "missing"
+    },
+    {
+      "dataset_id": "vbb_gtfs",
+      "pinned_by": null,
+      "reason": "No snapshot is published",
+      "role": "transit",
+      "snapshot_id": null,
+      "status": "missing"
+    }
+  ],
+  "summary_type": "area_summary",
+  "transit": {
+    "dataset_id": "vbb_gtfs",
+    "nearest_station": null,
+    "routed_distance": {
+      "calculation": null,
+      "note": "No routing source is integrated; straight-line distance is not walking time.",
+      "reference_period": null,
+      "sources": [],
+      "status": "not_available",
+      "unit": "m",
+      "value": null
+    },
+    "stations": [],
+    "status": "missing",
+    "stops_in_area": null,
+    "windows": []
+  },
+  "warnings": [
+    "berlin_lor_names: missing (No snapshot is published)",
+    "osm_pois: missing (No snapshot is published)",
+    "ihk_businesses: missing (No snapshot is published)",
+    "vbb_gtfs: missing (No snapshot is published)"
+  ],
+  "workplaces": {
+    "dataset_id": "ihk_businesses",
+    "employee_size_classes": [],
+    "measured_daytime_population": {
+      "calculation": null,
+      "note": "No measured daytime-population source is integrated.",
+      "reference_period": null,
+      "sources": [],
+      "status": "not_available",
+      "unit": "persons",
+      "value": null
+    },
+    "registered_businesses": null,
+    "status": "missing"
+  }
+}
