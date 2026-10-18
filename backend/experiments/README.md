@@ -52,7 +52,7 @@ The image is `python:3.12-slim`, installs only the locked runtime dependencies, 
 
 ## Web UI
 
-`ui.py` serves a single page, `ui.html`, using the Python standard library HTTP server. You type a question, see the Tavily searches as they run, and get the rendered report along with the same verification result. It uses the same `run_research()` as the CLI and has no extra dependencies.
+`ui.py` serves a single page, `ui.html` (titled *Spotwise · by Risalite*), using the Python standard library HTTP server. You type a question and watch the Tavily searches as they run. The result shows three scored hypothesis cards (score, per-criterion bars, why it fits, risks, and source links), a Sources card, the verification result, and the full report in a collapsible section. It uses the same `run_research()` as the CLI and has no extra dependencies.
 
 ```sh
 uv run python ui.py                         # http://127.0.0.1:8000

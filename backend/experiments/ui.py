@@ -122,6 +122,13 @@ class Handler(BaseHTTPRequestHandler):
                 "hypotheses": result.hypotheses,
                 "ranking_note": result.ranking_note,
                 "weights": SCORE_WEIGHTS,
+                "sources": sorted(
+                    (
+                        {"url": u, "title": result.stats.result_titles.get(u, "")}
+                        for u in result.cited
+                    ),
+                    key=lambda src: (result.report or "").find(src["url"].rstrip("/")),
+                ),
             }
         )
 

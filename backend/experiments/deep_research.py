@@ -130,6 +130,7 @@ class RunStats:
     output_tokens: int = 0
     searches: list[str] = field(default_factory=list)
     result_urls: set[str] = field(default_factory=set)
+    result_titles: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -240,6 +241,7 @@ def build_search_tool(
         for item in results:
             if item.get("url"):
                 stats.result_urls.add(item["url"])
+                stats.result_titles.setdefault(item["url"], item.get("title") or "")
         log(f"[tavily]   -> {len(results)} results")
         return {
             "query": query,
@@ -254,7 +256,9 @@ def build_search_tool(
 
 EXTRACT_PROMPT = """Extract the three ranked business hypotheses from this research report.
 Copy each hypothesis's title, location, one-sentence summary, its five 0–10 ratings and the URLs \
-cited for it exactly as the report states them. Use 5 for any rating the report does not give. \
+cited for it exactly as the report states them. Add up to three short points on why it fits \
+(supporting evidence) and up to three on risks, counter-evidence or unknowns, each taken from \
+the report. Use 5 for any rating the report does not give. \
 Do not add hypotheses, ratings or URLs that are not in the report.
 
 Report:
@@ -275,6 +279,8 @@ class HypothesisItem(BaseModel):
     summary: str
     scores: HypothesisScores
     evidence: list[str] = Field(default_factory=list)
+    why_it_fits: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
 
 
 class HypothesisList(BaseModel):
@@ -368,6 +374,8 @@ def score_hypotheses(items: list[dict]) -> list[dict]:
                 "scores": scores,
                 "total": total,
                 "evidence": evidence,
+                "why_it_fits": [str(x) for x in item.get("why_it_fits") or []][:3],
+                "risks": [str(x) for x in item.get("risks") or []][:3],
             }
         )
     scored.sort(key=lambda h: h["total"], reverse=True)  # stable: ties keep report order
@@ -450,6 +458,8 @@ def run_research(
         extracted = extract_hypotheses(build_model(), report, callbacks) if inline else []
         extracted = [h for h in extracted if normalize(h["title"]) in normalize(report)]
         hypotheses = score_hypotheses(extracted)
+        for h in hypotheses:
+            h["evidence"] = [u for u in h["evidence"] if u in stats.result_urls]
         note = ranking_note(extracted, hypotheses)
     except ResearchCancelled:
         return ResearchResult(stats, time.monotonic() - started, error="cancelled")
