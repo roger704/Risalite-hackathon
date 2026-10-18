@@ -321,10 +321,10 @@ Ingestion remains a maintainer CLI operation for the MVP. A future ingestion HTT
 Matching is local and deterministic:
 
 1. Normalize street names with Unicode compatibility normalization, case folding, German umlaut expansion, punctuation/spacing removal, and `str`/`-str` to `strasse` expansion. Use an exact street-key match; if none exists and the key has at least four characters, search matching street-key prefixes (`street_prefix`).
-2. With a house number and suffix, match that exact number/suffix (`exact`).
-3. With a house number and no suffix, prefer exact no-suffix entries (`exact`); only when none exist, return all suffixed variants (`house_number_suffix_variant`).
-4. Without a house number, return all addresses on matching street key(s) (`street`).
-5. Apply exact postcode and district-code or normalized district-name filters before paging.
+2. Apply exact postcode and district-code or normalized district-name filters before house-number selection.
+3. With a house number and suffix, match that exact number/suffix (`exact`).
+4. With a house number and no suffix, prefer exact no-suffix entries (`exact`); only when none exist within the filtered entries, return all suffixed variants (`house_number_suffix_variant`).
+5. Without a house number, return all addresses on matching street key(s), labelled `street` for an exact street-key match or `street_prefix` when using the prefix fallback. Numbered queries keep their house-number match type.
 6. Sort by street name, postcode, house number (null first), suffix (null first), and stable `record_id`.
 7. `ambiguous` is true when an exact or suffix-variant query yields more than one point. `candidates` lists up to 20 distinct postcode/district-name pairs. The API never auto-selects an ambiguous address.
 

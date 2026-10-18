@@ -92,8 +92,39 @@ def test_exact_suffix_variant_ambiguity_filters_and_street_search():
     assert results[0][1] == "street"
 
 
+def test_postcode_filter_precedes_house_number_suffix_preference():
+    source_index = address_index()
+    rows = []
+    for row in source_index._row_records.values():
+        if row["source_record_id"] not in {"1003", "1004"}:
+            continue
+        row = dict(row)
+        if row["source_record_id"] == "1004":
+            row["house_number_suffix"] = "A"
+        rows.append((len(rows), row))
+    index = AddressIndex(rows)
+
+    total, results, _, _ = index.search(parse_query("Lindenstraße 10"), postcode="12555")
+    assert total == 1
+    assert results[0][0].source_record_id == "1004"
+    assert results[0][1] == "house_number_suffix_variant"
+
+    total, results, _, _ = index.search(parse_query("Lindenstraße 10"))
+    assert total == 1
+    assert results[0][0].source_record_id == "1003"
+    assert results[0][1] == "exact"
+
+
 def test_prefix_empty_result_and_deterministic_pagination():
     index = address_index()
+    total, results, _, _ = index.search(parse_query("Wiene"))
+    assert total == 3
+    assert {match_type for _, match_type in results} == {"street_prefix"}
+
+    total, results, _, _ = index.search(parse_query("Wiener Straße"))
+    assert total == 3
+    assert {match_type for _, match_type in results} == {"street"}
+
     total, results, _, _ = index.search(parse_query("Wiene"), limit=1, offset=0)
     assert total == 3
     assert results[0][0].source_record_id == "S297"

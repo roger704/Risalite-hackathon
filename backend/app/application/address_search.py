@@ -146,7 +146,9 @@ class AddressIndex:
         exact_key = parsed.street_key
         if exact_key in self._streets:
             street_keys = [exact_key]
+            used_prefix_fallback = False
         elif len(exact_key) >= 4:
+            used_prefix_fallback = True
             position = bisect_left(self._street_keys, exact_key)
             street_keys = []
             while position < len(self._street_keys) and self._street_keys[position].startswith(
@@ -156,9 +158,18 @@ class AddressIndex:
                 position += 1
         else:
             street_keys = []
+            used_prefix_fallback = False
 
         entries = [entry for key in street_keys for entry in self._streets[key]]
-        match_type = "street"
+        effective_postcode = postcode if postcode is not None else parsed.postcode
+        if effective_postcode is not None:
+            entries = [entry for entry in entries if entry[2] == effective_postcode]
+        if district is not None:
+            district_key = _district_key(district)
+            entries = [
+                entry for entry in entries if entry[3] == district or entry[4] == district_key
+            ]
+
         if parsed.house_number is not None:
             numbered = [entry for entry in entries if entry[0] == parsed.house_number]
             if parsed.house_number_suffix is not None:
@@ -175,16 +186,7 @@ class AddressIndex:
                     entries = [entry for entry in numbered if entry[1]]
                     match_type = "house_number_suffix_variant"
         else:
-            match_type = "street"
-
-        effective_postcode = postcode if postcode is not None else parsed.postcode
-        if effective_postcode is not None:
-            entries = [entry for entry in entries if entry[2] == effective_postcode]
-        if district is not None:
-            district_key = _district_key(district)
-            entries = [
-                entry for entry in entries if entry[3] == district or entry[4] == district_key
-            ]
+            match_type = "street_prefix" if used_prefix_fallback else "street"
         entries.sort(key=lambda item: item[5])
         total = len(entries)
         candidate_pairs = sorted(
