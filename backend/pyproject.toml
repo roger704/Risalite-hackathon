@@ -33,6 +33,7 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = ["-m", "not live"]
 markers = ["live: opt-in tests that contact public providers"]
 addopts = "-m 'not live'"
 
