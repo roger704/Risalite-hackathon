@@ -160,7 +160,7 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .lpanel.min .lbody{display:none}
 .lsub{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:10px 4px 2px;font-weight:700}
 .lrow{display:grid;grid-template-columns:18px 10px 1fr auto;column-gap:7px;row-gap:2px;align-items:center;padding:6px;border-radius:9px;cursor:pointer;transition:background .15s,opacity .15s}
-.lrow:hover,.lrow.pv{background:rgba(15,118,110,.10)}
+.lrow:hover,.lrow.pv{background:rgba(0,122,255,.10)}
 .lrow.off{opacity:.5}
 .lrow label{cursor:pointer;font-size:13px}
 .lrow .chip{width:10px;height:10px;border-radius:3px}
@@ -187,7 +187,7 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .bd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff;padding:0 4px}
 .bd.rk{background:var(--acc);color:#fff;min-width:26px;height:26px;border-radius:13px;font-size:14px}
 .bd.nm{background:rgba(255,255,255,.92);color:var(--ink);font-weight:700;font-size:11px;border:0;padding:0 8px}
-.bd.fu{background:#fff;color:#0f766e}.bd.fu.on{background:#0f766e;color:#fde68a}
+.bd.fu{background:#fff;color:var(--acc)}.bd.fu.on{background:var(--acc);color:#fde68a}
 .bd.rs{background:#fff7ed;color:var(--warn)}.bd.uk{background:#f1f5f9;color:#475569}
 .maplibregl-popup-content{border-radius:10px;font-size:12px;padding:10px 12px;max-width:290px}
 .maplibregl-ctrl-attrib{font-size:10px}
@@ -700,6 +700,7 @@ function draw3D(){setFlat(false);
 function initMap(){
   try{M.map=new maplibregl.Map({container:'map3d',style:STYLE,center:[13.41,52.495],zoom:13,pitch:55,bearing:-12,maxPitch:70,cooperativeGestures:true,attributionControl:{compact:true}})}
   catch(e){fail('WebGL not available');return}
+  new ResizeObserver(()=>M.map&&M.map.resize()).observe($('#map3d'));
   const map=M.map,t=setTimeout(()=>{if(!M.loaded)fail('map tiles did not load')},15000);
   map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
   map.on('error',e=>{if(!M.loaded){clearTimeout(t);fail('map style did not load')}});
@@ -780,7 +781,7 @@ function openPop(c,r,k,j){const cell=r.cell;if(k==='rank'){focusFinding(c.id);re
   else if(k==='risk'){const x=cell.risks[j];h=`<b>⚠ Risk (${x.sev}): ${x.text}</b> ${cite(x.src)}<br><span class="quote">“${x.quote}”</span><br><span class="badge">−0.08 skeptic demotion</span>`}
   else h=`<b>? Unknown</b><br>${cell.unknowns[j]}`;
   new maplibregl.Popup({offset:30,maxWidth:'290px'}).setLngLat(c.p).setHTML(`<div class="small mut">${cell.name} · PLR ${c.id}</div>${h}`).addTo(M.map);bindCites()}
-function renderOverlays(){const lab={top:['#0f766e','1','Top-3 pins'],fut:['#0f766e','★','Future developments'],risk:['#b45309','⚠','Risks & unknowns'],
+function renderOverlays(){const lab={top:['#007aff','1','Top-3 pins'],fut:['#007aff','★','Future developments'],risk:['#b45309','⚠','Risks & unknowns'],
     poi:['#b45309','●',C.shape==='gap'?'Kitas (OSM, live tiles)':'Cafés (OSM, live tiles)'],transit:['#1d4ed8','●','U-/S-Bahn stations (OSM)']};
   $('#overlays').innerHTML=Object.entries(lab).map(([k,[c,i,t]])=>`<label class="orow"><input type="checkbox" data-o="${k}" ${M.ov[k]?'checked':''}><span class="sw" style="background:${c}">${i}</span>${t}</label>`).join('');
   $$('#overlays input').forEach(x=>x.onchange=()=>{M.ov[x.dataset.o]=x.checked;paint3D()})}
