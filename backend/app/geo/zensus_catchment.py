@@ -18,7 +18,7 @@ DEFINITION = (
     "(CKM-perturbed); not current population and not Einwohnerregister residents"
 )
 
-# Adjacent cells share identical reprojected corners (same EPSG:3035 inputs), so only floating-point noise remains.
+# Adjacent cells share identical EPSG:3035 corners; this is an absolute floating-point cap also scaled to catchment size.
 UNCOVERED_AREA_TOLERANCE_M2 = 1e-3
 
 
@@ -39,9 +39,9 @@ def circle_catchment(lon: float, lat: float, radius_m: float):
         isinstance(radius_m, bool)
         or not isinstance(radius_m, (int, float))
         or not math.isfinite(radius_m)
-        or radius_m <= 0
+        or radius_m < 1
     ):
-        raise ValueError("radius_m must be finite and greater than zero")
+        raise ValueError("radius_m must be at least 1 m")
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
     x, y = transformer.transform(lon, lat)
     return Point(x, y).buffer(radius_m, quad_segs=64)
@@ -118,7 +118,8 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
     share_of_catchment = published_area / catchment_area
     uncovered = catchment.difference(unary_union(valued_polygons)) if valued_polygons else catchment
     uncovered_area = uncovered.area
-    complete = without_value == 0 and uncovered_area <= UNCOVERED_AREA_TOLERANCE_M2
+    tolerance = min(UNCOVERED_AREA_TOLERANCE_M2, catchment_area * 1e-9)
+    complete = without_value == 0 and bool(valued_polygons) and uncovered_area <= tolerance
     warnings = [
         "Values are perturbed by the cell-key method (CKM); sums need not match official totals.",
         "Cells absent from the file have no published value; absence is not zero.",

@@ -520,6 +520,37 @@ def test_aggregate_grid_does_not_tolerate_a_half_square_meter_gap():
     assert result["coverage"]["uncovered_area_m2"] == pytest.approx(0.5, abs=0.001)
 
 
+def test_aggregate_grid_tiny_catchment_in_absent_cell_is_incomplete():
+    absent_cell = GridCell(100, 3270900, 4548500)
+    absent_polygon = cell_polygon(absent_cell, "EPSG:25833")
+    center = absent_polygon.centroid
+    catchment = Point(center.x, center.y).buffer(0.01, quad_segs=64)
+    neighboring_record = grid_observation(GridCell(100, 3270900, 4548600), 1)
+
+    assert catchment.area < 1e-3
+    assert absent_polygon.covers(catchment)
+    result = aggregate_grid([neighboring_record], catchment)
+
+    assert result["cells"]["intersecting"] == 0
+    assert result["cells"]["without_value"] == 0
+    assert result["bounds"]["upper"] is None
+    assert result["bounds"]["complete"] is False
+
+
+def test_aggregate_grid_tiny_catchment_in_valued_cell_is_complete():
+    cell = GridCell(100, 3270900, 4548500)
+    polygon = cell_polygon(cell, "EPSG:25833")
+    center = polygon.centroid
+    catchment = Point(center.x, center.y).buffer(0.01, quad_segs=64)
+    record = grid_observation(cell, 10)
+
+    result = aggregate_grid([record], catchment)
+
+    assert result["bounds"]["upper"] == 10
+    assert result["bounds"]["complete"] is True
+    assert result["whole_cells"]["complete"] is True
+
+
 def test_aggregate_grid_rejects_mixed_data_or_periods():
     cell = GridCell(100, 3270900, 4548500)
     record = grid_observation(cell, 10)
@@ -571,5 +602,6 @@ def test_circle_catchment_has_metric_area_and_rejects_invalid_radius():
     radius = 500
     circle = circle_catchment(13.4132, 52.5219, radius)
     assert circle.area == pytest.approx(3.14159 * radius**2, rel=0.001)
-    with pytest.raises(ValueError, match="greater than zero"):
-        circle_catchment(13.4, 52.5, 0)
+    for invalid_radius in (0, 0.5):
+        with pytest.raises(ValueError, match="radius_m must be at least 1 m"):
+            circle_catchment(13.4, 52.5, invalid_radius)
