@@ -1,0 +1,156 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t2",
+  "status": "awaiting_approval",
+  "question": "Where is it smart to open a coffee place in Kreuzberg?",
+  "classification": {
+    "shape": "location",
+    "why": "The question asks where to open a coffee place → rank PLR cells in Kreuzberg.",
+    "area": "Kreuzberg"
+  },
+  "plan": {
+    "sub_questions": [
+      {
+        "id": "s1",
+        "text": "Where do many (young) residents live?",
+        "source_class": "official geodata",
+        "sources": "ua_einwohnerdichte_2025",
+        "layer_ids": [
+          "demand_density",
+          "young_share"
+        ]
+      },
+      {
+        "id": "s2",
+        "text": "Where are cafés already concentrated?",
+        "source_class": "official geodata + OSM",
+        "sources": "IHK 56114/561141 CSV, Geofabrik amenity=cafe",
+        "layer_ids": [
+          "competition_ihk",
+          "competition_osm"
+        ]
+      },
+      {
+        "id": "s3",
+        "text": "Which cells have good transit access?",
+        "source_class": "official geodata",
+        "sources": "oepnv_ungestoert",
+        "layer_ids": [
+          "transit"
+        ]
+      }
+    ],
+    "layers": [
+      {
+        "id": "demand_density",
+        "label": "Population density",
+        "direction": "+",
+        "weight_default": 0.3,
+        "evidence_id": "e2",
+        "why": "Cafés need resident footfall; density is the cheapest proxy.",
+        "unit": "residents/ha"
+      },
+      {
+        "id": "young_share",
+        "label": "Share aged 18–45",
+        "direction": "+",
+        "weight_default": 0.15,
+        "evidence_id": "e2",
+        "why": "IHK report: specialty coffee grows with a young audience.",
+        "unit": "share"
+      },
+      {
+        "id": "competition_ihk",
+        "label": "Cafés registered at IHK (56114/561141)",
+        "direction": "-",
+        "weight_default": 0.125,
+        "evidence_id": "e3",
+        "why": "Registered café inventory; kept separate from OSM.",
+        "unit": "cafés"
+      },
+      {
+        "id": "competition_osm",
+        "label": "Cafés in OSM (amenity=cafe)",
+        "direction": "-",
+        "weight_default": 0.125,
+        "evidence_id": "e4",
+        "why": "Mapped café inventory; kept separate from IHK.",
+        "unit": "cafés"
+      },
+      {
+        "id": "transit",
+        "label": "Transit access",
+        "direction": "+",
+        "weight_default": 0.15,
+        "evidence_id": "e5",
+        "why": "Passing commuters add non-resident footfall."
+      },
+      {
+        "id": "cost",
+        "label": "Land value (cost proxy)",
+        "direction": "-",
+        "weight_default": 0.15,
+        "evidence_id": "e6",
+        "why": "High standard land value indicates pressure on ground-floor rents.",
+        "unit": "relative land value"
+      }
+    ],
+    "hypotheses": [],
+    "paid_sources": [
+      {
+        "name": "hystreet.com",
+        "used_for": "pedestrian footfall counts"
+      },
+      {
+        "name": "Google Places",
+        "used_for": "competitor ratings & opening hours"
+      }
+    ],
+    "area": {
+      "area_id": "ortsteil:0202",
+      "level": "ortsteil",
+      "name": "Kreuzberg",
+      "plr_count": 19
+    },
+    "area_candidates": [
+      {
+        "area_id": "ortsteil:0202",
+        "level": "ortsteil",
+        "name": "Kreuzberg",
+        "bezirk": "Friedrichshain-Kreuzberg"
+      },
+      {
+        "area_id": "bezirk:02",
+        "level": "bezirk",
+        "name": "Friedrichshain-Kreuzberg",
+        "bezirk": "Friedrichshain-Kreuzberg"
+      }
+    ],
+    "area_cells": 19,
+    "synthetic": true,
+    "evidence_titles": {
+      "e1": "Official PLR geometries (lor_2021)",
+      "e2": "Population density & age groups (ua_einwohnerdichte_2025)",
+      "e3": "IHK Berlin registered businesses (CSV)",
+      "e4": "OpenStreetMap café inventory (Geofabrik Berlin PBF)",
+      "e5": "Undisturbed public transport access (oepnv_ungestoert)",
+      "e6": "Standard land values 2026 (brw2026)",
+      "e7": "IHK Berlin — Gastronomie-Report",
+      "e8": "Zentren- und Einzelhandelskonzept Friedrichshain-Kreuzberg",
+      "e9": "News: office campus at Moritzplatz",
+      "e10": "News: housing project Köpenicker Straße",
+      "e11": "Commercial rent report Berlin (retail, ground floor)",
+      "e12": "Rejected footfall claim (mockup fact-checker)",
+      "e13": "Address geocode (adressen_berlin)",
+      "e14": "Competitors within 500 m (gewerbedaten, by NACE)",
+      "e15": "OSM shops & amenities within 500 m",
+      "e16": "Residential location quality (wohnlagenadr2026)",
+      "e17": "Standard land value (brw2026)",
+      "e18": "Neighbourhood bakery closes (local press)",
+      "e19": "Bezirk: Ausschank & Außengastronomie rules",
+      "e20": "Competitor menus & prices (3 natural-wine bars)",
+      "e21": "Population density & age groups (ua_einwohnerdichte_2025)",
+      "e22": "Rejected rent-doubling claim (mockup fact-checker)"
+    }
+  }
+}
