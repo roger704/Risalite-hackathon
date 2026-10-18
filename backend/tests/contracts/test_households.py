@@ -136,6 +136,25 @@ def test_nonzero_published_ratio_with_zero_denominator_rejects_the_area(tmp_path
     )
 
 
+def test_suppressed_published_ratio_with_zero_denominator_stays_suppressed(tmp_path):
+    config = households_config()
+    table = next(table for table in config.parser_options["tables"] if table["worksheet"] == "T4")
+    zero_index = len(DEFAULT_CODES) - 1
+    row = area_row(table, zero_index)
+    path = build_workbook(
+        tmp_path,
+        edits={"T4": {f"D{row}": 0, f"H{row}": 0, f"I{row}": "•"}},
+    )
+    batch = HouseholdsConnector().normalize(raw(path, config), config)
+    assert HouseholdsConnector().validate(batch).valid
+    records = {(record.area_code, record.metric_code): record for record in batch.records}
+    record = records[DEFAULT_CODES[zero_index], "single_parent_share_of_households_with_children"]
+    assert record.value is None
+    assert record.value_status == "suppressed"
+    assert "source_marker:•" in record.quality_flags
+    assert "denominator_zero" in record.quality_flags
+
+
 @pytest.mark.parametrize(
     ("problem", "message"),
     [

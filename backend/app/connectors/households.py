@@ -360,7 +360,9 @@ class HouseholdsConnector(FileConnector):
                         if f"{sheet_name}!{metric['column']}" in zero_denominator_refs.get(
                             code, set()
                         ):
-                            value, status = None, "not_applicable"
+                            value = None
+                            if status != "suppressed":
+                                status = "not_applicable"
                             extra_flags.append("denominator_zero")
                         lower = metric.get("age_min")
                         upper = metric.get("age_max_exclusive")
