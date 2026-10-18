@@ -8,9 +8,14 @@ from typing import Any
 from app.application.area_data import LEVEL_ORDER, AreaUnit
 from app.scoring.v2 import Template
 
+# Street words start upper-case ("Wiener Straße 12", "Karl-Marx-Allee 3") so leading prose
+# ("Was passt an die …") is not captured; the street suffix itself is case-insensitive.
 ADDRESS = re.compile(
-    r"\b[\wäöüß.-]+(?:\s+[\wäöüß.-]+){0,3}\s*"
-    r"(?:straße|strasse|str\.?|platz|damm|allee|ufer|weg|ring|chaussee|gasse|markt)\s+\d+[a-z]?\b",
+    r"\b[A-ZÄÖÜ][\wäöüß.-]*(?:\s+[A-ZÄÖÜ][\wäöüß.-]*){0,3}?\s*"
+    r"(?i:straße|strasse|str\.?|platz|damm|allee|ufer|weg|ring|chaussee|gasse|markt)\s+\d+[a-zA-Z]?\b"
+)
+ADDRESS_LOOSE = re.compile(  # lower-case input: at most one word before the street suffix
+    r"\b[\wäöüß.-]*\s*(?:straße|strasse|str\.?|platz|damm|allee|ufer|weg|ring|chaussee|gasse|markt)\s+\d+[a-z]?\b",
     re.IGNORECASE,
 )
 KITA = re.compile(r"\b(kitas?|kindergarten|kindertagesstätte|childcare|day ?care)\b", re.IGNORECASE)
@@ -52,7 +57,7 @@ LAYER_WHY = {
 
 def classify(question: str, template_hint: str | None = None) -> dict[str, Any]:
     text = f"{question} {template_hint or ''}"
-    address = ADDRESS.search(question)
+    address = ADDRESS.search(question) or ADDRESS_LOOSE.search(question)
     if address or POINT_HINT.search(text):
         return {
             "shape": "point",

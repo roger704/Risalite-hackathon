@@ -80,6 +80,8 @@ class AreaDataPort(Protocol):
 
     def unmapped_layers(self, template: Template) -> list[str]: ...
 
+    def crosscheck(self, area_id: str) -> dict[str, tuple[int, int]]: ...
+
     def geojson(self, area_id: str) -> dict[str, Any] | None: ...
 
 
@@ -231,6 +233,15 @@ class FixtureAreaData:
         unit = self._unit(area_id)
         return {p: list(self.notes[p]) for p in unit.plr_ids if p in self.notes}
 
+    def crosscheck(self, area_id: str) -> dict[str, tuple[int, int]]:
+        """PLR → (OSM, IHK) café counts for ``score_area(crosscheck=…)``; never summed."""
+        unit = self._unit(area_id)
+        return {
+            p: tuple(self.plrs[p]["crosscheck"])
+            for p in unit.plr_ids
+            if p in self.plrs and self.plrs[p].get("crosscheck")
+        }
+
     def unmapped_layers(self, template: Template) -> list[str]:
         return [
             layer.id
@@ -272,6 +283,9 @@ class FixtureAreaData:
                     "cafe_crosscheck": _number(raw.get("competition_ihk")),
                 },
             }
+            ihk = _number(raw.get("competition_ihk"))
+            if cafes is not None and ihk is not None:
+                plrs[cell["id"]]["crosscheck"] = (int(cafes), int(ihk))
         ids = tuple(plrs)
         units = [
             AreaUnit("bezirk:02", "bezirk", BEZIRKE["02"], BEZIRKE["02"], ids),
@@ -439,8 +453,7 @@ class SummaryAreaData:
         )
         values["cafe_saturation"] = (saturation, osm_sources, "cafés per 10,000 residents")
         values["cafe_crosscheck"] = (ihk, [], "businesses")
-        if osm is not None and ihk is not None and min(osm, ihk) >= 3 and max(osm, ihk) / min(osm, ihk) > 2:
-            notes.append(f"café coverage: OSM {osm:g} vs IHK {ihk:g}")
+        # OSM vs IHK deviation is judged by score_area(crosscheck=…) via crosscheck().
 
         footfall: list[float] = []
         footfall_sources: list[dict[str, str]] = []
@@ -459,6 +472,8 @@ class SummaryAreaData:
         values["transit"] = (*_transit_departures(base.get("transit") or {}), "departures")
         name = _value_text(area.get("name")) or self._names.get(plr, {}).get("name", plr)
         row = {"id": plr, "name": name, "residents": total, "values": values}
+        if osm is not None and ihk is not None:
+            row["crosscheck"] = (int(osm), int(ihk))
         self._rows[plr] = row
         self._notes[plr] = notes
         return row
@@ -507,6 +522,11 @@ class SummaryAreaData:
 
     def confidence_reasons(self, area_id: str) -> dict[str, list[str]]:
         return {p: list(self._notes.get(p, [])) for p in self._by_id[area_id].plr_ids if self._notes.get(p)}
+
+    def crosscheck(self, area_id: str) -> dict[str, tuple[int, int]]:
+        """PLR → (OSM, IHK) café counts (rows are loaded by ``cells`` first)."""
+        rows = {p: self._row(p) for p in self._by_id[area_id].plr_ids}
+        return {p: tuple(row["crosscheck"]) for p, row in rows.items() if row.get("crosscheck")}
 
     def geojson(self, area_id: str) -> dict[str, Any] | None:
         features = [

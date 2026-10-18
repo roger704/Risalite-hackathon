@@ -119,7 +119,7 @@ class RunService:
         self.logs[run_id].emit("classify", "classifier", classification, why=classification["why"])
         try:
             if run["shape"] == "point":
-                await self._plan_point(run)
+                self._plan_point(run)
             else:
                 self._resolve(run, question)
         except RunError:
@@ -128,20 +128,54 @@ class RunService:
         self._persist(run)
         return self.response(run, token)
 
-    async def _plan_point(self, run: dict[str, Any]) -> None:
-        prepared = await _maybe(self.deps.t1.prepare_point(run["question"], run.get("profile"), radius_m=500))
+    def _plan_point(self, run: dict[str, Any], query: str | None = None, *, lat: float | None = None, lon: float | None = None) -> None:
+        """T1: resolve the address and prepare hypotheses; ambiguous/unknown → clarify."""
+        log = self.logs[run["run_id"]]
+        query = query or run["classification"].get("address") or run["question"]
+        readers = self.deps.t1_readers() if self.deps.t1_readers else None
+        try:
+            prepared = self.deps.t1.prepare_point(
+                query,
+                lat=lat,
+                lon=lon,
+                operator_profile=_profile(run.get("profile")),
+                radius_m=500,
+                readers=readers,
+                ledger=EvidenceLedger(self.runs_dir / run["run_id"]),
+            )
+        except ValueError as exc:
+            prepared = {"clarify": [], "reason": str(exc)}
+        if "clarify" in prepared:
+            options = list(prepared.get("clarify") or [])
+            run["status"] = "needs_clarification"
+            run["pending_points"] = options
+            run["plan"] = None
+            labels = "; ".join(f"{i}) {_point_label(o)}" for i, o in enumerate(options, 1))
+            run["clarify_question"] = (
+                f"Which address do you mean? {labels}. Answer with the number or the full address."
+                if options
+                else f"I could not find that address ({prepared.get('reason', 'no match')}). Please give street, house number and postcode."
+            )
+            log.emit("clarify", "orchestrator", {"question": run["clarify_question"], "candidates": [_point_label(o) for o in options]}, why="Never guess the address")
+            return
         run["prepared"] = prepared
-        run["classification"]["address"] = run["classification"].get("address") or prepared.get("space", {}).get("address")
+        run.pop("pending_points", None)
+        run["classification"]["address"] = prepared.get("space", {}).get("address") or run["classification"].get("address")
         run["plan"] = {
-            "sub_questions": prepared.get("sub_questions", [])[:3],
-            "hypotheses": prepared.get("hypotheses", []),
+            "sub_questions": [],
+            "hypotheses": [
+                {k: h.get(k) for k in ("id", "name", "prescore", "preferred", "why", "confidence", "dimensions", "metrics")}
+                for h in prepared.get("hypotheses", [])
+            ],
             "layers": [],
             "paid_sources": [],
             "area_candidates": [],
+            "template_id": prepared.get("template_id"),
+            "space": prepared.get("space"),
         }
         run["status"] = "awaiting_approval"
         run["clarify_question"] = None
-        self.logs[run["run_id"]].emit("plan", "planner", {"hypotheses": [h.get("id") for h in run["plan"]["hypotheses"]]})
+        log.emit("plan", "planner", {"hypotheses": [h.get("id") for h in run["plan"]["hypotheses"]], "address": run["classification"]["address"]}, why="Hypotheses pre-scored on data")
 
     def _resolve(self, run: dict[str, Any], text: str) -> None:
         units = self.deps.port.units()
@@ -173,6 +207,11 @@ class RunService:
     def clarify(self, run: dict[str, Any], answer: str, token: str) -> dict[str, Any]:
         if run["status"] != "needs_clarification":
             raise RunError(409, "Run is not awaiting clarification")
+        if run["shape"] == "point":
+            self._clarify_point(run, answer)
+            run["created_at"] = time.time()
+            self._persist(run)
+            return self.response(run, token)
         units = {u.area_id: u for u in self.deps.port.units()}
         options = [units[a] for a in run.get("pending_areas", []) if a in units]
         picked = pick_from_answer(answer, options) if options else None
@@ -190,6 +229,20 @@ class RunService:
         run["created_at"] = time.time()
         self._persist(run)
         return self.response(run, token)
+
+    def _clarify_point(self, run: dict[str, Any], answer: str) -> None:
+        options = run.get("pending_points") or []
+        value = answer.strip()
+        picked = None
+        if value.isdigit() and 1 <= int(value) <= len(options):
+            picked = options[int(value) - 1]
+        else:
+            picked = next((o for o in options if value.casefold() in {_point_label(o).casefold(), str(o.get("stable_id", "")).casefold()}), None)
+        if picked is not None and picked.get("lat") is not None:
+            self._plan_point(run, picked.get("address") or _point_label(picked), lat=picked["lat"], lon=picked["lon"])
+        else:
+            run["question"] = f"{run['question']} {value}"
+            self._plan_point(run, value)
 
     def search_areas(self, query: str) -> list[dict[str, Any]]:
         return self.deps.port.search_areas(query)
@@ -273,3 +326,20 @@ class RunService:
 
 async def _maybe(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
+
+
+def _profile(profile: str | dict | None) -> dict | None:
+    if profile is None or isinstance(profile, dict):
+        return profile
+    text = profile.strip()
+    if text.startswith("{"):
+        try:
+            value = json.loads(text)
+            return value if isinstance(value, dict) else {"description": text}
+        except ValueError:
+            pass
+    return {"description": text} if text else None
+
+
+def _point_label(option: dict[str, Any]) -> str:
+    return str(option.get("label") or option.get("address") or " ".join(str(option.get(k) or "") for k in ("street", "house_number", "postcode")).strip())

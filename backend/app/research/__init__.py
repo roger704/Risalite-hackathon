@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from app.contracts.evidence import Finding
 from app.evidence.ledger import EvidenceLedger
-from app.research import agents, writer
+from app.research import agents, fit, writer
 from app.research.config import Emit, ResearchConfig
 
 __all__ = [
     "Emit",
     "ResearchConfig",
+    "derive_fit",
     "research_area",
     "research_cell",
     "research_hypothesis",
@@ -61,3 +62,12 @@ async def write_report(question: str, result: dict, findings: list[Finding], led
     options: title.
     """
     return await writer.write_report(question, result, findings, ledger, emit, cfg, **options)
+
+
+async def derive_fit(question: str, prepared: dict, findings: list[Finding], emit: Emit, cfg: ResearchConfig, **options) -> dict:
+    """T1 fit dict {hypothesis_id: {"Cost"|"Operator fit"|"Space fit": {score, why, evidence_ids}}}
+    from verified findings; one structured call on ``cfg.model`` (deterministic in fake mode).
+
+    options: agent.
+    """
+    return await fit.derive_fit(question, prepared, findings, emit, cfg, **options)

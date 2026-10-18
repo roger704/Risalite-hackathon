@@ -31,7 +31,7 @@ def default_deps() -> Deps:
     from app.evidence.factcheck import FactChecker
     from app.scoring import v2
 
-    if os.environ.get("RISALITE_AREA_DATA", "summary") == "fixtures":
+    if os.environ.get("RISALITE_AREA_DATA", "summary") in {"fixtures", "fixture"}:
         port = FixtureAreaData.from_frontend_fixtures(Path(__file__).resolve().parents[3] / "frontend" / "fixtures")
     else:
         from app.application.service import DataService
@@ -41,6 +41,11 @@ def default_deps() -> Deps:
         from app.application import t1
     except ImportError:
         t1 = None
+    t1_readers = None
+    if t1 is not None and os.environ.get("RISALITE_T1_READERS", "snapshot") == "static":
+        from app.application.t1.demo import demo_readers
+
+        t1_readers = demo_readers
 
     def config():
         return research.ResearchConfig()
@@ -48,7 +53,15 @@ def default_deps() -> Deps:
     def checker():
         return FactChecker(offline=config().fake or os.environ.get("RISALITE_FACTCHECK_OFFLINE") == "1")
 
-    return Deps(scoring=v2, research=research, port=port, checker_factory=checker, config_factory=config, t1=t1)
+    return Deps(
+        scoring=v2,
+        research=research,
+        port=port,
+        checker_factory=checker,
+        config_factory=config,
+        t1=t1,
+        t1_readers=t1_readers,
+    )
 
 
 def configure(service: RunService | None) -> None:
