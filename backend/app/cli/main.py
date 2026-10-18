@@ -9,6 +9,7 @@ from pathlib import Path
 
 from app.application.service import DataService
 from app.domain import ConnectorError, manifest_to_dict
+from app.export import EXPORT_FORMATS, Mix, load_run
 
 
 def parser() -> argparse.ArgumentParser:
@@ -36,12 +37,46 @@ def parser() -> argparse.ArgumentParser:
     records.add_argument("--metric-code")
     records.add_argument("--limit", type=int, default=100)
     records.add_argument("--cursor")
+
+    export = subcommands.add_parser("export", help="Export a persisted research run")
+    export.add_argument("run_dir", type=Path)
+    export.add_argument("--format", choices=("md", "html", "csv", "bib"), required=True)
+    export.add_argument("--layers", help="Comma-separated layer IDs")
+    export.add_argument("--mode", choices=("present", "future"))
+    export.add_argument("--share-url")
+    export.add_argument("-o", "--output", type=Path)
     return command
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        if args.command == "export":
+            bundle = load_run(args.run_dir)
+            fmt = {
+                "md": "report.md",
+                "html": "report.html",
+                "csv": "sources.csv",
+                "bib": "sources.bib",
+            }[args.format]
+            layers = (
+                frozenset(layer.strip() for layer in args.layers.split(",") if layer.strip())
+                if args.layers is not None
+                else None
+            )
+            mix = Mix(layers_on=layers, mode=args.mode)
+            _, renderer = EXPORT_FORMATS[fmt]
+            if fmt.startswith("report."):
+                result = renderer(bundle, mix=mix, share_url=args.share_url)
+            else:
+                result = renderer(bundle)
+            if args.output:
+                encoding = "utf-8-sig" if args.format == "csv" else "utf-8"
+                args.output.write_text(result, encoding=encoding)
+            else:
+                print(result, end="")
+            return 0
+
         configured_dir = os.environ.get("LOCATION_DATA_DIR", "").strip()
         default_dir = (
             Path(configured_dir).expanduser()
