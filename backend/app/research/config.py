@@ -17,7 +17,7 @@ Emit = Callable[
 ]  # (event type from contracts.events, payload); orchestrator adds seq/ts/run_id
 
 DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-DEFAULT_SKEPTIC_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash"
+DEFAULT_SKEPTIC_MODEL = DEFAULT_MODEL
 
 
 def _env(name: str, default: str) -> Callable[[], str]:

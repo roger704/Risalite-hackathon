@@ -152,6 +152,19 @@ def fake_cfg() -> ResearchConfig:
     return ResearchConfig(fake=True)
 
 
+def test_research_config_defaults_model_roles_to_nemotron(monkeypatch):
+    for name in (
+        "RISALITE_RESEARCH_MODEL",
+        "RISALITE_WRITER_MODEL",
+        "RISALITE_SKEPTIC_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    cfg = ResearchConfig()
+    expected = "nvidia/nemotron-3-super-120b-a12b"
+    assert cfg.model == cfg.writer_model == cfg.skeptic_model == expected
+
+
 async def test_fake_research_area(tmp_path, fake_cfg):
     ledger, emit = EvidenceLedger(tmp_path), Recorder()
     findings = await research_area("Café in Kreuzberg?", AREA, CELLS, ledger, emit, fake_cfg)
