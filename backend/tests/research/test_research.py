@@ -34,6 +34,7 @@ from app.research import (
     write_report,
 )
 from app.research.events import Events
+from app.research.locality import address_terms, cell_terms
 from app.research.toolkit import BUDGET_MESSAGE, Toolkit, match_quote, quote_numbers
 
 NOW = datetime(2026, 10, 18, tzinfo=timezone.utc)
@@ -673,6 +674,90 @@ async def test_skeptic_review_assigns_severity(tmp_path):
     assert [r["severity"] for r in risks] == ["high"]
     assert risks[0]["evidence_id"] == ledger.entries()[0]["evidence_id"]
     assert {"review", "skeptic_risk"} <= set(emit.types())
+
+
+@pytest.mark.parametrize(
+    ("snippet", "expected_localization"),
+    [
+        ("A listing mentions a restaurant at Wiener Str. 12.", "h_1"),
+        ("A listing mentions a restaurant at Oranienstraße.", "area"),
+    ],
+)
+async def test_t1_skeptic_uses_explicit_place_terms(tmp_path, snippet, expected_localization):
+    ledger, emit = EvidenceLedger(tmp_path), Recorder()
+
+    class T1Connector:
+        async def search(self, request: ResearchSearch) -> EvidencePage:
+            evidence = web_evidence(
+                "https://example.org/t1-listing",
+                query=request.query,
+                snippet=snippet,
+                title="Restaurant listing",
+            )
+            return EvidencePage((evidence,), "complete")
+
+        async def extract(self, request: ResearchExtract) -> EvidencePage:
+            raise AssertionError("the scripted skeptic does not extract pages")
+
+    def script(_messages: list[BaseMessage], n: int) -> AIMessage:
+        if n == 1:
+            return tool_call("web_search", {"query": "restaurant listing", "why": "risk"}, n)
+        if n == 2:
+            return tool_call(
+                "record_finding",
+                {
+                    "claim": "This listing suggests a risk for the proposed business.",
+                    "quote": snippet,
+                    "evidence_ids": [ledger.entries()[0]["evidence_id"]],
+                    "claim_type": "risk",
+                    "localization": "h_1",
+                },
+                n,
+            )
+        if n == 3:
+            return AIMessage(content="Recorded one risk.")
+        finding_id = next(
+            payload["detail"]["finding_id"]
+            for kind, payload in emit.events
+            if kind == "finding_accepted"
+        )
+        return AIMessage(
+            content=json.dumps(
+                {"reviews": [{"finding_id": finding_id, "severity": "medium", "rationale": "risk"}]}
+            )
+        )
+
+    address = "Wiener Straße 12, 10999 Berlin"
+    places = list(
+        dict.fromkeys(
+            [
+                *address_terms(address),
+                *cell_terms("Askanischer Platz", ["Kottbusser Straße"]),
+            ]
+        )
+    )
+    cell = {
+        "id": "h_1",
+        "name": f"Restaurant at {address}",
+        "raw_values": {},
+    }
+    risks = await skeptic(
+        "Should this business open?",
+        cell,
+        [],
+        ledger,
+        emit,
+        cfg_with(ScriptedModel(script=script), T1Connector()),
+        place_terms={"h_1": places},
+    )
+
+    finding = risks[0]["finding"]
+    assert risks[0]["localization"] == expected_localization
+    if expected_localization == "h_1":
+        assert finding["localization_check"] == "mentioned:Wiener Straße"
+    else:
+        assert finding["localization_requested"] == "h_1"
+        assert finding["localization_check"] == "downgraded"
 
 
 async def test_timeout_returns_recorded(tmp_path):

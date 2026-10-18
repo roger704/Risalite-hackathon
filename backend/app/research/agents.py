@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -56,7 +56,7 @@ async def _research(
     task: str,
     localizations: Sequence[str],
     default_localization: str,
-    place_terms: dict[str, Sequence[str]] | None = None,
+    place_terms: Mapping[str, Sequence[str]] | None = None,
     claim_types: Sequence[str] | None = None,
     finding_extra: dict[str, Any] | None = None,
 ) -> list[Finding]:
@@ -278,6 +278,7 @@ async def skeptic(
     cfg: ResearchConfig,
     *,
     agent: str | None = None,
+    place_terms: Mapping[str, Sequence[str]] | None = None,
 ) -> list[dict]:
     cell_id = str(cell.get("id") or "cell")
     events = Events(emit, agent or f"skeptic:{cell_id}", cfg.skeptic_model)
@@ -300,7 +301,11 @@ async def skeptic(
             task=task,
             localizations=[cell_id, "area"],
             default_localization=cell_id,
-            place_terms={cell_id: cell_terms(cell.get("name"), cell.get("streets") or [])},
+            place_terms=(
+                place_terms
+                if place_terms is not None
+                else {cell_id: cell_terms(cell.get("name"), cell.get("streets") or [])}
+            ),
             claim_types=["risk"],
         )
     risks = [f for f in recorded if f.status == "accepted"]

@@ -24,6 +24,7 @@ from app.contracts.evidence import EvidenceEntry, Finding
 from app.evidence.citations import strip_unknown_citations
 from app.evidence.factcheck import fact_check_run
 from app.evidence.ledger import EvidenceLedger, entry_status, utc_now
+from app.research.locality import address_terms, cell_terms
 
 from .events import EventLog, metrics
 from .planning import FUTURE_UNITS
@@ -808,6 +809,18 @@ async def run_point(ctx: Context) -> dict[str, Any]:
                         ctx.log.emitter(f"skeptic:{h['id']}"),
                         small(cfg),
                         agent=f"skeptic:{h['id']}",
+                        place_terms={
+                            h["id"]: list(
+                                dict.fromkeys(
+                                    [
+                                        *address_terms(space.get("address")),
+                                        *cell_terms(
+                                            space.get("cell_name"), space.get("streets") or []
+                                        ),
+                                    ]
+                                )
+                            )
+                        },
                     ),
                     [],
                 )
