@@ -320,12 +320,13 @@ class Place(Record):
 
 @dataclass(frozen=True, kw_only=True)
 class Business(Record):
-    """A registered business. Employee bounds are an inclusive interval, not a headcount."""
+    """A registered business. Employee bounds are an inclusive interval, not a headcount.
+    ``industry_code`` is null when the source supplies no classification."""
 
     geometry: dict[str, Any]
-    industry_code: str
     industry_code_system: str
     category_mapping_version: str
+    industry_code: str | None = None
     industry_description: str | None = None
     canonical_category: str | None = None
     employees_label: str | None = None
@@ -340,9 +341,10 @@ class Business(Record):
     def __post_init__(self) -> None:
         super().__post_init__()
         _point(self.geometry)
-        for name in ("industry_code", "industry_code_system", "category_mapping_version"):
+        for name in ("industry_code_system", "category_mapping_version"):
             _text(name, getattr(self, name))
         for name in (
+            "industry_code",
             "industry_description",
             "canonical_category",
             "employees_label",

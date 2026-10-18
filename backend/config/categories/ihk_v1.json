@@ -1,0 +1,118 @@
+{
+  "mapping_version": "ihk_v1",
+  "code_system": "ihk_berlin_branch",
+  "code_field": "ihk_branch_id",
+  "reviewed_at": "2026-10-18",
+  "reviewed_source_edition": "2026-10",
+  "match_rule": "An exact code wins; otherwise the longest matching prefix wins. Codes matched by no rule keep canonical_category null.",
+  "notes": [
+    "IHK branch IDs are hierarchical: in the reviewed file every ihk_branch_id starts with its nace_id (first four digits, or the whole ID when shorter) and with branch_top_level_id (first two digits).",
+    "The nace_id values follow NACE Rev. 2.1 / WZ 2025 (5611 restaurants, 5612 mobile food, 5640 intermediation exist; 5610 does not).",
+    "Cafés are not in NACE 56.30. In NACE Rev. 2.1 cafés are part of 56.11, and IHK separates them as 56114 'Cafés' and 561141 'Stehcafes'. NACE 56.30 'Ausschank von Getränken' contains pubs, bars, discotheques and shisha lounges, so it is mapped to bar/nightclub, not coffee_shop.",
+    "IHK codes 56, 561 and 5611 without a subclass ('Restaurants, Gaststätten, Imbissstuben, Cafés, Eissalons u. Ä.') can be cafés but cannot be told apart from restaurants. They map to food_service_unspecified and are never counted as coffee_shop."
+  ],
+  "rules": [
+    {
+      "canonical_category": "coffee_shop",
+      "prefixes": ["56114"],
+      "exact": [],
+      "includes": "Cafés (56114) and Stehcafes / stand-up coffee bars (561141). Excludes bars, bakeries, coffee retail and unclassified 5611 food service."
+    },
+    {
+      "canonical_category": "restaurant",
+      "prefixes": ["56111", "56112"],
+      "exact": [],
+      "includes": "Restaurants mit Bedienung (56111) and Restaurants mit Selbstbedienung (56112)."
+    },
+    {
+      "canonical_category": "fast_food",
+      "prefixes": ["56113"],
+      "exact": [],
+      "includes": "Imbissstuben u. Ä. (56113)."
+    },
+    {
+      "canonical_category": "ice_cream_parlor",
+      "prefixes": ["56115"],
+      "exact": [],
+      "includes": "Eissalons (56115). Ice-cream retail without seating (472403) is food_retail_specialized."
+    },
+    {
+      "canonical_category": "food_service_unspecified",
+      "prefixes": ["5611"],
+      "exact": ["56", "561"],
+      "includes": "Restaurant-class records without an IHK subclass (56, 561, 5611 and future unmapped 5611x subclasses). May include cafés; not counted as coffee_shop."
+    },
+    {
+      "canonical_category": "mobile_food",
+      "prefixes": ["5612"],
+      "exact": [],
+      "includes": "Mobile Gastronomie (5612, 56121, 56122)."
+    },
+    {
+      "canonical_category": "bar",
+      "prefixes": ["5630"],
+      "exact": [],
+      "includes": "NACE 56.30 beverage serving: Schankwirtschaften (56301, 563011), Bars (563031), Vergnügungslokale (563032), Raucherlokale/Shisha Bars (563033), fairground beverage serving (56304), Ausschank a. n. g. (56309) and unclassified 5630."
+    },
+    {
+      "canonical_category": "nightclub",
+      "prefixes": ["56302"],
+      "exact": [],
+      "includes": "Diskotheken und Tanzlokale mit Getränkeausschank (56302)."
+    },
+    {
+      "canonical_category": "catering",
+      "prefixes": ["562"],
+      "exact": [],
+      "includes": "Event-Caterer, Partyservice, Mietkoch, Kantinen, gastronomischer Außer-Haus-Verkauf and other caterers (5621, 5622 and subclasses)."
+    },
+    {
+      "canonical_category": "accommodation",
+      "prefixes": ["55"],
+      "exact": [],
+      "includes": "NACE 55: hotels, guesthouses, holiday flats, hostels, camping, boarding houses."
+    },
+    {
+      "canonical_category": "bakery",
+      "prefixes": ["1071", "472401"],
+      "exact": [],
+      "includes": "Herstellung von Backwaren ohne Dauerbackwaren (1071, 10710; craft bakeries) and Einzelhandel mit Backwaren (472401). Bakery cafés are not separately identifiable."
+    },
+    {
+      "canonical_category": "coffee_retail",
+      "prefixes": ["472701"],
+      "exact": [],
+      "includes": "Einzelhandel mit Kaffee, Kakao (472701): bean and cocoa shops. Not counted as coffee_shop."
+    },
+    {
+      "canonical_category": "coffee_tea_processing",
+      "prefixes": ["1083"],
+      "exact": [],
+      "includes": "Verarbeitung von Kaffee und Tee, Herstellung von Kaffee-Ersatz (1083, 10830): roasteries and tea processing. Not counted as coffee_shop."
+    },
+    {
+      "canonical_category": "kiosk",
+      "prefixes": ["471121"],
+      "exact": [],
+      "includes": "Kiosk (471121), including Berlin Spätis registered under this code."
+    },
+    {
+      "canonical_category": "grocery",
+      "prefixes": ["4711"],
+      "exact": [],
+      "includes": "Non-specialised retail with food predominating (4711 and subclasses except Kiosk): supermarkets, grocery stores, delicatessens."
+    },
+    {
+      "canonical_category": "food_retail_specialized",
+      "prefixes": ["472"],
+      "exact": [],
+      "includes": "Specialised food, beverage and tobacco retail (472x) other than Backwaren (bakery) and Kaffee/Kakao (coffee_retail)."
+    },
+    {
+      "canonical_category": "retail_other",
+      "prefixes": ["47"],
+      "exact": [],
+      "includes": "All other NACE 47 retail (non-food retail, motor vehicle retail under NACE Rev. 2.1, retail not in stores)."
+    }
+  ]
+}
