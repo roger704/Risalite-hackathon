@@ -1,6 +1,6 @@
 # Deep research experiment
 
-A minimal, portable research loop: a [DeepAgents](https://github.com/langchain-ai/deepagents) agent reasons with a model on **Nebius Token Factory** (`langchain-nebius`) and searches the live web with **Tavily** (`langchain-tavily`). It has no Risalite business logic yet.
+A minimal, portable research loop: a [DeepAgents](https://github.com/langchain-ai/deepagents) agent reasons with a model on **Nebius Token Factory** (`langchain-nebius`) and searches the live web with **Tavily** (`langchain-tavily`). The agent runs as **Spotwise** (`SYSTEM_PROMPT` in `deep_research.py`): it classifies a question as POINT, LOCATION or GAP and returns a sourced recommendation with counter-evidence, unknowns and provisional 0–10 scores. For now it uses web search only; structured Berlin datasets and a defined scoring model will come later.
 
 ```
 question ─▶ Deep Agent ─▶ Nebius Token Factory (reasoning) ─▶ Tavily (web_search) ─▶ sourced markdown report
