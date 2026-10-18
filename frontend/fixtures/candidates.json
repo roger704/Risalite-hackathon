@@ -1,0 +1,352 @@
+{
+  "synthetic": true,
+  "space": {
+    "address": "Wiener Straße 12, 10999 Berlin",
+    "lat": 52.4987,
+    "lon": 13.4318,
+    "cell_id": "02300315",
+    "cell_name": "Lausitzer Platz",
+    "evidence_id": "e13"
+  },
+  "operator": {
+    "experience": "6 yrs bakery experience",
+    "budget_eur": 80000,
+    "staff": 2
+  },
+  "hypotheses": [
+    {
+      "id": "h1",
+      "name": "Craft bakery-café",
+      "score": 7.8,
+      "rank_initial": 1,
+      "rank_final": 1,
+      "dimensions": [
+        {
+          "name": "Demand",
+          "score": 8,
+          "why": "Dense, young PLR [e21]",
+          "evidence_ids": [
+            "e21"
+          ]
+        },
+        {
+          "name": "Competition gap",
+          "score": 9,
+          "why": "Last craft bakery closed [e18]; only 4 registered bakeries [e14]",
+          "evidence_ids": [
+            "e14",
+            "e15",
+            "e18"
+          ]
+        },
+        {
+          "name": "Operator fit",
+          "score": 10,
+          "why": "6 yrs bakery experience — direct fit",
+          "evidence_ids": []
+        },
+        {
+          "name": "Space fit",
+          "score": 7,
+          "why": "~70 m² fits a counter + oven; ventilation unknown",
+          "evidence_ids": []
+        },
+        {
+          "name": "Cost",
+          "score": 6,
+          "why": "BRW 2,900 €/m² [e17] — mid-range",
+          "evidence_ids": [
+            "e17"
+          ]
+        },
+        {
+          "name": "Regulation / risk",
+          "score": 7,
+          "why": "Standard Gaststätte rules [e19]",
+          "evidence_ids": [
+            "e19"
+          ]
+        }
+      ],
+      "for": [
+        {
+          "text": "Last craft bakery on Lausitzer Platz closed",
+          "evidence_id": "e18"
+        },
+        {
+          "text": "Few bakeries within 500 m (4)",
+          "evidence_id": "e14"
+        },
+        {
+          "text": "Operator has 6 yrs bakery experience",
+          "evidence_id": null
+        }
+      ],
+      "against": [
+        {
+          "text": "3 OSM bakeries still within 500 m",
+          "evidence_id": "e15"
+        },
+        {
+          "text": "Morning-only demand peak",
+          "evidence_id": null
+        }
+      ],
+      "unknowns": [
+        {
+          "text": "Oven ventilation permitted in this building?",
+          "suggested_validation": "Ask landlord for Abluft spec; Bauaufsicht check"
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "name": "Natural-wine bar",
+      "score": 5.9,
+      "rank_initial": 2,
+      "rank_final": 2,
+      "dimensions": [
+        {
+          "name": "Demand",
+          "score": 7,
+          "why": "Strong evening footfall",
+          "evidence_ids": [
+            "e21"
+          ]
+        },
+        {
+          "name": "Competition gap",
+          "score": 3,
+          "why": "11 NACE bars nearby [e14]",
+          "evidence_ids": [
+            "e14",
+            "e15",
+            "e18"
+          ]
+        },
+        {
+          "name": "Operator fit",
+          "score": 4,
+          "why": "No bar experience in profile",
+          "evidence_ids": []
+        },
+        {
+          "name": "Space fit",
+          "score": 8,
+          "why": "Layout suits a bar",
+          "evidence_ids": []
+        },
+        {
+          "name": "Cost",
+          "score": 6,
+          "why": "Mid rents",
+          "evidence_ids": [
+            "e17"
+          ]
+        },
+        {
+          "name": "Regulation / risk",
+          "score": 4,
+          "why": "Late-night noise complaints risk",
+          "evidence_ids": [
+            "e19"
+          ]
+        }
+      ],
+      "for": [
+        {
+          "text": "Young evening audience",
+          "evidence_id": "e21"
+        },
+        {
+          "text": "Competitor prices €7–9 / glass sustain margins",
+          "evidence_id": "e20"
+        }
+      ],
+      "against": [
+        {
+          "text": "High bar saturation (11 + 13 OSM)",
+          "evidence_id": "e14"
+        },
+        {
+          "text": "Operator lacks bar experience",
+          "evidence_id": null
+        },
+        {
+          "text": "Weak-tier menu evidence cannot carry a recommendation alone",
+          "evidence_id": "e20"
+        }
+      ],
+      "unknowns": [
+        {
+          "text": "Licensing hours for this street",
+          "suggested_validation": "Ordnungsamt enquiry"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "name": "Zero-waste grocery",
+      "score": 5.2,
+      "rank_initial": 3,
+      "rank_final": 3,
+      "dimensions": [
+        {
+          "name": "Demand",
+          "score": 5,
+          "why": "Medium demand signal",
+          "evidence_ids": [
+            "e21"
+          ]
+        },
+        {
+          "name": "Competition gap",
+          "score": 7,
+          "why": "1 organic shop nearby [e15]",
+          "evidence_ids": [
+            "e14",
+            "e15",
+            "e18"
+          ]
+        },
+        {
+          "name": "Operator fit",
+          "score": 3,
+          "why": "No retail experience",
+          "evidence_ids": []
+        },
+        {
+          "name": "Space fit",
+          "score": 6,
+          "why": "Space OK",
+          "evidence_ids": []
+        },
+        {
+          "name": "Cost",
+          "score": 5,
+          "why": "Thin margins [e17]",
+          "evidence_ids": [
+            "e17"
+          ]
+        },
+        {
+          "name": "Regulation / risk",
+          "score": 8,
+          "why": "Low regulatory burden",
+          "evidence_ids": [
+            "e19"
+          ]
+        }
+      ],
+      "for": [
+        {
+          "text": "Only one organic shop nearby",
+          "evidence_id": "e15"
+        }
+      ],
+      "against": [
+        {
+          "text": "Low operator fit",
+          "evidence_id": null
+        },
+        {
+          "text": "Margins thin at this rent level",
+          "evidence_id": "e17"
+        }
+      ],
+      "unknowns": [
+        {
+          "text": "Willingness to pay for zero-waste in this Kiez",
+          "suggested_validation": "10 short customer interviews"
+        }
+      ]
+    }
+  ],
+  "competitors": [
+    {
+      "hypothesis_id": "h1",
+      "lat": 52.499329,
+      "lon": 13.428402,
+      "name": "Bäckerei Lausitzer Platz",
+      "evidence_id": "e14"
+    },
+    {
+      "hypothesis_id": "h1",
+      "lat": 52.497981,
+      "lon": 13.429584,
+      "name": "Kreuzberger Brotschmiede",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h1",
+      "lat": 52.499868,
+      "lon": 13.43084,
+      "name": "Café am Kanal",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h1",
+      "lat": 52.497757,
+      "lon": 13.433204,
+      "name": "Kiez Backstube",
+      "evidence_id": "e14"
+    },
+    {
+      "hypothesis_id": "h2",
+      "lat": 52.499194,
+      "lon": 13.434903,
+      "name": "Bar Morgenrot",
+      "evidence_id": "e14"
+    },
+    {
+      "hypothesis_id": "h2",
+      "lat": 52.500407,
+      "lon": 13.434386,
+      "name": "Weinbar Spätlese",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h2",
+      "lat": 52.496724,
+      "lon": 13.431135,
+      "name": "Zum Grünen Glas",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h2",
+      "lat": 52.497308,
+      "lon": 13.428623,
+      "name": "Naturwein Kollektiv",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h3",
+      "lat": 52.497577,
+      "lon": 13.43542,
+      "name": "BioKiez Markt",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h3",
+      "lat": 52.500856,
+      "lon": 13.433351,
+      "name": "Unverpackt Kreuzberg",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h3",
+      "lat": 52.500766,
+      "lon": 13.430027,
+      "name": "Organic Corner",
+      "evidence_id": "e15"
+    },
+    {
+      "hypothesis_id": "h3",
+      "lat": 52.499014,
+      "lon": 13.432095,
+      "name": "Späti & Bio",
+      "evidence_id": "e15"
+    }
+  ],
+  "radius_m": 500
+}

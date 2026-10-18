@@ -1,0 +1,635 @@
+{
+  "synthetic": true,
+  "area": {
+    "area_id": "ortsteil:0202",
+    "name": "Kreuzberg",
+    "level": "ortsteil",
+    "plr_count": 19,
+    "cell_count": 19
+  },
+  "mode_default": "present",
+  "layers": [
+    {
+      "id": "demand_density",
+      "label": "Population density",
+      "direction": "+",
+      "weight_default": 0.3,
+      "evidence_id": "e2",
+      "why": "Cafés need resident footfall; density is the cheapest proxy.",
+      "unit": "residents/ha"
+    },
+    {
+      "id": "young_share",
+      "label": "Share aged 18–45",
+      "direction": "+",
+      "weight_default": 0.15,
+      "evidence_id": "e2",
+      "why": "IHK report: specialty coffee grows with a young audience.",
+      "unit": "share"
+    },
+    {
+      "id": "competition_ihk",
+      "label": "Cafés registered at IHK (56114/561141)",
+      "direction": "-",
+      "weight_default": 0.125,
+      "evidence_id": "e3",
+      "why": "Registered café inventory; kept separate from OSM.",
+      "unit": "cafés"
+    },
+    {
+      "id": "competition_osm",
+      "label": "Cafés in OSM (amenity=cafe)",
+      "direction": "-",
+      "weight_default": 0.125,
+      "evidence_id": "e4",
+      "why": "Mapped café inventory; kept separate from IHK.",
+      "unit": "cafés"
+    },
+    {
+      "id": "transit",
+      "label": "Transit access",
+      "direction": "+",
+      "weight_default": 0.15,
+      "evidence_id": "e5",
+      "why": "Passing commuters add non-resident footfall."
+    },
+    {
+      "id": "cost",
+      "label": "Land value (cost proxy)",
+      "direction": "-",
+      "weight_default": 0.15,
+      "evidence_id": "e6",
+      "why": "High standard land value indicates pressure on ground-floor rents.",
+      "unit": "relative land value"
+    }
+  ],
+  "cells": [
+    {
+      "id": "02100101",
+      "name": "Askanischer Platz",
+      "geometry_ref": "02100101",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.35,
+        "young_share": 0.5,
+        "competition_ihk": 0.28,
+        "competition_osm": 0.33,
+        "transit": 0.8,
+        "cost": 0.75
+      },
+      "raw_values": {
+        "demand_density": 103.0,
+        "young_share": 0.475,
+        "competition_ihk": 2,
+        "competition_osm": 2,
+        "transit": 0.75,
+        "cost": 4200
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.04918032786885231,
+      "score_future": 0.04918032786885231
+    },
+    {
+      "id": "02100102",
+      "name": "Mehringplatz",
+      "geometry_ref": "02100102",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.55,
+        "young_share": 0.4,
+        "competition_ihk": 0.35,
+        "competition_osm": 0.36,
+        "transit": 0.6,
+        "cost": 0.45
+      },
+      "raw_values": {
+        "demand_density": 139.0,
+        "young_share": 0.44,
+        "competition_ihk": 9,
+        "competition_osm": 13,
+        "transit": 0.6,
+        "cost": 3240
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.3606557377049181,
+      "score_future": 0.3606557377049181
+    },
+    {
+      "id": "02100103",
+      "name": "Am Berlin Museum",
+      "geometry_ref": "02100103",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.45,
+        "young_share": 0.5,
+        "competition_ihk": 0.37,
+        "competition_osm": 0.34,
+        "transit": 0.55,
+        "cost": 0.6
+      },
+      "raw_values": {
+        "demand_density": 121.0,
+        "young_share": 0.475,
+        "competition_ihk": 16,
+        "competition_osm": 24,
+        "transit": 0.562,
+        "cost": 3720
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.06557377049180314,
+      "score_future": 0.06557377049180314
+    },
+    {
+      "id": "02100104",
+      "name": "Moritzplatz",
+      "geometry_ref": "02100104",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.72,
+        "young_share": 0.7,
+        "competition_ihk": 0.43,
+        "competition_osm": 0.42,
+        "transit": 0.75,
+        "cost": 0.6
+      },
+      "raw_values": {
+        "demand_density": 169.6,
+        "young_share": 0.545,
+        "competition_ihk": 23,
+        "competition_osm": 11,
+        "transit": 0.713,
+        "cost": 3720
+      },
+      "modifiers": [
+        {
+          "type": "future",
+          "label": "Office campus: ~1,200 workplaces by 2027",
+          "quote": "…rund 1.200 Arbeitsplätze, Fertigstellung 2027…",
+          "evidence_id": "e9",
+          "bonus": 0.1,
+          "magnitude": {
+            "jobs": 1200
+          }
+        }
+      ],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.8754098360655735,
+      "score_future": 0.9754098360655735
+    },
+    {
+      "id": "02100105",
+      "name": "Prinzenstraße",
+      "geometry_ref": "02100105",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.55,
+        "young_share": 0.55,
+        "competition_ihk": 0.3,
+        "competition_osm": 0.33,
+        "transit": 0.5,
+        "cost": 0.45
+      },
+      "raw_values": {
+        "demand_density": 139.0,
+        "young_share": 0.492,
+        "competition_ihk": 6,
+        "competition_osm": 22,
+        "transit": 0.525,
+        "cost": 3240
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.4754098360655734,
+      "score_future": 0.4754098360655734
+    },
+    {
+      "id": "02100106",
+      "name": "Wassertorplatz",
+      "geometry_ref": "02100106",
+      "parent_name": "Südliche  Friedrichstadt",
+      "values": {
+        "demand_density": 0.65,
+        "young_share": 0.5,
+        "competition_ihk": 0.42,
+        "competition_osm": 0.41,
+        "transit": 0.45,
+        "cost": 0.45
+      },
+      "raw_values": {
+        "demand_density": 157.0,
+        "young_share": 0.475,
+        "competition_ihk": 13,
+        "competition_osm": 9,
+        "transit": 0.488,
+        "cost": 3240
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.4098360655737706,
+      "score_future": 0.4098360655737706
+    },
+    {
+      "id": "02200207",
+      "name": "Gleisdreieck",
+      "geometry_ref": "02200207",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.3,
+        "young_share": 0.6,
+        "competition_ihk": 0.23,
+        "competition_osm": 0.24,
+        "transit": 0.7,
+        "cost": 0.7
+      },
+      "raw_values": {
+        "demand_density": 94.0,
+        "young_share": 0.51,
+        "competition_ihk": 20,
+        "competition_osm": 20,
+        "transit": 0.675,
+        "cost": 4040
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.11475409836065573,
+      "score_future": 0.11475409836065573
+    },
+    {
+      "id": "02200208",
+      "name": "Rathaus Yorckstraße",
+      "geometry_ref": "02200208",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.7,
+        "young_share": 0.6,
+        "competition_ihk": 0.55,
+        "competition_osm": 0.52,
+        "transit": 0.7,
+        "cost": 0.6
+      },
+      "raw_values": {
+        "demand_density": 166.0,
+        "young_share": 0.51,
+        "competition_ihk": 3,
+        "competition_osm": 7,
+        "transit": 0.675,
+        "cost": 3720
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.5081967213114752,
+      "score_future": 0.5081967213114752
+    },
+    {
+      "id": "02200209",
+      "name": "Viktoriapark",
+      "geometry_ref": "02200209",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.65,
+        "young_share": 0.55,
+        "competition_ihk": 0.47,
+        "competition_osm": null,
+        "transit": 0.55,
+        "cost": 0.7
+      },
+      "raw_values": {
+        "demand_density": 157.0,
+        "young_share": 0.492,
+        "competition_ihk": 10,
+        "competition_osm": null,
+        "transit": 0.562,
+        "cost": 4040
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.6065573770491804,
+      "score_future": 0.6065573770491804
+    },
+    {
+      "id": "02200210",
+      "name": "Urbanstraße",
+      "geometry_ref": "02200210",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.8,
+        "young_share": 0.6,
+        "competition_ihk": 0.48,
+        "competition_osm": 0.51,
+        "transit": 0.6,
+        "cost": 0.55
+      },
+      "raw_values": {
+        "demand_density": 184.0,
+        "young_share": 0.51,
+        "competition_ihk": 17,
+        "competition_osm": 5,
+        "transit": 0.6,
+        "cost": 3560
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.7213114754098355,
+      "score_future": 0.7213114754098355
+    },
+    {
+      "id": "02200211",
+      "name": "Chamissokiez",
+      "geometry_ref": "02200211",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.75,
+        "young_share": 0.65,
+        "competition_ihk": 0.7,
+        "competition_osm": 0.69,
+        "transit": 0.5,
+        "cost": 0.8
+      },
+      "raw_values": {
+        "demand_density": 175.0,
+        "young_share": 0.527,
+        "competition_ihk": 24,
+        "competition_osm": 16,
+        "transit": 0.525,
+        "cost": 4360
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.0,
+      "score_future": 0.0
+    },
+    {
+      "id": "02200212",
+      "name": "Graefekiez Süd",
+      "geometry_ref": "02200212",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.85,
+        "young_share": 0.75,
+        "competition_ihk": 0.77,
+        "competition_osm": 0.72,
+        "transit": 0.55,
+        "cost": 0.75
+      },
+      "raw_values": {
+        "demand_density": 193.0,
+        "young_share": 0.562,
+        "competition_ihk": 7,
+        "competition_osm": 3,
+        "transit": 0.562,
+        "cost": 4200
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.3114754098360654,
+      "score_future": 0.3114754098360654
+    },
+    {
+      "id": "02200213",
+      "name": "Graefekiez Nord",
+      "geometry_ref": "02200213",
+      "parent_name": "Tempelhofer Vorstadt",
+      "values": {
+        "demand_density": 0.9,
+        "young_share": 0.8,
+        "competition_ihk": 0.58,
+        "competition_osm": 0.63,
+        "transit": 0.7,
+        "cost": 0.7
+      },
+      "raw_values": {
+        "demand_density": 202.0,
+        "young_share": 0.58,
+        "competition_ihk": 14,
+        "competition_osm": 14,
+        "transit": 0.675,
+        "cost": 4040
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [
+        "Actual footfall on Graefestraße — hystreet slot skipped (no key). Validate: 2 × 30-min manual counts."
+      ],
+      "score_present": 0.8852459016393441,
+      "score_future": 0.8852459016393441
+    },
+    {
+      "id": "02300314",
+      "name": "Oranienplatz",
+      "geometry_ref": "02300314",
+      "parent_name": "Nördliche Luisenstadt",
+      "values": {
+        "demand_density": 0.8,
+        "young_share": 0.85,
+        "competition_ihk": 0.85,
+        "competition_osm": 0.86,
+        "transit": 0.85,
+        "cost": 0.65
+      },
+      "raw_values": {
+        "demand_density": 184.0,
+        "young_share": 0.597,
+        "competition_ihk": 21,
+        "competition_osm": 25,
+        "transit": 0.787,
+        "cost": 3880
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.524590163934426,
+      "score_future": 0.524590163934426
+    },
+    {
+      "id": "02300315",
+      "name": "Lausitzer Platz",
+      "geometry_ref": "02300315",
+      "parent_name": "Nördliche Luisenstadt",
+      "values": {
+        "demand_density": 0.95,
+        "young_share": 0.9,
+        "competition_ihk": 0.82,
+        "competition_osm": 0.79,
+        "transit": 0.75,
+        "cost": 0.6
+      },
+      "raw_values": {
+        "demand_density": 211.0,
+        "young_share": 0.615,
+        "competition_ihk": 4,
+        "competition_osm": 12,
+        "transit": 0.713,
+        "cost": 3720
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.9016393442622949,
+      "score_future": 0.9016393442622949
+    },
+    {
+      "id": "02300316",
+      "name": "Köpenicker Straße",
+      "geometry_ref": "02300316",
+      "parent_name": "Nördliche Luisenstadt",
+      "values": {
+        "demand_density": 0.5,
+        "young_share": 0.55,
+        "competition_ihk": 0.23,
+        "competition_osm": 0.22,
+        "transit": 0.6,
+        "cost": 0.5
+      },
+      "raw_values": {
+        "demand_density": 130.0,
+        "young_share": 0.492,
+        "competition_ihk": 11,
+        "competition_osm": 23,
+        "transit": 0.6,
+        "cost": 3400
+      },
+      "modifiers": [
+        {
+          "type": "future",
+          "label": "Planned housing: 300 units at Köpenicker Straße",
+          "quote": "…300 Wohnungen sollen bis 2028 bezugsfertig sein…",
+          "evidence_id": "e10",
+          "bonus": 0.1,
+          "magnitude": {
+            "units": 300
+          }
+        }
+      ],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.5737704918032783,
+      "score_future": 0.6737704918032783
+    },
+    {
+      "id": "02300417",
+      "name": "Reichenberger Straße West",
+      "geometry_ref": "02300417",
+      "parent_name": "Südliche Luisenstadt",
+      "values": {
+        "demand_density": 0.85,
+        "young_share": 0.8,
+        "competition_ihk": 0.65,
+        "competition_osm": 0.68,
+        "transit": 0.65,
+        "cost": 0.55
+      },
+      "raw_values": {
+        "demand_density": 193.0,
+        "young_share": 0.58,
+        "competition_ihk": 18,
+        "competition_osm": 10,
+        "transit": 0.638,
+        "cost": 3560
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.7868852459016392,
+      "score_future": 0.7868852459016392
+    },
+    {
+      "id": "02300418",
+      "name": "Reichenberger Straße Ost",
+      "geometry_ref": "02300418",
+      "parent_name": "Südliche Luisenstadt",
+      "values": {
+        "demand_density": 0.9,
+        "young_share": 0.8,
+        "competition_ihk": 0.57,
+        "competition_osm": 0.56,
+        "transit": 0.55,
+        "cost": 0.5
+      },
+      "raw_values": {
+        "demand_density": 202.0,
+        "young_share": 0.58,
+        "competition_ihk": 25,
+        "competition_osm": 21,
+        "transit": 0.562,
+        "cost": 3400
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [
+        "Vacancy of ground-floor units unknown. Validate: walk Reichenberger Str. / check listings."
+      ],
+      "score_present": 1.0,
+      "score_future": 1.0
+    },
+    {
+      "id": "02300419",
+      "name": "Wrangelkiez",
+      "geometry_ref": "02300419",
+      "parent_name": "Südliche Luisenstadt",
+      "values": {
+        "demand_density": 0.95,
+        "young_share": 0.9,
+        "competition_ihk": 0.88,
+        "competition_osm": 0.89,
+        "transit": 0.6,
+        "cost": 0.55
+      },
+      "raw_values": {
+        "demand_density": 211.0,
+        "young_share": 0.615,
+        "competition_ihk": 8,
+        "competition_osm": 8,
+        "transit": 0.6,
+        "cost": 3560
+      },
+      "modifiers": [],
+      "risks": [
+        {
+          "severity": "high",
+          "text": "Ground-floor rents rising fast (+18 % in Wrangelkiez)",
+          "quote": "…Erdgeschossmieten im Wrangelkiez +18 % gegenüber Vorjahr…",
+          "evidence_id": "e11"
+        }
+      ],
+      "demoted_by": [
+        "f_rent_wrangelkiez"
+      ],
+      "unknowns": [],
+      "score_present": 0.672131147540983,
+      "score_future": 0.672131147540983
+    }
+  ]
+}
