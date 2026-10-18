@@ -705,7 +705,7 @@ function initMap(){
   map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
   map.on('error',e=>{if(!M.loaded){clearTimeout(t);fail('map style did not load')}});
   map.on('load',()=>{clearTimeout(t);M.loaded=true;setupBase();
-    if($('#s-dash').classList.contains('hidden')||C.shape==='point')return;setupArea();paint3D()});
+    const go=()=>{if(!M.ranked||C.shape==='point')return;if($('#s-dash').classList.contains('hidden')){setTimeout(go,150);return}map.resize();setupArea();paint3D()};go()});
 }
 function setupBase(){const map=M.map,L=map.getStyle().layers,bl=L.find(l=>l.type==='fill-extrusion');
   M.blayer=bl.id;M.bsrc=bl.source;
@@ -719,7 +719,7 @@ function setupBase(){const map=M.map,L=map.getStyle().layers,bl=L.find(l=>l.type
   map.addLayer({id:'cells-fill',type:'fill',source:'cells',paint:{'fill-color':NEUT,'fill-opacity':['case',hov,.82,hl,.8,.58]}},below);
   map.addLayer({id:'cells-line',type:'line',source:'cells',paint:{'line-color':'#fff','line-width':1.4,'line-opacity':.9}},below);
   map.addLayer({id:'cells-hl',type:'line',source:'cells',paint:{'line-color':'#0b1720','line-width':['case',hl,4,hov,3,0]}});
-  const poiF=()=>C.shape==='gap'?['==',['get','subclass'],'kindergarten']:['==',['get','class'],'cafe'];
+  const poiF=()=>C.shape==='gap'?['==',['get','subclass'],'kindergarten']:['==',['get','subclass'],'cafe'];
   map.addLayer({id:'focus-poi',type:'circle',source:M.bsrc,'source-layer':'poi',filter:poiF(),minzoom:13,paint:{'circle-radius':['interpolate',['linear'],['zoom'],13,2.2,17,5],'circle-color':'#b45309','circle-stroke-color':'#fff','circle-stroke-width':1}});
   map.addLayer({id:'focus-transit',type:'circle',source:M.bsrc,'source-layer':'poi',layout:{visibility:'none'},filter:['all',['==',['get','class'],'railway'],['in',['get','subclass'],['literal',['subway','station','halt']]]],paint:{'circle-radius':5,'circle-color':'#1d4ed8','circle-stroke-color':'#fff','circle-stroke-width':2}});
   M.poiF=poiF;
@@ -745,8 +745,8 @@ function cellAt(x,y){for(const c of M.cells){const b=c.bb;if(x<b[0]||x>b[2]||y<b
 function assignBuildings(){if(!M.cells||!M.map)return;const map=M.map;
   for(const f of map.querySourceFeatures(M.bsrc,{sourceLayer:'building'})){if(f.id==null||M.bCell.has(f.id))continue;
     const g=f.geometry,r=g.type==='Polygon'?g.coordinates[0]:g.type==='MultiPolygon'?g.coordinates[0][0]:null;if(!r)continue;
-    let x=0,y=0;r.forEach(p=>{x+=p[0];y+=p[1]});const i=cellAt(x/r.length,y/r.length);M.bCell.set(f.id,i);
-    if(i>=0)map.setFeatureState({source:M.bsrc,sourceLayer:'building',id:f.id},{i})}}
+    let x=0,y=0;r.forEach(p=>{x+=p[0];y+=p[1]});const i=cellAt(x/r.length,y/r.length);if(i<0)continue;M.bCell.set(f.id,i);
+    map.setFeatureState({source:M.bsrc,sourceLayer:'building',id:f.id},{i})}}
 function setupArea(){const map=M.map,A=SC.area,LL=Object.fromEntries(GEO_LL[C.area].map(x=>[x.id,x]));
   M.sc=SC;M.cells=A.cells.map((c,i)=>({id:c.id,i,g:LL[c.id].g,p:LL[c.id].p,bb:ringBB(LL[c.id].g)}));
   map.getSource('cells').setData({type:'FeatureCollection',features:M.cells.map(c=>({type:'Feature',properties:{id:c.id,i:c.i},geometry:c.g}))});
