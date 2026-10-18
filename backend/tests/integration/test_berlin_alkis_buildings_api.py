@@ -102,8 +102,11 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
             },
         )
         assert by_address.status_code == 200, by_address.text
-        assert by_address.json()["status"] in {"unique", "ambiguous"}
-        assert by_address.json()["matches"]
+        by_address_body = by_address.json()
+        assert by_address_body["status"] == "ambiguous"
+        assert by_address_body["own_address_match_count"] == 1
+        assert by_address_body["pseudonumber_match_count"] == 1
+        assert len(by_address_body["matches"]) == 2
 
         unsupported = client.get(
             "/api/v1/datasets/berlin_alkis_buildings/at",

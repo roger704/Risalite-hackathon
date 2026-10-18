@@ -188,9 +188,21 @@ def create_buildings_router(get_service) -> APIRouter:
             response["warnings"].append(
                 "outside imported extent; absence of a building is not evidence"
             )
+        own_address_match_count = sum(
+            item["reference_kind"] == "house_number"
+            and "address_reference" in item["match_methods"]
+            for item in result["matches"]
+        )
+        pseudonumber_match_count = sum(
+            item["reference_kind"] == "pseudonumber"
+            and "address_reference" in item["match_methods"]
+            for item in result["matches"]
+        )
         response.update(
             {
                 "status": result["status"],
+                "own_address_match_count": own_address_match_count,
+                "pseudonumber_match_count": pseudonumber_match_count,
                 "records": [record_to_dict(item["record"]) for item in result["matches"]],
                 "matches": [
                     {
