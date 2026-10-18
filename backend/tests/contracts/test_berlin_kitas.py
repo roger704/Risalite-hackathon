@@ -220,6 +220,8 @@ def test_completeness_requires_all_pages(tmp_path):
         {"capacity_reference_date": "31.12.2025"},
         {"geometry_types": ["Polygon"]},
         {"edition_metadata_url": "http://datenregister.berlin.de/x"},
+        {"hierarchy": " "},
+        {"hierarchy": None},
         {"max_unassigned_ratio": 2},
         {"district_field": "unknown"},
     ],

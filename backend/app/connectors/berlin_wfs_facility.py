@@ -47,6 +47,9 @@ def _ratio(name: str, value) -> float:
 
 def check_facility_options(options: dict) -> None:
     """Validate the facility-specific part of a reviewed WFS layer mapping."""
+    hierarchy = options.get("hierarchy")
+    if not isinstance(hierarchy, str) or not hierarchy.strip():
+        raise SchemaError("WFS facility hierarchy must be a nonempty string")
     field_map = options["field_map"]
     if not isinstance(field_map, dict) or any(
         not isinstance(field_map.get(key), str) or not field_map[key]
