@@ -638,11 +638,14 @@ const cite = id => id && CITE[id] ? `<a class="cite" data-e="${esc(id)}">[${CITE
 function renderInline(text) {
   return esc(text)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\[(\d+)\]/g, (match, n) => {
-      const evidence = (R.evidence || [])[Number(n) - 1];
-      return evidence ? cite(evidence.evidence_id) : match;
-    })
-    .replace(/\[((?:e|ds_)[\w:.-]*)\]/g, (match, id) => CITE[id] ? cite(id) : '');
+    .replace(/\[((?:(?:e|ds_)[\w:.-]*|\d+)(?:\s*,\s*(?:(?:e|ds_)[\w:.-]*|\d+))*)\](?!\()/g, (match, tokens) => tokens.split(',').map(token => {
+      const id = token.trim();
+      if (/^\d+$/.test(id)) {
+        const evidence = (R.evidence || [])[Number(id) - 1];
+        return evidence ? cite(evidence.evidence_id) : '';
+      }
+      return CITE[id] ? cite(id) : '';
+    }).join(' '));
 }
 function renderMarkdown(markdown) {
   const blocks = [];
@@ -656,7 +659,12 @@ function renderMarkdown(markdown) {
     list = [];
   };
   String(markdown).split(/\r?\n/).forEach(line => {
-    if (/^\s*[-*]\s+/.test(line)) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph(); flushList();
+      const level = Math.min(6, heading[1].length + 2);
+      blocks.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+    } else if (/^\s*[-*]\s+/.test(line)) {
       flushParagraph(); list.push(line.replace(/^\s*[-*]\s+/, ''));
     } else if (!line.trim()) {
       flushParagraph(); flushList();

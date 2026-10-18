@@ -331,6 +331,10 @@ header .mode.mock{background:rgba(255,149,0,.14);color:#914100}
 #ask-err{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #ask-err.notice{background:rgba(255,204,0,.12);border-color:rgba(255,159,10,.3)}
 #ask-retry{padding:6px 14px;font-size:13px;flex-shrink:0}
+#d-sum h3{font-size:18px;margin:18px 0 8px}
+#d-sum h4{font-size:16px;margin:18px 0 8px}
+#d-sum h5,#d-sum h6{font-size:14px;margin:14px 0 6px}
+#d-sum>:first-child{margin-top:0}
 .btn:disabled{opacity:.65;cursor:wait;transform:none}
 .layer-row{min-width:0}
 .hist{display:block;width:92px;height:25px;overflow:visible}
