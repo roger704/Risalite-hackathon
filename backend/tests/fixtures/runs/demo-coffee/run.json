@@ -1,0 +1,28 @@
+{
+  "run_id": "demo-coffee",
+  "question": "Where is it smart to open a coffee place in Kreuzberg?",
+  "role": "location researcher",
+  "shape": "location",
+  "created_at": "2026-10-18T12:00:00Z",
+  "plan": {
+    "subquestions": [
+      {
+        "text": "Compare demand, competition, transit and rent",
+        "source_class": "public data",
+        "layers": ["demand_density", "competition", "transit", "rent"],
+        "approved": true
+      },
+      {
+        "text": "Check future neighborhood development",
+        "source_class": "web",
+        "layers": ["demand_density"],
+        "approved": false
+      }
+    ],
+    "paid_sources": [
+      {"name": "hystreet", "used_for": "footfall", "status": "skipped"}
+    ]
+  },
+  "summary": "Bergmannkiez edges the default mix [e1]. Future housing may improve Admiralskiez [e4]. Unsupported claim [e3] and unknown citation [e999] are omitted.",
+  "models": {"location researcher": "fixture-model", "fact-checker": "fixture-checker"}
+}
