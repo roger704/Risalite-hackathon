@@ -14,6 +14,7 @@ from .models import (
     PUBLIC_REDISTRIBUTION_STATUSES,
     RECORD_TYPES,
     SCHEMA_VERSION,
+    Address,
     Area,
     AreaIndicatorClass,
     AreaObservation,
@@ -46,6 +47,7 @@ from .ports import SnapshotConnector
 __all__ = [
     "PUBLIC_REDISTRIBUTION_STATUSES",
     "SCHEMA_VERSION",
+    "Address",
     "Area",
     "AreaIndicatorClass",
     "AreaObservation",

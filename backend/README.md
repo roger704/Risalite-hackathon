@@ -125,6 +125,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
+| `berlin_addresses` | [Official Berlin address WFS](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba), layer `adressen_berlin:adressen_berlin` | 402,756 official address-point features (source `numberMatched` checked 18 October 2026), 18 properties, source CRS EPSG:25833, paged at 10,000 features. Licensed [Datenlizenz Deutschland – Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attributed to Amt für Statistik Berlin-Brandenburg and Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. |
 | `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
@@ -136,6 +137,56 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
+
+### Berlin address points
+
+Import the pinned LOR boundaries first, then the address dataset:
+
+```sh
+uv run location-data ingest berlin_lor
+uv run location-data ingest berlin_addresses
+```
+
+The import pins the active `berlin_lor` snapshot by default. `GET /api/v1/datasets/berlin_addresses/address-search` searches a required `snapshot_id` with a street query and optional house number/suffix, exact postcode, and district code or name. It normalizes German street spelling, supports a four-character-or-longer street prefix when there is no exact street match, and pages with an opaque cursor. Exact-address matches that produce multiple points are marked ambiguous with candidate postcode/district pairs; the API never auto-selects one.
+
+These are official address points based on the Vermessungsämter numbering plans, not buildings, entrances, units, or premises. They do not imply vacancy, commercial availability, rental terms, or permitted use. Provider-supplied Planungsraum links are checked against the pinned LOR snapshot and never reassigned. The WFS serves a live, unpinned layer; consecutive downloads can differ and raw page hashes vary with response timestamps. Straight-line distance is not walking time.
+
+#### Real-import measurements
+
+The full provider import into `/home/ubuntu/addr-data` produced snapshot `berlin_addresses-caa4b3b91eb1465397f8735f7d3fa07f`, pinned to LOR snapshot `berlin_lor-76dd82db6c474526806561de1c931360`.
+
+| Measurement | Result |
+|---|---:|
+| WFS `numberMatched` | 402,756 |
+| Pages / accepted records | 41 / 402,756 |
+| Rejected rows | 0 |
+| Import elapsed time | 129.21 s |
+| Import peak RSS | 2,141,092 KB |
+| Raw page data | 246,008,672 bytes (234.5 MiB) |
+| Normalized snapshot | 49,257,594 bytes (47.0 MiB) |
+| Parent areas checked | 542 |
+| Unknown provider LOR codes | 0 |
+| Points outside supplied LOR area (1 m tolerance) | 17 |
+| Parent areas without an address | 0 |
+| Address types | 402,459 `Adresse`; 297 `Platz/Straße ohne HNR` |
+
+The parent-coverage result passes the configured limits. There were no missing area codes; all 297 `Platz/Straße ohne HNR` records lack a house number, as indicated by their type.
+
+`AddressIndex` built from the normalized snapshot in 6.23 s. Its process peak RSS was 732,472 KB (611,616 KB above the 120,856 KB pre-build peak).
+
+| Record ID | Address | Postcode | District | Planungsraum | WGS84 point |
+|---|---|---|---|---|---|
+| `address:367859` | Wiener Straße 12 | 10999 | Friedrichshain-Kreuzberg | `02300417` | 13.428334, 52.498395 |
+| `address:342065` | Lindenstraße 10 | 12207 | Steglitz-Zehlendorf | `06200420` | 13.309929, 52.416526 |
+| `address:117130` | Lindenstraße 10 | 12526 | Treptow-Köpenick | `09301025` | 13.579063, 52.391790 |
+
+Real index search results for this snapshot:
+
+| Query | Results | Ambiguous | Result |
+|---|---:|---|---|
+| `Wiener Straße 12` | 1 | No | `address:367859`, postcode 10999, Friedrichshain-Kreuzberg |
+| `wiener str 12a` | 0 | No | No matching address with this house-number suffix in this snapshot |
+| `Lindenstraße 10` | 8 | Yes | Postcode/district candidates: 12207 (Steglitz-Zehlendorf), 12526 (Treptow-Köpenick), 12527 (Treptow-Köpenick), 12555 (Treptow-Köpenick), 12589 (Treptow-Köpenick), 12621 (Marzahn-Hellersdorf), 12683 (Marzahn-Hellersdorf), and 14109 (Steglitz-Zehlendorf). No result is auto-selected. |
 
 All 542 population codes matched the reviewed LOR code set, and each complete age-band breakdown matched its area total. The population code directory states December 2021. Matching codes establishes identifier compatibility; it does not certify that polygon boundaries were unchanged between source editions. The manifest pins the actual LOR snapshot used by each population import.
 

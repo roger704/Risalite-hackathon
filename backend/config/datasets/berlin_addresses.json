@@ -1,0 +1,120 @@
+{
+  "dataset_id": "berlin_addresses",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin / Amt für Statistik Berlin-Brandenburg",
+  "adapter": "berlin_wfs_addresses",
+  "landing_url": "https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba",
+  "resource_url": "https://gdi.berlin.de/services/wfs/adressen_berlin?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=adressen_berlin:adressen_berlin&OUTPUTFORMAT=application/json&SORTBY=adressid",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "DL-DE-ZERO-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Amt für Statistik Berlin-Brandenburg / Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin; Adressen Berlin, WFS adressen_berlin, Datenlizenz Deutschland – Zero – Version 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2026-04-02",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 15000000,
+  "timeout_seconds": 120.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "typename": "adressen_berlin:adressen_berlin",
+    "page_size": 10000,
+    "max_pages": 60,
+    "max_total_bytes": 400000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "adressid",
+      "hnr",
+      "hnr_zusatz",
+      "str_name",
+      "str_nr",
+      "plz",
+      "bez_name",
+      "bez_nr",
+      "ort_name",
+      "ort_nr",
+      "plr_name",
+      "plr_nr",
+      "blk",
+      "qualitaet",
+      "typ",
+      "adr_datum",
+      "str_datum",
+      "hko_id"
+    ],
+    "id_field": "adressid",
+    "id_pattern": "^S?\\d+$",
+    "expected_count_range": [
+      380000,
+      430000
+    ],
+    "record_type": "address",
+    "hierarchy": "planungsraum",
+    "field_map": {
+      "id": "adressid",
+      "street_name": "str_name",
+      "street_code": "str_nr",
+      "house_number": "hnr",
+      "house_number_suffix": "hnr_zusatz",
+      "postcode": "plz",
+      "district_code": "bez_nr",
+      "district_name": "bez_name",
+      "locality_code": "ort_nr",
+      "locality_name": "ort_name",
+      "area_code": "plr_nr",
+      "area_name": "plr_name",
+      "address_type": "typ"
+    },
+    "field_patterns": {
+      "adressid": "^S?\\d+$",
+      "hnr_zusatz": "^[A-Z]{1,2}$",
+      "str_nr": "^\\d{5}$",
+      "plz": "^\\d{5}$",
+      "bez_nr": "^\\d{2}$",
+      "ort_nr": "^\\d{4}$",
+      "plr_nr": "^\\d{8}$",
+      "blk": "^\\d{6}$",
+      "adr_datum": "^\\d{4}-\\d{2}-\\d{2}$",
+      "str_datum": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "address_types": [
+      "Adresse",
+      "Platz/Straße ohne HNR"
+    ],
+    "attribute_fields": [
+      "blk",
+      "qualitaet",
+      "adr_datum",
+      "str_datum",
+      "hko_id"
+    ],
+    "parent_check": {
+      "max_unknown_area_codes": 0,
+      "max_outside_supplied_area_count": 2000,
+      "boundary_tolerance_m": 1.0
+    },
+    "limitations": [
+      "Official address points per the Vermessungsämter numbering plans (stand: metadata revision 2026-04-02; latest per-record adr_datum is reported separately). Points mark addresses, not buildings, entrances, units or premises.",
+      "An address never implies vacant premises, commercial availability, rental terms or permitted use.",
+      "The WFS serves the live layer without an edition pin; consecutive downloads can differ. Raw page hashes differ per download because of the response timeStamp.",
+      "typ 'Platz/Straße ohne HNR' rows (ids prefixed S) are street/square reference points without a house number; qualitaet 'RBS' rows have no hko_id.",
+      "plr_nr/plr_name are provider-supplied LOR 2021 Planungsraum links; they are checked against the pinned berlin_lor snapshot, never reassigned.",
+      "Straight-line distance from an address point is not walking time.",
+      "Source access, CRS, paging and field mapping checked 2026-10-18."
+    ]
+  }
+}
