@@ -1,0 +1,451 @@
+{
+  "synthetic": true,
+  "area": {
+    "area_id": "ortsteil:0801",
+    "name": "Neukölln",
+    "level": "ortsteil",
+    "plr_count": 21,
+    "cell_count": 21
+  },
+  "mode_default": "present",
+  "layers": [
+    {
+      "id": "demand",
+      "label": "Children under 6",
+      "direction": "+",
+      "weight_default": 0.4,
+      "evidence_id": "e2",
+      "why": "Demand: every child under 6 is a potential place.",
+      "unit": "children"
+    },
+    {
+      "id": "supply",
+      "label": "Kita places per child",
+      "direction": "-",
+      "weight_default": 0.35,
+      "evidence_id": "e3",
+      "why": "Supply: fewer places per child → larger gap.",
+      "unit": "places per child"
+    },
+    {
+      "id": "transit",
+      "label": "Transit access",
+      "direction": "-",
+      "weight_default": 0.1,
+      "evidence_id": "e4",
+      "why": "Poor access makes existing places further out effectively unavailable.",
+      "unit": "share within 300 m"
+    },
+    {
+      "id": "status",
+      "label": "Low social status (MSS)",
+      "direction": "+",
+      "weight_default": 0.15,
+      "evidence_id": "e5",
+      "why": "Equity: Bezirk planning prioritises low-status areas.",
+      "unit": "status index"
+    }
+  ],
+  "cells": [
+    {
+      "id": "08100101",
+      "name": "Hasenheide",
+      "geometry_ref": "08100101",
+      "parent_name": "Schillerpromenade",
+      "values": {
+        "demand": 0.59,
+        "supply": 0.85,
+        "transit": 0.75,
+        "status": 0.92
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.4679399727148703,
+      "score_future": 0.4679399727148703
+    },
+    {
+      "id": "08100102",
+      "name": "Schillerpromenade Nord",
+      "geometry_ref": "08100102",
+      "parent_name": "Schillerpromenade",
+      "values": {
+        "demand": 0.87,
+        "supply": 0.68,
+        "transit": 0.33,
+        "status": 0.44
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.8540245566166439,
+      "score_future": 0.8540245566166439
+    },
+    {
+      "id": "08100103",
+      "name": "Schillerpromenade Süd",
+      "geometry_ref": "08100103",
+      "parent_name": "Schillerpromenade",
+      "values": {
+        "demand": 0.18,
+        "supply": 0.56,
+        "transit": 0.18,
+        "status": 0.34
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.21555252387448826,
+      "score_future": 0.21555252387448826
+    },
+    {
+      "id": "08100104",
+      "name": "Wartheplatz",
+      "geometry_ref": "08100104",
+      "parent_name": "Schillerpromenade",
+      "values": {
+        "demand": 0.59,
+        "supply": 0.92,
+        "transit": 0.45,
+        "status": 0.55
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.3315143246930421,
+      "score_future": 0.3315143246930421
+    },
+    {
+      "id": "08100105",
+      "name": "Silbersteinstraße",
+      "geometry_ref": "08100105",
+      "parent_name": "Schillerpromenade",
+      "values": {
+        "demand": 0.56,
+        "supply": 0.35,
+        "transit": 0.28,
+        "status": 0.47
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.8567530695770803,
+      "score_future": 0.8567530695770803
+    },
+    {
+      "id": "08100206",
+      "name": "Flughafenstraße",
+      "geometry_ref": "08100206",
+      "parent_name": "Neuköllner Mitte/Zentrum",
+      "values": {
+        "demand": 0.71,
+        "supply": 0.34,
+        "transit": 0.85,
+        "status": 0.44
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.8622100954979535,
+      "score_future": 0.8622100954979535
+    },
+    {
+      "id": "08100207",
+      "name": "Rollberg",
+      "geometry_ref": "08100207",
+      "parent_name": "Neuköllner Mitte/Zentrum",
+      "values": {
+        "demand": 0.28,
+        "supply": 0.39,
+        "transit": 0.52,
+        "status": 0.65
+      },
+      "modifiers": [
+        {
+          "type": "future",
+          "label": "Two Kitas (85 places) closing 2027",
+          "quote": "…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…",
+          "evidence_id": "e8",
+          "bonus": 0.1,
+          "magnitude": {
+            "places": 85
+          }
+        }
+      ],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.5211459754433834,
+      "score_future": 0.6211459754433833
+    },
+    {
+      "id": "08100208",
+      "name": "Körnerpark",
+      "geometry_ref": "08100208",
+      "parent_name": "Neuköllner Mitte/Zentrum",
+      "values": {
+        "demand": 0.5,
+        "supply": 0.88,
+        "transit": 0.2,
+        "status": 0.66
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.38472032742155515,
+      "score_future": 0.38472032742155515
+    },
+    {
+      "id": "08100209",
+      "name": "Glasower Straße",
+      "geometry_ref": "08100209",
+      "parent_name": "Neuköllner Mitte/Zentrum",
+      "values": {
+        "demand": 0.38,
+        "supply": 0.19,
+        "transit": 0.35,
+        "status": 0.76
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.9126875852660301,
+      "score_future": 0.9126875852660301
+    },
+    {
+      "id": "08100310",
+      "name": "Maybachufer",
+      "geometry_ref": "08100310",
+      "parent_name": "Reuterstraße",
+      "values": {
+        "demand": 0.37,
+        "supply": 0.63,
+        "transit": 0.67,
+        "status": 0.7
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.36971350613915405,
+      "score_future": 0.36971350613915405
+    },
+    {
+      "id": "08100311",
+      "name": "Reuterplatz",
+      "geometry_ref": "08100311",
+      "parent_name": "Reuterstraße",
+      "values": {
+        "demand": 0.93,
+        "supply": 0.86,
+        "transit": 0.2,
+        "status": 0.81
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.9345156889495226,
+      "score_future": 0.9345156889495226
+    },
+    {
+      "id": "08100312",
+      "name": "Weichselplatz",
+      "geometry_ref": "08100312",
+      "parent_name": "Reuterstraße",
+      "values": {
+        "demand": 0.18,
+        "supply": 0.56,
+        "transit": 0.91,
+        "status": 0.34
+      },
+      "modifiers": [
+        {
+          "type": "future",
+          "label": "Planned housing: ~420 units by 2029",
+          "quote": "Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029",
+          "evidence_id": "e7",
+          "bonus": 0.1,
+          "magnitude": {
+            "units": 420
+          }
+        }
+      ],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.01637107776261916,
+      "score_future": 0.11637107776261917
+    },
+    {
+      "id": "08100313",
+      "name": "Bouchéstraße",
+      "geometry_ref": "08100313",
+      "parent_name": "Reuterstraße",
+      "values": {
+        "demand": 0.87,
+        "supply": 0.46,
+        "transit": 0.25,
+        "status": 0.23
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 1.0,
+      "score_future": 1.0
+    },
+    {
+      "id": "08100314",
+      "name": "Donaustraße",
+      "geometry_ref": "08100314",
+      "parent_name": "Reuterstraße",
+      "values": {
+        "demand": 0.35,
+        "supply": 0.94,
+        "transit": 0.2,
+        "status": 0.26
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.0,
+      "score_future": 0.0
+    },
+    {
+      "id": "08100415",
+      "name": "Ganghoferstraße",
+      "geometry_ref": "08100415",
+      "parent_name": "Rixdorf",
+      "values": {
+        "demand": 0.21,
+        "supply": 0.49,
+        "transit": 0.74,
+        "status": 0.55
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.2482946793997271,
+      "score_future": 0.2482946793997271
+    },
+    {
+      "id": "08100416",
+      "name": "Alt-Rixdorf",
+      "geometry_ref": "08100416",
+      "parent_name": "Rixdorf",
+      "values": {
+        "demand": 0.76,
+        "supply": 0.52,
+        "transit": 0.61,
+        "status": 0.76
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.9413369713506139,
+      "score_future": 0.9413369713506139
+    },
+    {
+      "id": "08100417",
+      "name": "Braunschweiger Straße",
+      "geometry_ref": "08100417",
+      "parent_name": "Rixdorf",
+      "values": {
+        "demand": 0.48,
+        "supply": 0.66,
+        "transit": 0.91,
+        "status": 0.61
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.3587994542974078,
+      "score_future": 0.3587994542974078
+    },
+    {
+      "id": "08100418",
+      "name": "Hertzbergplatz",
+      "geometry_ref": "08100418",
+      "parent_name": "Rixdorf",
+      "values": {
+        "demand": 0.31,
+        "supply": 0.17,
+        "transit": 0.91,
+        "status": 0.86
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.743519781718963,
+      "score_future": 0.743519781718963
+    },
+    {
+      "id": "08100419",
+      "name": "Treptower Straße Nord",
+      "geometry_ref": "08100419",
+      "parent_name": "Rixdorf",
+      "values": {
+        "demand": 0.28,
+        "supply": 0.21,
+        "transit": 0.43,
+        "status": 0.26
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.5579809004092768,
+      "score_future": 0.5579809004092768
+    },
+    {
+      "id": "08100520",
+      "name": "Weiße Siedlung",
+      "geometry_ref": "08100520",
+      "parent_name": "Köllnische Heide",
+      "values": {
+        "demand": 0.93,
+        "supply": 0.89,
+        "transit": 0.85,
+        "status": 0.63
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.6548431105047748,
+      "score_future": 0.6548431105047748
+    },
+    {
+      "id": "08100521",
+      "name": "Schulenburgpark",
+      "geometry_ref": "08100521",
+      "parent_name": "Köllnische Heide",
+      "values": {
+        "demand": 0.23,
+        "supply": 0.77,
+        "transit": 0.8,
+        "status": 0.65
+      },
+      "modifiers": [],
+      "risks": [],
+      "demoted_by": [],
+      "unknowns": [],
+      "score_present": 0.027285129604365646,
+      "score_future": 0.027285129604365646
+    }
+  ]
+}

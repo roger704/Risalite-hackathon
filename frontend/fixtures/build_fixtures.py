@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -49,6 +50,29 @@ KREUZ = {
     "02300418": [0.90, 0.80, 0.55, 0.55, 0.50],
     "02300419": [0.95, 0.90, 0.90, 0.60, 0.55],
 }
+NEUKOELLN_CELLS = [
+    ("08100101", "Hasenheide", "Schillerpromenade"),
+    ("08100102", "Schillerpromenade Nord", "Schillerpromenade"),
+    ("08100103", "Schillerpromenade Süd", "Schillerpromenade"),
+    ("08100104", "Wartheplatz", "Schillerpromenade"),
+    ("08100105", "Silbersteinstraße", "Schillerpromenade"),
+    ("08100206", "Flughafenstraße", "Neuköllner Mitte/Zentrum"),
+    ("08100207", "Rollberg", "Neuköllner Mitte/Zentrum"),
+    ("08100208", "Körnerpark", "Neuköllner Mitte/Zentrum"),
+    ("08100209", "Glasower Straße", "Neuköllner Mitte/Zentrum"),
+    ("08100310", "Maybachufer", "Reuterstraße"),
+    ("08100311", "Reuterplatz", "Reuterstraße"),
+    ("08100312", "Weichselplatz", "Reuterstraße"),
+    ("08100313", "Bouchéstraße", "Reuterstraße"),
+    ("08100314", "Donaustraße", "Reuterstraße"),
+    ("08100415", "Ganghoferstraße", "Rixdorf"),
+    ("08100416", "Alt-Rixdorf", "Rixdorf"),
+    ("08100417", "Braunschweiger Straße", "Rixdorf"),
+    ("08100418", "Hertzbergplatz", "Rixdorf"),
+    ("08100419", "Treptower Straße Nord", "Rixdorf"),
+    ("08100520", "Weiße Siedlung", "Köllnische Heide"),
+    ("08100521", "Schulenburgpark", "Köllnische Heide"),
+]
 LAYERS = [
     {
         "id": "demand_density",
@@ -407,6 +431,387 @@ def _evidence() -> list[dict]:
     for entry in ledger:
         entry["synthetic"] = True
     return ledger
+
+
+def _gap_hash(value: str) -> float:
+    """Match the mockup's 32-bit JavaScript FNV-1a hash for ASCII identifiers."""
+    value_hash = 2166136261
+    for character in value:
+        value_hash = ((value_hash ^ ord(character)) * 16777619) & 0xFFFFFFFF
+    return (value_hash % 10000) / 10000
+
+
+def _gap_layers() -> list[dict]:
+    return [
+        {
+            "id": "demand",
+            "label": "Children under 6",
+            "direction": "+",
+            "weight_default": 0.40,
+            "evidence_id": "e2",
+            "why": "Demand: every child under 6 is a potential place.",
+            "unit": "children",
+        },
+        {
+            "id": "supply",
+            "label": "Kita places per child",
+            "direction": "-",
+            "weight_default": 0.35,
+            "evidence_id": "e3",
+            "why": "Supply: fewer places per child → larger gap.",
+            "unit": "places per child",
+        },
+        {
+            "id": "transit",
+            "label": "Transit access",
+            "direction": "-",
+            "weight_default": 0.10,
+            "evidence_id": "e4",
+            "why": "Poor access makes existing places further out effectively unavailable.",
+            "unit": "share within 300 m",
+        },
+        {
+            "id": "status",
+            "label": "Low social status (MSS)",
+            "direction": "+",
+            "weight_default": 0.15,
+            "evidence_id": "e5",
+            "why": "Equity: Bezirk planning prioritises low-status areas.",
+            "unit": "status index",
+        },
+    ]
+
+
+def _gap_evidence() -> list[dict]:
+    geometry_url = (
+        f"{WFS_URL}&SRSNAME=EPSG%3A4326&CQL_FILTER="
+        "plr_id%20IN%20(%27"
+        + "%27%2C%27".join(cell[0] for cell in NEUKOELLN_CELLS)
+        + "%27)"
+    )
+    entries = [
+        (
+            "Official PLR geometries (lor_2021)",
+            geometry_url,
+            "21 Planungsräume in Neukölln",
+            "wfs",
+            "official",
+            "high",
+            "verified",
+        ),
+        (
+            "Population by age group (ua_einwohnerdichte_2025)",
+            "https://gdi.berlin.de/services/wfs/ua_einwohnerdichte_2025?service=WFS&version=2.0.0&request=GetFeature&typeNames=ua_einwohnerdichte_2025",
+            "EW_U6 — residents under 6, per block, aggregated to PLR",
+            "wfs",
+            "official",
+            "high",
+            "verified",
+        ),
+        (
+            "Kita locations & approved places (kita)",
+            "https://gdi.berlin.de/services/wfs/kita?service=WFS&version=2.0.0&request=GetFeature&typeNames=kita",
+            "genehmigte Plätze per facility, aggregated to PLR",
+            "wfs",
+            "official",
+            "high",
+            "verified",
+        ),
+        (
+            "Undisturbed public transport access (oepnv_ungestoert)",
+            "https://gdi.berlin.de/services/wfs/oepnv_ungestoert?service=WFS&version=2.0.0&request=GetFeature&typeNames=oepnv_ungestoert",
+            "share of area within 300 m of a stop",
+            "wfs",
+            "official",
+            "high",
+            "verified",
+        ),
+        (
+            "Social monitoring 2025 (mss_2025)",
+            "https://gdi.berlin.de/services/wfs/mss_2025?service=WFS&version=2.0.0&request=GetFeature&typeNames=mss_2025",
+            "Status-Index per PLR",
+            "wfs",
+            "official",
+            "high",
+            "verified",
+        ),
+        (
+            "Kita-Entwicklungsplanung Bezirk Neukölln",
+            "https://www.berlin.de/ba-neukoelln/politik-und-verwaltung/aemter/jugendamt/kita-entwicklungsplanung.pdf",
+            "„…in den Planungsräumen nördlich der Ringbahn besteht ein rechnerisches Defizit an Betreuungsplätzen…“",
+            "pdf",
+            "institutional",
+            "medium",
+            "partial",
+        ),
+        (
+            "Planned housing — StEP Wohnen 2040 (step_wo_2040)",
+            "https://gdi.berlin.de/services/wfs/step_wo_2040?service=WFS&version=2.0.0&request=GetFeature&typeNames=step_wo_2040",
+            "Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029",
+            "web",
+            "official",
+            "high",
+            "partial",
+        ),
+        (
+            "Local news: Kita operator closes two sites",
+            "https://www.example-berlin-news.de/neukoelln/kita-schliessung",
+            "„…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…“",
+            "web",
+            "press",
+            "medium",
+            "partial",
+        ),
+    ]
+    ledger = [
+        {
+            "evidence_id": f"e{index}",
+            "title": title,
+            "url": url,
+            "quote": quote,
+            "method": method,
+            "tier": tier,
+            "confidence": confidence,
+            "status": status,
+            "synthetic": True,
+        }
+        for index, (title, url, quote, method, tier, confidence, status) in enumerate(entries, 1)
+    ]
+    ledger.append(
+        {
+            "evidence_id": "e9",
+            "title": "Rejected city-wide Kita coverage claim (mockup fact-checker)",
+            "url": "https://www.example-parenting-blog.de/kita-ranking",
+            "quote": "Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)",
+            "method": "web",
+            "tier": "press",
+            "confidence": "low",
+            "status": "unsupported",
+            "claim": "“Neukölln has the lowest Kita coverage in Berlin”",
+            "reason": "Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)",
+            "synthetic": True,
+        }
+    )
+    return ledger
+
+
+def _gap_cells() -> list[dict]:
+    layers = _gap_layers()
+    cells = []
+    for cell_id, name, parent_name in NEUKOELLN_CELLS:
+        values = {
+            layer["id"]: math.floor(
+                (0.15 + 0.8 * _gap_hash(f"{cell_id}{layer['id']}gap")) * 100 + 0.5
+            )
+            / 100
+            for layer in layers
+        }
+        modifiers = []
+        if cell_id == "08100312":
+            modifiers.append(
+                {
+                    "type": "future",
+                    "label": "Planned housing: ~420 units by 2029",
+                    "quote": "Wohnungsbaupotenzial ca. 420 WE, Realisierung bis 2029",
+                    "evidence_id": "e7",
+                    "bonus": 0.10,
+                    "magnitude": {"units": 420},
+                }
+            )
+        if cell_id == "08100207":
+            modifiers.append(
+                {
+                    "type": "future",
+                    "label": "Two Kitas (85 places) closing 2027",
+                    "quote": "…zwei Einrichtungen mit zusammen 85 Plätzen schließen zum Sommer 2027…",
+                    "evidence_id": "e8",
+                    "bonus": 0.10,
+                    "magnitude": {"places": 85},
+                }
+            )
+        cells.append(
+            {
+                "id": cell_id,
+                "name": name,
+                "geometry_ref": cell_id,
+                "parent_name": parent_name,
+                "values": values,
+                "modifiers": modifiers,
+                "risks": [],
+                "demoted_by": [],
+                "unknowns": [],
+            }
+        )
+
+    scores = compute_scores(cells, layers)
+    for cell in cells:
+        cell["score_present"] = scores[cell["id"]]["present"]
+        cell["score_future"] = scores[cell["id"]]["future"]
+    return cells
+
+
+def _gap_trace() -> list[dict]:
+    raw_events = [
+        ("Classifier", "classify", "shape=gap", "Kita shortage in Neukölln → compare PLR demand and supply.", 820, 1.1, []),
+        ("Planner", "plan", "4 layers · 5 sub-questions", "Use childcare demand, supply, transit and social-status evidence.", 1760, 2.8, []),
+        ("Data researcher", "tool:wfs", "PLR geometries (lor_2021)", "Load the 21 official Neukölln planning-room boundaries.", 0, 0.9, ["e1"]),
+        ("Data researcher", "tool:wfs", "Population by age group (ua_einwohnerdichte_2025)", "Aggregate children under six to the PLR.", 0, 1.2, ["e2"]),
+        ("Data researcher", "tool:wfs", "Kita locations & approved places (kita)", "Aggregate approved Kita places to the PLR.", 0, 1.4, ["e3"]),
+        ("Data researcher", "tool:wfs", "Transit access and MSS social-status index", "Compare access and social need across cells.", 0, 1.5, ["e4", "e5"]),
+        ("Web researcher", "tavily:search", "Bezirk Neukölln Kita-Entwicklungsplanung", "Check the district's planning evidence for northern PLR deficits.", 1480, 2.4, ["e6"]),
+        ("Web researcher", "tavily:search", "StEP Wohnen 2040 and Kita closure reporting", "Find prospective housing and closures with source quotations.", 1510, 2.6, ["e7", "e8"]),
+        ("Fact-checker", "reject", "“Neukölln has the lowest Kita coverage in Berlin”", "Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)", 0, 1.2, ["e9"]),
+        ("Planner", "replan", "Drop city-wide coverage ranking; retain PLR supply-demand evidence", "Replan without the unverifiable city-wide claim.", 610, 1.0, ["e9", "e2", "e3"]),
+        ("Skeptic", "challenge", "Review default top-3 Kita gap cells", "Check directionality, future claims and data limitations.", 1920, 3.5, ["e2", "e3", "e6", "e7", "e8"]),
+        ("Writer", "write", "Gap summary, top cells and citations", "Write the report using only the gap evidence ledger.", 2900, 4.4, ["e1", "e2", "e3", "e6", "e7", "e8", "e9"]),
+    ]
+    events = [
+        _event_payload(seq, "mock-t3", role, event_type, text, why, tokens, seconds, evidence_ids)
+        for seq, (role, event_type, text, why, tokens, seconds, evidence_ids) in enumerate(raw_events)
+    ]
+    events.append(_event_payload(len(events), "mock-t3", "Writer", "done", "Run complete", "", 0, 0.0, []))
+    return events
+
+
+def _gap_plan_document(evidence: list[dict], cells: list[dict]) -> dict:
+    return {
+        "synthetic": True,
+        "run_id": "mock-t3",
+        "status": "awaiting_approval",
+        "question": "Where are Kitas missing in Neukölln?",
+        "classification": {
+            "shape": "gap",
+            "why": "The question asks where childcare is missing → compute a PLR supply-vs-demand gap score.",
+            "area": "Neukölln",
+        },
+        "plan": {
+            "area": {
+                "area_id": "ortsteil:0801",
+                "level": "ortsteil",
+                "name": "Neukölln",
+                "plr_count": len(cells),
+            },
+            "area_candidates": [
+                {
+                    "area_id": "ortsteil:0801",
+                    "level": "ortsteil",
+                    "name": "Neukölln",
+                    "bezirk": "Neukölln",
+                },
+                {
+                    "area_id": "bezirk:08",
+                    "level": "bezirk",
+                    "name": "Neukölln",
+                    "bezirk": "Neukölln",
+                },
+            ],
+            "area_cells": len(cells),
+            "sub_questions": [
+                {
+                    "id": "s1",
+                    "text": "How many children under 6 live in each PLR?",
+                    "source_class": "official geodata",
+                    "sources": "ua_einwohnerdichte_2025",
+                    "layer_ids": ["demand"],
+                },
+                {
+                    "id": "s2",
+                    "text": "How many approved Kita places exist per PLR?",
+                    "source_class": "official geodata",
+                    "sources": "kita",
+                    "layer_ids": ["supply"],
+                },
+                {
+                    "id": "s3",
+                    "text": "What does the Bezirk Kita plan say about deficits?",
+                    "source_class": "web (Tavily)",
+                    "sources": "berlin.de, *.berlin.de",
+                    "layer_ids": [],
+                },
+                {
+                    "id": "s4",
+                    "text": "Which closures or openings are announced after today?",
+                    "source_class": "web (Tavily)",
+                    "sources": "berlin.de, local press",
+                    "layer_ids": [],
+                },
+                {
+                    "id": "s5",
+                    "text": "Where is new housing planned?",
+                    "source_class": "official geodata",
+                    "sources": "step_wo_2040",
+                    "layer_ids": [],
+                },
+            ],
+            "layers": _gap_layers(),
+            "hypotheses": [],
+            "paid_sources": [],
+            "evidence_titles": {entry["evidence_id"]: entry["title"] for entry in evidence},
+            "synthetic": True,
+        },
+    }
+
+
+def _gap_result_document(
+    evidence: list[dict], cells: list[dict], events: list[dict]
+) -> dict:
+    scores = compute_scores(cells, _gap_layers())
+    ranked = _rank_cells(cells, scores, "present")
+    top = ranked[:3]
+    return {
+        "synthetic": True,
+        "run_id": "mock-t3",
+        "status": "done",
+        "question": "Where are Kitas missing in Neukölln?",
+        "role": "urban planner",
+        "shape": "gap",
+        "report_md": (
+            f"Across {len(cells)} Planungsräume in Neukölln [1], the largest Kita gap is in "
+            f"**{top[0]['name']}** [2] [3], followed by **{top[1]['name']}** [2] [3] and "
+            f"**{top[2]['name']}** [2] [3]. These cells combine many children under six with "
+            "relatively few approved places per child. The district's Kita planning reports a "
+            "deficit in northern planning areas [6]. Announced changes include ~420 planned "
+            "housing units at Weichselplatz [7] and two Kita closures affecting 85 places in "
+            "Rollberg [8] in Present + future mode. The claim that Neukölln has the lowest Kita "
+            "coverage in Berlin could not be verified and was dropped [9]."
+        ),
+        "models": MODELS,
+        "self_grade": [
+            {"ok": True, "text": "The report ranks all 21 Neukölln PLR cells using the approved layer mix."},
+            {"ok": True, "text": "Future developments and the two Kita closures cite their source entries."},
+            {"ok": False, "text": "A city-wide Kita coverage ranking could not be verified and was rejected."},
+        ],
+    }
+
+
+def _gap_findings() -> list[dict]:
+    return [
+        {
+            "finding_id": "f_neukoelln_plan_deficit",
+            "claim": "The district Kita plan identifies a calculated childcare-place deficit in PLR north of the Ringbahn.",
+            "quote": "„…in den Planungsräumen nördlich der Ringbahn besteht ein rechnerisches Defizit an Betreuungsplätzen…“",
+            "evidence_ids": ["e6"],
+            "claim_type": "demand",
+            "localization": "Northern Neukölln PLR",
+            "agent": "web_researcher",
+            "status": "accepted",
+            "verification": "partial",
+            "synthetic": True,
+        },
+        {
+            "finding_id": "f_neukoelln_coverage_rejected",
+            "claim": "“Neukölln has the lowest Kita coverage in Berlin”",
+            "quote": "Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)",
+            "evidence_ids": ["e9"],
+            "claim_type": "unsupported",
+            "localization": "Neukölln",
+            "agent": "fact_checker",
+            "status": "rejected",
+            "verification": "unsupported",
+            "reject_reason": "Quote not found on re-fetch (best fuzzy match 0.41 < 0.85)",
+            "synthetic": True,
+        },
+    ]
 
 
 def _normalized_cells(source_cells: list[dict]) -> list[dict]:
@@ -1362,12 +1767,21 @@ def _write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def build(geojson_from: Path | None = None) -> None:
+def build(geojson_from: Path | None = None, gap_geojson_from: Path | None = None) -> None:
     geo_cells = _fixture_cells()
     cells = _normalized_cells(geo_cells)
     evidence = _evidence()
     source_path = geojson_from or (FIXTURES / "cells.geojson")
     geojson = build_geojson(_geojson_source(source_path, {cell["id"] for cell in cells}), cells)
+    gap_cells = _gap_cells()
+    gap_evidence = _gap_evidence()
+    gap_source_path = gap_geojson_from or (
+        FIXTURES / "cells_gap.geojson" if (FIXTURES / "cells_gap.geojson").exists() else None
+    )
+    gap_geojson = build_geojson(
+        _geojson_source(gap_source_path, {cell["id"] for cell in gap_cells}),
+        gap_cells,
+    )
 
     _write_json(
         FIXTURES / "cells.json",
@@ -1434,6 +1848,43 @@ def build(geojson_from: Path | None = None) -> None:
     _write_json(FIXTURES / "metrics.json", _metrics(location_trace))
     _write_json(FIXTURES / "metrics_point.json", _metrics(point_trace))
 
+    gap_trace = _gap_trace()
+    _write_json(
+        FIXTURES / "cells_gap.json",
+        {
+            "synthetic": True,
+            "area": {
+                "area_id": "ortsteil:0801",
+                "name": "Neukölln",
+                "level": "ortsteil",
+                "plr_count": len(gap_cells),
+                "cell_count": len(gap_cells),
+            },
+            "mode_default": "present",
+            "layers": _gap_layers(),
+            "cells": gap_cells,
+        },
+    )
+    _write_json(FIXTURES / "cells_gap.geojson", gap_geojson)
+    (FIXTURES / "evidence_gap.jsonl").write_text(
+        "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in gap_evidence),
+        encoding="utf-8",
+    )
+    _write_json(FIXTURES / "plan_gap.json", _gap_plan_document(gap_evidence, gap_cells))
+    _write_json(
+        FIXTURES / "result_gap.json",
+        _gap_result_document(gap_evidence, gap_cells, gap_trace),
+    )
+    (FIXTURES / "trace_gap.jsonl").write_text(
+        "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in gap_trace),
+        encoding="utf-8",
+    )
+    (FIXTURES / "findings_gap.jsonl").write_text(
+        "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in _gap_findings()),
+        encoding="utf-8",
+    )
+    _write_json(FIXTURES / "metrics_gap.json", _metrics(gap_trace))
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1442,8 +1893,13 @@ def main() -> None:
         type=Path,
         help="Use a cached WFS FeatureCollection instead of making a network request.",
     )
+    parser.add_argument(
+        "--gap-geojson-from",
+        type=Path,
+        help="Use cached Neukölln PLR geometry instead of the checked-in GeoJSON.",
+    )
     arguments = parser.parse_args()
-    build(arguments.geojson_from)
+    build(arguments.geojson_from, arguments.gap_geojson_from)
 
 
 if __name__ == "__main__":

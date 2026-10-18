@@ -139,8 +139,8 @@ def mount_frontend(application: FastAPI) -> None:
         os.environ.get("RISALITE_FRONTEND_DIR", str(repo_root / "frontend"))
     ).expanduser()
     fixtures_dir = frontend_root / "fixtures"
-    app_dir = frontend_root / "app"
     landing_dir = frontend_root / "landing"
+    app_dir = frontend_root / "app"
     if fixtures_dir.is_dir():
         application.mount("/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
     if landing_dir.is_dir():

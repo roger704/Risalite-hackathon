@@ -40,6 +40,7 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
     landing = client.get("/landing/")
     assert landing.status_code == 200
     assert 'href="/"' in landing.text
+    assert "Try the demo" in landing.text
     assert client.get("/mockup/index.html").status_code == 404
     assert client.get("/fixtures/cells.json").status_code == 200
     for asset in (

@@ -29,11 +29,21 @@ RUNS: dict[str, dict] = {}
 RUNS_LOCK = RLock()
 MAX_RUNS = 500
 IDLE_TTL = 3600
-SUPPORTED_AREAS = {"ortsteil:0202"}
-FIXTURE_NOTICE = (
-    "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
-    "will show that example, not a computed answer."
-)
+SUPPORTED_AREAS = {
+    "location": {"ortsteil:0202"},
+    "gap": {"ortsteil:0801"},
+}
+FIXTURE_NOTICES = {
+    "location": (
+        "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
+        "will show that example, not a computed answer."
+    ),
+    "gap": (
+        "Demo fixtures only cover Kita gaps in Neukölln — results for this question/area "
+        "will show that example, not a computed answer."
+    ),
+}
+FIXTURE_NOTICE = FIXTURE_NOTICES["location"]
 HYPOTHESIS_NOTICE = "Summary regenerated from the fixture for your approved hypotheses."
 
 AREAS = [
@@ -161,6 +171,51 @@ def _read_jsonl(name: str) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def _shape_fixture(shape: str, kind: str) -> str:
+    filenames = {
+        "plan": {
+            "point": "plan_point.json",
+            "location": "plan_location.json",
+            "gap": "plan_gap.json",
+        },
+        "trace": {
+            "point": "trace_point.jsonl",
+            "location": "trace.jsonl",
+            "gap": "trace_gap.jsonl",
+        },
+        "result": {
+            "point": "result_point.json",
+            "location": "result_location.json",
+            "gap": "result_gap.json",
+        },
+        "cells": {"location": "cells.json", "gap": "cells_gap.json"},
+        "cells_geojson": {"location": "cells.geojson", "gap": "cells_gap.geojson"},
+        "evidence": {
+            "point": "evidence.jsonl",
+            "location": "evidence.jsonl",
+            "gap": "evidence_gap.jsonl",
+        },
+        "findings": {
+            "point": "findings_point.jsonl",
+            "location": "findings.jsonl",
+            "gap": "findings_gap.jsonl",
+        },
+        "metrics": {
+            "point": "metrics_point.json",
+            "location": "metrics.json",
+            "gap": "metrics_gap.json",
+        },
+    }
+    return filenames[kind][shape]
+
+
+def _fixture_notice(shape: str, area_id: str | None) -> str | None:
+    supported = SUPPORTED_AREAS.get(shape)
+    if supported is not None and area_id not in supported:
+        return FIXTURE_NOTICES[shape]
+    return None
+
+
 def _approved_hypothesis_report(hypotheses: list[dict], evidence: list[dict]) -> str:
     if not hypotheses:
         return "No approved hypotheses are available in the demo fixture."
@@ -223,9 +278,10 @@ def _shape(question: str) -> str:
 
 
 def _plan(shape: str, matches: list[dict]) -> dict:
-    plan_response = _read_json("plan_point.json" if shape == "point" else "plan_location.json")
+    plan_response = _read_json(_shape_fixture(shape, "plan"))
     plan = copy.deepcopy(plan_response["plan"])
-    plan["sub_questions"] = plan.get("sub_questions", [])[:3]
+    if shape != "gap":
+        plan["sub_questions"] = plan.get("sub_questions", [])[:3]
     if shape != "point":
         selected = next((area for area in matches if area["level"] == "ortsteil"), matches[0])
         plan["area"] = {
@@ -239,8 +295,9 @@ def _plan(shape: str, matches: list[dict]) -> dict:
         ]
         if selected["area_id"] not in {area["area_id"] for area in plan["area_candidates"]}:
             plan["area_candidates"].append(selected)
-        if shape == "gap" or selected["area_id"] not in SUPPORTED_AREAS:
-            plan["note"] = FIXTURE_NOTICE
+        notice = _fixture_notice(shape, selected["area_id"])
+        if notice:
+            plan["note"] = notice
         else:
             plan.pop("note", None)
     return plan
@@ -431,8 +488,12 @@ def approve(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="Invalid approval payload") from exc
     body = request.model_dump(exclude_none=True)
-    if len(body.get("subquestions", [])) > 3:
-        raise HTTPException(status_code=422, detail="At most three subquestions may be approved")
+    max_subquestions = 5 if run["shape"] == "gap" else 3
+    if len(body.get("subquestions", [])) > max_subquestions:
+        raise HTTPException(
+            status_code=422,
+            detail=f"At most {max_subquestions} subquestions may be approved",
+        )
     plan = run["plan"] or {}
     layer_ids = {layer["id"] for layer in plan.get("layers", [])}
     for layer in body.get("layers", []):
@@ -469,8 +530,9 @@ def approve(
         ]
         if area_id not in {area["area_id"] for area in plan["area_candidates"]}:
             plan["area_candidates"].append(selected)
-        if run["shape"] == "gap" or area_id not in SUPPORTED_AREAS:
-            plan["note"] = FIXTURE_NOTICE
+        notice = _fixture_notice(run["shape"], area_id)
+        if notice:
+            plan["note"] = notice
         else:
             plan.pop("note", None)
         run["status"] = "awaiting_approval"
@@ -522,7 +584,7 @@ def _event_type(old: dict) -> str:
 
 
 def _events(run: dict) -> list[dict]:
-    raw = _read_jsonl("trace_point.jsonl" if run["shape"] == "point" else "trace.jsonl")
+    raw = _read_jsonl(_shape_fixture(run["shape"], "trace"))
     result = []
     for item in raw:
         event_type = _event_type(item)
@@ -618,24 +680,21 @@ def _result_payload(run: dict) -> dict:
     shape = run["shape"]
     area = (run.get("plan") or {}).get("area") or {}
     area_id = area.get("area_id")
-    fixture_notice = (
-        FIXTURE_NOTICE
-        if shape == "gap" or (shape == "location" and area_id not in SUPPORTED_AREAS)
-        else None
-    )
-    result_doc = _read_json(f"result_{'point' if shape == 'point' else 'location'}.json")
-    cells = _read_json("cells.json")
-    for layer in cells["layers"]:
-        layer["enabled"] = True
-    for approved_layer in run.get("approval", {}).get("layers", []):
+    fixture_notice = _fixture_notice(shape, area_id)
+    result_doc = _read_json(_shape_fixture(shape, "result"))
+    cells = _read_json(_shape_fixture(shape, "cells")) if shape != "point" else None
+    if cells is not None:
         for layer in cells["layers"]:
-            if layer["id"] == approved_layer["id"]:
-                layer["enabled"] = approved_layer["enabled"]
-                layer["weight_default"] = approved_layer["weight"]
-    findings_name = "findings_point.jsonl" if shape == "point" else "findings.jsonl"
+            layer["enabled"] = True
+        for approved_layer in run.get("approval", {}).get("layers", []):
+            for layer in cells["layers"]:
+                if layer["id"] == approved_layer["id"]:
+                    layer["enabled"] = approved_layer["enabled"]
+                    layer["weight_default"] = approved_layer["weight"]
+    findings_name = _shape_fixture(shape, "findings")
     findings_path = _fixture_dir() / findings_name
     findings = _read_jsonl(findings_name) if findings_path.exists() else []
-    evidence = _read_jsonl("evidence.jsonl")
+    evidence = _read_jsonl(_shape_fixture(shape, "evidence"))
     candidates = _read_json("candidates.json") if shape == "point" else None
     report_md = result_doc.get("report_md", "")
     approval = run.get("approval", {})
@@ -656,16 +715,20 @@ def _result_payload(run: dict) -> dict:
             "cells": cells if shape != "point" else None,
             "evidence": evidence,
             "findings": findings,
-            "metrics": _read_json("metrics_point.json" if shape == "point" else "metrics.json")
-            if (_fixture_dir() / "metrics.json").exists()
-            else {},
             "question": run["question"],
             "role": run.get("role") or result_doc.get("role"),
             "shape": shape,
             "plan": run["plan"],
             "fixture_notice": fixture_notice,
-            "cells_geojson": _read_json("cells.geojson"),
+            "cells_geojson": (
+                _read_json("cells.geojson")
+                if shape == "point"
+                else _read_json(_shape_fixture(shape, "cells_geojson"))
+            ),
             "candidates": candidates,
+            "metrics": _read_json(_shape_fixture(shape, "metrics"))
+            if (_fixture_dir() / _shape_fixture(shape, "metrics")).exists()
+            else {},
             "trace": trace,
         }
     )
