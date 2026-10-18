@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.parcels import parcels_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
@@ -225,6 +226,8 @@ def create_app(
 
     if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
         application.include_router(fixture_runs_router)
+
+    application.include_router(parcels_router(get_service))
 
     # Keep this last: the "/" mount catches every otherwise-unmatched route.
     mount_frontend(application)

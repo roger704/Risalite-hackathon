@@ -19,6 +19,7 @@ This is a practical inventory for the project. Provider documentation and datase
 | **[Berlin kindergarten locations](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2)** | Locations and information about publicly funded kindergartens | Public WFS service; DL-DE-Zero 2.0 | Map existing childcare provision |
 | **[Berlin household statistics](https://www.statistik-berlin-brandenburg.de/a-i-17-j/)** | Household size and family structures by LOR | Published tables and downloads | Identify family-oriented neighborhoods |
 | **[Official Berlin address points](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba)** | Addresses with coordinates | Public WFS service; DL-DE-Zero 2.0 | Locate candidate addresses without a paid geocoding API |
+| **[ALKIS Berlin parcels](https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7)** | Official cadastral parcel boundaries, identifiers, and source area | Bounded Berlin WFS 2.0 GeoJSON extent; DL-DE-Zero 2.0 | Connect selected points with official parcel geometry; geometric matches are not legal assignments |
 
 ### Why IHK Business Data Matters
 

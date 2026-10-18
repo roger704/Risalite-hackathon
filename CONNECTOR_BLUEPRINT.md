@@ -1,6 +1,6 @@
 # Connector Blueprint — AI Location Intelligence
 
-Status: implementation blueprint. The first slice now implements backend structure, shared contracts, LOR and population adapters, snapshot ingestion/storage, and dataset read APIs. See the [backend setup guide](backend/README.md) for commands and validated source details. Other connectors and analysis/research workflows remain planned.
+Status: implementation blueprint. The backend implements shared contracts, LOR and population adapters, bounded Berlin ALKIS parcel ingestion, snapshot storage, and read APIs. See the [backend setup guide](backend/README.md) for commands and validated source details. Other connectors and analysis/research workflows remain planned.
 
 Design date: **18 October 2026**. Source inventory: [DATA_SOURCES.md](DATA_SOURCES.md). Project scope: [README.md](README.md).
 
@@ -58,6 +58,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `berlin_addresses` | Berlin WFS | `Address` | Next | Monthly |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
 | `berlin_centers` | Berlin WFS | `Area` | Next | Monthly |
+| `berlin_alkis_parcels` | Berlin WFS (ALKIS) | `Parcel` | Next | Monthly |
 | `berlin_population_forecast` | Tabular file | `AreaObservation` with scenario | Next | Monthly check for new edition |
 | `berlin_schools`, `berlin_parks`, `berlin_hospitals` | Berlin WFS | `Facility`, `Area` | Later | Monthly |
 | `berlin_social_monitoring` | Tabular/geospatial file | `AreaObservation` | Later | Monthly check for new edition |
@@ -102,6 +103,7 @@ Use typed domain records; use Pydantic at JSON/API boundaries. Every record carr
 | `Place` | Geometry, canonical category, original category, optional name | Include category-mapping version; unmapped categories remain explicit |
 | `Business` | Coordinates, industry code and code system, optional employee range, business age, supplied LOR code | Preserve anonymous records; employee ranges are not exact headcounts |
 | `Area` | Geometry, area code, hierarchy, boundary edition, name | A planning area and a transit catchment are different spatial units |
+| `Parcel` | WGS84 geometry, ALKIS UUID and cadastral identifiers, official and derived area | Keep identifiers as strings; source-provided `afl` and derived EPSG:25833 geometry area are distinct; no ownership or permission claims |
 | `AreaObservation` | Area code and boundary edition, metric code, value or null, unit, reference period, value status | Preserve counts, rates, denominators, age bands, and forecast scenarios separately |
 | `GridObservation` | Grid-cell identifier, grid definition/CRS, metric, reference period, value status | Suppressed cells and zero-valued cells differ |
 | `Facility` | Geometry, facility type, provider ID, optional attributes | Capacity and vacancies are nullable and carry their own reference dates when present |
@@ -233,6 +235,14 @@ Public servers apply shared-resource limits; cache broad extractions and follow 
 - Use WMS only as a display/reference layer; do not derive numeric scoring data from rendered map colors.
 
 The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_assets/stadtdaten/geoportal/aktuelles/austausch-diente-server-allgemein.pdf?ts=1691689866) show the current service URL pattern. Resolve actual endpoints through the dataset listing rather than copying obsolete FIS-Broker URLs.
+
+### I. ALKIS cadastral parcels
+
+`berlin_alkis_parcels` uses the reviewed Berlin ALKIS WFS layer and a fixed 5 × 5 km EPSG:25833 candidate extent. WFS returns complete parcel geometries intersecting that extent, including edge parcels extending beyond it. The configured 5,000-feature pages, page ceiling, and cumulative byte cap keep this import bounded; do not substitute a citywide request (403,526 matched features, approximately 420 MB raw) without a streaming/tiled design.
+
+`Parcel.source_record_id` is the ALKIS `uuid`; the display `parcel_id` is `fsko`, which can change after parcel splits or merges. Preserve cadastral codes and identifiers as strings. `official_area_m2` is the provider's `afl` (Amtliche Fläche); `geometry_area_m2` is the separately derived planar area of the source geometry in EPSG:25833. They are not interchangeable, and material differences are surfaced as quality warnings.
+
+The parcel index supports point, bbox, and generic geometry relationships for buildings, addresses, and planning snapshots without importing their domain classes. Boundary points may match multiple parcels, buildings can intersect multiple parcels, and polygon touches with zero area are not assigned an area share. Relationship responses pin both snapshots and identify EPSG:25833 as the calculation CRS. Geometric overlap is not a legal parcel assignment. Parcel or planning records do not establish ownership, use, development permission, available premises, commercial tenancy, or an acquisition offer.
 
 ### C. LOR, Population, Households, and Forecasts
 
