@@ -544,6 +544,33 @@ async def test_empty_address_terms_downgrade_address_localization(tmp_path):
     assert "localization_downgraded" in emit.types()
 
 
+async def test_street_only_address_falls_back_to_cell_when_source_names_street(tmp_path):
+    address = "Wiener Straße"
+    passage = "A listing is available at Wiener Straße 40."
+    kit, _, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {
+            "address": address_terms(address),
+            "02010101": cell_terms("Askanischer Platz", [address_street(address)]),
+        },
+        ["address", "02010101", "area"],
+    )
+
+    await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="address",
+    )
+
+    finding = kit.accepted[0]
+    assert finding.localization == "02010101"
+    assert finding.localization_requested == "address"
+    assert finding.localization_check == "downgraded"
+
+
 @pytest.mark.parametrize(
     ("year", "expected_type"),
     [(2025, "fact"), (2026, "future"), (2027, "future")],

@@ -35,7 +35,7 @@ def test_spaced_house_number_suffix_matches_attached_suffix_both_ways():
 def test_address_terms_strip_postcode_and_trailing_city_without_comma():
     assert address_terms("Wiener Straße 12 10999 Berlin") == ["Wiener Straße 12"]
     assert address_terms("Wiener Straße 12 Berlin") == ["Wiener Straße 12"]
-    assert address_terms("Wiener Straße") == ["Wiener Straße"]
+    assert address_terms("Wiener Straße") == []
     assert address_terms("Berlin") == []
 
 

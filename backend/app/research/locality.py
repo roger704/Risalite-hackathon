@@ -92,10 +92,9 @@ def address_street(address: str | None) -> str | None:
 
 def address_terms(address: str | None) -> list[str]:
     street, number = _address_parts(address)
-    if not street:
+    if not street or not number:
         return []
-    term = f"{street} {number}" if number else street
-    return _dedupe([term], minimum_length=0)
+    return _dedupe([f"{street} {number}"], minimum_length=0)
 
 
 def mentioned(text: str, terms: Sequence[str]) -> str | None:
