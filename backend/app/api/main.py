@@ -19,6 +19,7 @@ from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
+from app.application.childcare import childcare_areas, childcare_facilities
 from app.application.mobility import station_layer
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
@@ -258,6 +259,21 @@ def create_app(
         )
 
     application.include_router(create_centers_router(get_service))
+
+    @application.get("/api/v1/childcare/facilities")
+    def childcare_facility_points(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+    ) -> dict[str, Any]:
+        return childcare_facilities(data, snapshot_id)
+
+    @application.get("/api/v1/childcare/areas")
+    def childcare_area_counts(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+    ) -> dict[str, Any]:
+        return childcare_areas(data, snapshot_id, population_snapshot_id)
 
     @application.get("/api/v1/datasets/{dataset_id}/wohnlage")
     def wohnlage(
