@@ -155,6 +155,10 @@ def _bbox(options: dict, name: str, default: list[float] | None = None) -> tuple
     return tuple(value)
 
 
+def _significant(value: float) -> float:
+    return float(f"{value:.3g}")
+
+
 def _options(config: DatasetConfig) -> dict:
     options = config.parser_options
     required = (
@@ -572,10 +576,14 @@ class BerlinWFSConnector(FileConnector):
                 "metric": "symmetric_difference_area / parent_area",
                 "threshold": threshold,
                 "areas_over_threshold": sum(ratio > threshold for ratio in ratio_values),
-                "max_ratio": round(max(ratio_values, default=0.0), 6),
-                "median_ratio": round(statistics.median(ratio_values), 6) if ratio_values else 0.0,
+                "max_ratio": _significant(max(ratio_values, default=0.0)),
+                "median_ratio": _significant(statistics.median(ratio_values))
+                if ratio_values
+                else 0.0,
                 "top_differences": [
-                    {"area_code": code, "ratio": round(ratio, 6)} for code, ratio in ordered[:10]
+                    {"area_code": code, "ratio": _significant(ratio)}
+                    for code, ratio in ordered[:10]
+                    if ratio > 0
                 ],
             },
             "limitations": [
