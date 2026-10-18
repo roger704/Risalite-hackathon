@@ -1,3 +1,4 @@
+import asyncio
 import re
 import uuid
 from datetime import date, datetime, timezone
@@ -23,10 +24,14 @@ from app.contracts.events import ResearchEvent
 from app.contracts.evidence import EvidenceEntry
 from app.domain.research import (
     BudgetExceededError,
+    EvidenceKind,
     EvidencePage,
+    ExtractionStatus,
     ResearchBudget,
     ResearchExtract,
     ResearchSearch,
+    WebEvidence,
+    canonicalize_url,
 )
 
 
@@ -60,8 +65,11 @@ class Orchestrator:
         self.budget_factory = budget_factory or (lambda: ResearchBudget(12, 10, 12, 60000))
         self.budgets: dict[str, ResearchBudget] = {}
         self.exhausted_runs: set[str] = set()
+        self._lock = asyncio.Lock()
 
     def _dir(self, run_id: str) -> Path:
+        if not isinstance(run_id, str) or re.fullmatch(r"[0-9a-f]{12}", run_id) is None:
+            raise LookupError("unknown run")
         return self.runs_dir / run_id
 
     def _save_state(self, state: RunState) -> None:
@@ -70,7 +78,10 @@ class Orchestrator:
         )
 
     def get_state(self, run_id: str) -> RunState | None:
-        path = self._dir(run_id) / "state.json"
+        try:
+            path = self._dir(run_id) / "state.json"
+        except LookupError:
+            return None
         return (
             RunState.model_validate_json(path.read_text(encoding="utf-8"))
             if path.exists()
@@ -103,6 +114,8 @@ class Orchestrator:
     ):
         if not self.model or run_id in self.exhausted_runs:
             return None
+        if not evidence:
+            evidence = self._web_evidence(context.get("evidence", []))
         start = datetime.now(timezone.utc)
         try:
             if not getattr(self.model, "records_budget", False):
@@ -146,7 +159,52 @@ class Orchestrator:
             )
             return None
 
+    @staticmethod
+    def _web_evidence(entries: list[dict]) -> tuple[WebEvidence, ...]:
+        def as_datetime(value):
+            if value is None or isinstance(value, datetime):
+                return value
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+        converted = []
+        for entry in entries:
+            url = entry.get("url")
+            quote = entry.get("quote")
+            retrieved_at = as_datetime(entry.get("retrieved_at"))
+            if not url or not quote or retrieved_at is None:
+                continue
+            published_at = as_datetime(entry.get("published_at"))
+            converted.append(
+                WebEvidence(
+                    evidence_id=entry["evidence_id"],
+                    kind=EvidenceKind.EXTRACTED_PAGE,
+                    original_url=url,
+                    canonical_url=canonicalize_url(url),
+                    title=entry.get("title"),
+                    query=entry.get("query"),
+                    retrieved_at=retrieved_at.astimezone(timezone.utc),
+                    published_at=published_at,
+                    published_at_raw=published_at.isoformat() if published_at else None,
+                    snippet=None,
+                    passage=quote,
+                    passage_locator=None,
+                    extraction_status=ExtractionStatus.OK,
+                    failure_reason=None,
+                    content_hash=None,
+                    candidate_id=None,
+                    analysis_id=None,
+                    provider="risalite-ledger",
+                    provider_request_id=None,
+                    score=None,
+                )
+            )
+        return tuple(converted)
+
     async def start(self, request: ResearchRequest) -> RunState:
+        async with self._lock:
+            return await self._start(request)
+
+    async def _start(self, request: ResearchRequest) -> RunState:
         run_id = uuid.uuid4().hex[:12]
         run_dir = self._dir(run_id)
         run_dir.mkdir(parents=True)
@@ -171,6 +229,21 @@ class Orchestrator:
             classification = await classify(request.question, request.profiles)
         else:
             classification = Classification.model_validate(classification.model_dump())
+            missing_location = classification.shape in {"location", "gap"} and (
+                classification.area is None
+            )
+            missing_address = classification.shape == "point" and (classification.address is None)
+            if missing_location or missing_address:
+                classification.needs_clarification = True
+                classification.why = (
+                    f"{classification.why} A required location field is missing; "
+                    "clarification is required."
+                )
+                classification.clarification_question = classification.clarification_question or (
+                    "Which district or neighbourhood?"
+                    if missing_location
+                    else "What address should I analyze?"
+                )
         await writer.emit(
             "classify",
             "Classifier",
@@ -304,17 +377,27 @@ class Orchestrator:
         return page
 
     async def execute(self, run_id: str) -> None:
+        async with self._lock:
+            await self._execute(run_id)
+
+    async def _execute(self, run_id: str) -> None:
         state = self.get_state(run_id)
         if not state or state.status != "running":
             return
         run_dir = self._dir(run_id)
         writer = TraceWriter(run_dir, run_id, self.bus)
         budget = self.budgets.setdefault(run_id, self.budget_factory())
+        if self.model and getattr(self.model, "records_budget", False):
+            self.model.gateway.budget = budget
+        if self.research and hasattr(self.research, "budget"):
+            self.research.budget = budget
         ledger = JsonlLedger(run_dir / "evidence.jsonl")
         try:
             layers = [item for item in state.plan.layers if item.enabled]
             scorer = self.scorer_factory()
-            requested_area = state.classification.area or "Friedrichshain-Kreuzberg"
+            requested_area = state.classification.area
+            if requested_area is None:
+                raise ValueError("Research cannot run without a classified area.")
             cells = scorer.build_cells(requested_area, layers, ledger)
             if cells.area.name != requested_area:
                 await writer.emit(
@@ -344,9 +427,21 @@ class Orchestrator:
                     "TAVILY_API_KEY not provided — web research skipped",
                 )
             if self.research and not research_stopped:
-                for cell in sorted_cells[:5]:
+                for cell_index, cell in enumerate(sorted_cells[:5]):
                     enabled_questions = [item for item in state.plan.sub_questions if item.enabled]
-                    for subq in enabled_questions[:2]:
+                    question_count = len(enabled_questions)
+                    question_indices = (
+                        dict.fromkeys(
+                            (
+                                (2 * cell_index) % question_count,
+                                (2 * cell_index + 1) % question_count,
+                            )
+                        )
+                        if question_count
+                        else ()
+                    )
+                    selected_questions = [enabled_questions[index] for index in question_indices]
+                    for subq in selected_questions:
                         query = f"{subq.text} {cell.name} Berlin"
                         try:
                             page = await self._search_page(
@@ -420,6 +515,14 @@ class Orchestrator:
                                 data=budget.snapshot(),
                             )
                             break
+                        except Exception as exc:
+                            await writer.emit(
+                                "research",
+                                "Web researcher",
+                                "error",
+                                f"Web research failed: {type(exc).__name__}",
+                                f"Skipping this query after {type(exc).__name__}.",
+                            )
                     if research_stopped:
                         break
             cells = scorer.rescore(cells, state.plan.layers)
@@ -572,8 +675,10 @@ class Orchestrator:
                         "reason": "high risk",
                     },
                 )
+            rejected = set()
             if self.fact_checker:
                 checked = await self.fact_checker.check(ledger.all())
+                rejected = {entry.evidence_id for entry in checked if entry.status == "unsupported"}
                 for entry in checked:
                     if entry.status == "unsupported":
                         await writer.emit(
@@ -590,7 +695,19 @@ class Orchestrator:
                         "".join(item.model_dump_json() + "\n" for item in checked), encoding="utf-8"
                     )
                     ledger = JsonlLedger(run_dir / "evidence.jsonl")
+                if rejected:
+                    for cell in cells.cells:
+                        cell.modifiers = [
+                            item for item in cell.modifiers if item.evidence_id not in rejected
+                        ]
+                        cell.risks = [
+                            item for item in cell.risks if item.evidence_id not in rejected
+                        ]
+                        if cell.demoted and not any(item.severity == "high" for item in cell.risks):
+                            cell.demoted = False
+                    cells = scorer.rescore(cells, state.plan.layers)
             output = None
+            writer_evidence = [entry for entry in ledger.all() if entry.evidence_id not in rejected]
             output = await self._model_call(
                 run_id,
                 writer,
@@ -598,14 +715,14 @@ class Orchestrator:
                 "writer",
                 "synthesize",
                 {
-                    "evidence": [entry.model_dump(mode="json") for entry in ledger.all()],
+                    "evidence": [entry.model_dump(mode="json") for entry in writer_evidence],
                     "cells": cells.model_dump(mode="json"),
                 },
                 WriterOutput,
                 stage="write",
             )
             markdown = self._render(cells, ledger, output)
-            markdown = strip_unknown_citations(markdown, ledger.ids())
+            markdown = strip_unknown_citations(markdown, ledger.ids() - rejected)
             (run_dir / "report.md").write_text(markdown, encoding="utf-8")
             (run_dir / "cells.json").write_text(cells.model_dump_json(indent=2), encoding="utf-8")
             await writer.emit(
@@ -615,8 +732,6 @@ class Orchestrator:
                 "Report and cells written.",
                 "All citations are checked against the run evidence ledger.",
             )
-            state.status = "done"
-            self._save_state(state)
             await writer.emit(
                 "done",
                 "Orchestrator",
@@ -624,13 +739,14 @@ class Orchestrator:
                 "Research run completed.",
                 "All pipeline stages completed.",
             )
-        except Exception as exc:
-            state.status = "failed"
-            state.error = f"{type(exc).__name__}: {exc}"
+            state.status = "done"
             self._save_state(state)
-            await writer.emit(
-                "error", "Orchestrator", "error", state.error, "Unhandled pipeline error."
-            )
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            await writer.emit("error", "Orchestrator", "error", error, "Unhandled pipeline error.")
+            state.status = "failed"
+            state.error = error
+            self._save_state(state)
 
     @staticmethod
     def _tier(url: str) -> str:

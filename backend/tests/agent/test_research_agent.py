@@ -1,15 +1,21 @@
 import re
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.agent.classify import classify
-from app.agent.events import EventBus
+from app.agent.events import EventBus, TraceWriter
+from app.agent.live import NebiusModelClient
 from app.agent.mock import MockModelClient, MockResearch
 from app.agent.pipeline import Orchestrator, strip_unknown_citations
+from app.agent.schemas import WriterOutput
 from app.agent.stand_ins import FixtureCellScorer, PassThroughFactChecker
 from app.api.main import create_app
-from app.contracts.api import ApproveRequest, ResearchRequest
+from app.contracts.api import ApproveRequest, Classification, ResearchRequest, RunState
+from app.contracts.events import ResearchEvent
+from app.contracts.evidence import EvidenceEntry
 from app.domain.research import ResearchBudget
 
 
@@ -143,6 +149,9 @@ def test_unknown_run_and_double_approval(tmp_path):
     client = TestClient(create_app(runs_dir=tmp_path, mock=True))
     assert client.post("/runs/unknown/approve").status_code == 404
     assert client.get("/runs/unknown/result").status_code == 404
+    assert client.get("/runs/..%2Fx/result").status_code == 404
+    assert client.get("/runs/..%2Fx/events").status_code == 404
+    assert client.post("/runs/invalid/approve", json={}).status_code == 404
     created = client.post(
         "/research",
         json={"question": "Where is it smart to open a coffee place in Kreuzberg?"},
@@ -150,3 +159,276 @@ def test_unknown_run_and_double_approval(tmp_path):
     run_id = created["run_id"]
     assert client.post(f"/runs/{run_id}/approve", json={}).status_code == 202
     assert client.post(f"/runs/{run_id}/approve", json={}).status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_model_classification_cannot_skip_missing_area_clarification(tmp_path):
+    class MissingAreaModel:
+        async def structured(self, role, operation, context, output_model, evidence=()):
+            assert output_model is Classification
+            return (
+                Classification(
+                    shape="location",
+                    template="coffee",
+                    area=None,
+                    why="Model classified the request.",
+                    needs_clarification=False,
+                ),
+                10,
+            )
+
+        def model_name(self, role):
+            return "missing-area-test"
+
+    orchestrator = Orchestrator(tmp_path, EventBus(), MissingAreaModel(), None)
+    state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place?")
+    )
+
+    assert state.status == "needs_clarification"
+    assert state.classification.needs_clarification
+    assert "required location field is missing" in state.classification.why
+
+
+@pytest.mark.asyncio
+async def test_rotated_subquestions_cover_all_default_questions(tmp_path):
+    class RecordingResearch(MockResearch):
+        def __init__(self):
+            super().__init__()
+            self.queries = []
+
+        async def search(self, request):
+            self.queries.append(request.query)
+            return await super().search(request)
+
+    research = RecordingResearch()
+    orchestrator = Orchestrator(
+        tmp_path, EventBus(), MockModelClient(), research, FixtureCellScorer
+    )
+    state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await orchestrator.approve(state.run_id, ApproveRequest())
+    await orchestrator.execute(state.run_id)
+
+    assert all(
+        any(question.text in query for query in research.queries)
+        for question in state.plan.sub_questions
+    )
+
+
+@pytest.mark.asyncio
+async def test_research_runtime_errors_do_not_fail_run(tmp_path):
+    class FailingResearch:
+        async def search(self, request):
+            raise RuntimeError("provider unavailable")
+
+        async def extract(self, request):
+            raise RuntimeError("provider unavailable")
+
+    orchestrator = Orchestrator(
+        tmp_path, EventBus(), MockModelClient(), FailingResearch(), FixtureCellScorer
+    )
+    state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await orchestrator.approve(state.run_id, ApproveRequest())
+    await orchestrator.execute(state.run_id)
+
+    assert orchestrator.get_state(state.run_id).status == "done"
+    assert (tmp_path / state.run_id / "cells.json").exists()
+    assert any(
+        event.type == "error" and "RuntimeError" in event.text
+        for event in orchestrator.events(state.run_id)
+    )
+
+
+@pytest.mark.asyncio
+async def test_rejected_future_evidence_is_removed_from_cells_and_report(tmp_path):
+    class RejectFutureFactChecker:
+        async def check(self, entries):
+            return [
+                entry.model_copy(update={"status": "unsupported"})
+                if "bis 2028" in (entry.quote or "")
+                else entry
+                for entry in entries
+            ]
+
+    orchestrator = Orchestrator(
+        tmp_path,
+        EventBus(),
+        MockModelClient(),
+        MockResearch(),
+        FixtureCellScorer,
+        RejectFutureFactChecker(),
+    )
+    state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await orchestrator.approve(state.run_id, ApproveRequest())
+    await orchestrator.execute(state.run_id)
+
+    result = orchestrator.result(state.run_id)
+    rejected_ids = {
+        entry.evidence_id
+        for entry in result.evidence
+        if entry.status == "unsupported" and "bis 2028" in (entry.quote or "")
+    }
+    assert rejected_ids
+    assert all(
+        modifier.evidence_id not in rejected_ids
+        for cell in result.cells.cells
+        for modifier in cell.modifiers
+    )
+    assert all(f"[{evidence_id}]" not in result.report_md for evidence_id in rejected_ids)
+
+
+@pytest.mark.asyncio
+async def test_terminal_events_are_published_before_terminal_state_is_saved(tmp_path):
+    class StateCheckingBus(EventBus):
+        def __init__(self):
+            super().__init__()
+            self.terminal_states = []
+
+        async def publish(self, event):
+            if event.stage in {"done", "error"}:
+                state = RunState.model_validate_json(
+                    (tmp_path / event.run_id / "state.json").read_text()
+                )
+                self.terminal_states.append((event.stage, state.status))
+            await super().publish(event)
+
+    class BrokenScorer:
+        def build_cells(self, area, layers, ledger):
+            raise RuntimeError("scoring failed")
+
+    bus = StateCheckingBus()
+    orchestrator = Orchestrator(tmp_path, bus, MockModelClient(), None, FixtureCellScorer)
+    done_state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await orchestrator.approve(done_state.run_id, ApproveRequest())
+    await orchestrator.execute(done_state.run_id)
+
+    failed_orchestrator = Orchestrator(
+        tmp_path, bus, MockModelClient(), None, lambda: BrokenScorer()
+    )
+    failed_state = await failed_orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await failed_orchestrator.approve(failed_state.run_id, ApproveRequest())
+    await failed_orchestrator.execute(failed_state.run_id)
+
+    assert ("done", "running") in bus.terminal_states
+    assert ("error", "running") in bus.terminal_states
+
+
+@pytest.mark.asyncio
+async def test_execute_rebinds_shared_connector_budgets_to_its_run(tmp_path):
+    class SharedBudgetModel:
+        records_budget = True
+
+        def __init__(self):
+            self.gateway = SimpleNamespace(budget=None)
+
+        async def structured(self, role, operation, context, output_model, evidence=()):
+            if output_model is Classification:
+                return (
+                    Classification(
+                        shape="location",
+                        template="coffee",
+                        area="Friedrichshain-Kreuzberg",
+                        why="Area provided.",
+                    ),
+                    0,
+                )
+            return output_model(), 0
+
+        def model_name(self, role):
+            return "shared-budget-test"
+
+    class SharedBudgetResearch(MockResearch):
+        budget = None
+
+    model, research = SharedBudgetModel(), SharedBudgetResearch()
+    orchestrator = Orchestrator(tmp_path, EventBus(), model, research, FixtureCellScorer)
+    first = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    first_budget = orchestrator.budgets[first.run_id]
+    second = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Neukölln?")
+    )
+    assert model.gateway.budget is orchestrator.budgets[second.run_id]
+
+    await orchestrator.approve(first.run_id, ApproveRequest())
+    await orchestrator.execute(first.run_id)
+
+    assert model.gateway.budget is first_budget
+    assert research.budget is first_budget
+
+
+@pytest.mark.asyncio
+async def test_event_bus_bounds_queues_and_drops_only_slow_subscribers():
+    bus = EventBus()
+    slow, active = bus.subscribe("run"), bus.subscribe("run")
+    event = ResearchEvent(
+        seq=1,
+        run_id="run",
+        ts=datetime.now(timezone.utc),
+        stage="research",
+        role="researcher",
+        type="search",
+        text="query",
+        why="test",
+    )
+    for _ in range(1000):
+        slow.put_nowait(event)
+
+    await bus.publish(event)
+
+    assert slow.maxsize == 1000 and slow.qsize() == 1000
+    assert active.qsize() == 1 and active.get_nowait() == event
+
+
+@pytest.mark.asyncio
+async def test_model_gateway_receives_ledger_ids_with_exact_ids(tmp_path):
+    class FakeGateway:
+        def __init__(self):
+            self.budget = ResearchBudget(12, 10, 12, 60000)
+            self.evidence_ids = []
+
+        async def synthesize(self, context, output_model, evidence=()):
+            self.evidence_ids = [item.evidence_id for item in evidence]
+            return output_model(sentences=[])
+
+    gateway = FakeGateway()
+    orchestrator = Orchestrator(
+        tmp_path, EventBus(), NebiusModelClient(gateway, "fake-model"), None
+    )
+    run_id = "a" * 12
+    run_dir = tmp_path / run_id
+    run_dir.mkdir()
+    writer = TraceWriter(run_dir, run_id, orchestrator.bus)
+    entry = EvidenceEntry(
+        evidence_id="e42",
+        method="web",
+        url="https://example.org/source",
+        title="Test source",
+        quote="A source-backed passage.",
+        tier="weak",
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    await orchestrator._model_call(
+        run_id,
+        writer,
+        gateway.budget,
+        "writer",
+        "synthesize",
+        {"evidence": [entry.model_dump(mode="json")]},
+        WriterOutput,
+        stage="write",
+    )
+
+    assert gateway.evidence_ids == ["e42"]

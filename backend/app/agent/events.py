@@ -13,7 +13,7 @@ class EventBus:
         self._subscribers: dict[str, set[asyncio.Queue]] = {}
 
     def subscribe(self, run_id: str) -> asyncio.Queue:
-        queue = asyncio.Queue()
+        queue = asyncio.Queue(maxsize=1000)
         self._subscribers.setdefault(run_id, set()).add(queue)
         return queue
 
@@ -22,7 +22,10 @@ class EventBus:
 
     async def publish(self, event: ResearchEvent) -> None:
         for queue in tuple(self._subscribers.get(event.run_id, ())):
-            await queue.put(event)
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                continue
 
 
 class TraceWriter:
