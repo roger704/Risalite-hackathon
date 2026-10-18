@@ -42,6 +42,17 @@ def write_records(records: tuple[NormalizedRecord, ...], target: Path) -> None:
         pq.write_table(pa.Table.from_pylist(rows, schema=schema), target)
 
 
+def read_record_page(
+    path: Path, *, area_code: str | None, offset: int, limit: int
+) -> tuple[int, tuple[NormalizedRecord, ...]]:
+    """Filter and order by the stored columns, then decode only the requested page."""
+    filters = [("area_code", "=", area_code)] if area_code is not None else None
+    table = pq.read_table(path, columns=["record_id", "record_json"], filters=filters)
+    page = table.sort_by("record_id").slice(offset, limit) if offset < table.num_rows else None
+    values = page.column("record_json").to_pylist() if page is not None else []
+    return table.num_rows, tuple(record_from_dict(json.loads(value)) for value in values)
+
+
 def read_records(path: Path) -> tuple[NormalizedRecord, ...]:
     table = pq.read_table(path, columns=["record_json"])
     return tuple(

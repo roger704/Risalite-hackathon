@@ -1,222 +1,100 @@
-# Hackathon Project Brief — AI Location Intelligence
-
-**Concept:** An autonomous research agent that discovers the best locations to open a business or public service, combining open data, geospatial analysis, and verifiable deep research.
+# Risalite — Agentic Deep Research for Berlin Locations
 
 **Challenge:** Agentic Deep Research with Nebius Token Factory & Tavily
 
-**Implementation:** The [backend setup guide](backend/README.md) covers the working LOR and population connectors, ingestion CLI, versioned snapshots, and read API. The remaining project capabilities below are planned.
-
-## 1. Vision — What We Want to Build
+**Risalite** (formerly PlotScout) is an agentic deep-research tool for Berlin. The user types a free question about a place or an area; the planner classifies it, proposes a research plan and sources, waits for approval, runs parallel researchers over Berlin open geodata (WFS/Overpass) and the web (Tavily), fact-checks every claim, and returns a one-page dashboard: summary, ranked findings, an interactive map, sources, and trace.
 
 **"Don't just research a location. Discover where opportunity exists."**
 
-Users ask questions such as:
+## Key documents
 
-- Where is the best place to open a coffee shop in Berlin?
-- Which neighborhoods need another kindergarten?
-- Where would a new gym, restaurant, or coworking space succeed?
+| Document | Purpose |
+|---|---|
+| [Risalite spec](docs/01_Architecture/Risalite_Spec.md) | Product spec: input flow, templates, dashboard, `cells.json` data model, decisions log, open decisions, storyboard, risks |
+| [Execution plan](docs/02_State/Execution_Plan.md) | Hour-by-hour plan for hackathon day with checkable items — this **is** the todo list |
+| [Data sources research](DATA_SOURCES.md) | Free datasets, access methods, licensing, limitations, integration order |
+| [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
+| [Backend setup guide](backend/README.md) | Working LOR and population connectors, ingestion CLI, versioned snapshots, read API |
 
-Our system autonomously analyzes public datasets, discovers promising locations, investigates them, challenges its own assumptions, and presents evidence-backed recommendations.
+**Implementation status:** the backend currently implements the LOR and population connectors, ingestion CLI, snapshots, and read API. Everything else below is planned.
 
-**The key differentiator:** We don't just answer questions. We discover opportunities, explain why they exist, and show what could make our recommendations wrong.
+## Input flow (Gemini-Deep-Research-style)
 
-## 2. Technology & Data Sources
+1. **Free question** in a text box (+ optional role).
+2. **Classify** — the planner decides the question shape and logs why: `point` (one property/storefront), `location` (where to put something), or `gap` (where something is missing).
+3. **Clarify** if the area is unspecified — one question back to the user. Never guess an area.
+4. **Derive the area** — `point` → parcel + ~100 m neighbourhood; `location`/`gap` → named Bezirk/Ortsteil resolved to PLR cells.
+5. **Present the plan** — sub-questions, source class per sub-question, exact layers/domains, and optional paid sources shown as "key not provided — skipped". The user **approves** (or edits) before research starts.
+6. **Research → evidence ledger → fact-check → write.**
+7. **Dashboard** rendered from `report.md`, `evidence.jsonl`, `trace.jsonl`, and `cells.json` / `candidates.json`.
 
-See [Data sources research](DATA_SOURCES.md) for free datasets, access methods, licensing, limitations, and the recommended integration order.
+## Templates (the input is still free text)
 
-See the [Connector blueprint](CONNECTOR_BLUEPRINT.md) for adapter designs, shared data contracts, caching, provenance, and implementation handoffs.
+| | T1 Property / point (LocalLens) | T2 Business location | T3 Kita gap |
+|---|---|---|---|
+| Shape | `point` | `location` | `gap` |
+| Example | "This storefront at Xstraße 12 just became available — what is the best use?" | "Where is it smart to open a coffee place in Kreuzberg?" | "Where are Kitas missing in Neukölln?" |
+| Area | parcel + 100 m | district → PLR cells | district → PLR cells |
+| Output | top-3 business hypotheses with for / against / unknowns, scored on six dimensions | **top-3 ranked cells** + score **heatmap** + layer panel | same as T2 with a gap score |
 
-**AI & Research**
+Priority today: **T2 coffee (area) end-to-end with clickable citations** is the must-have; T1 point path is second; T3 Kita is third.
 
-- **Nebius Token Factory:** LLM inference, planning, reasoning, and agent orchestration.
-- **Tavily:** Live web research, source extraction, fact-checking, and investigation of specific locations.
-- **Research agents:** Planner, Data Researcher, Web Researcher, and Skeptic/Verifier.
+## Dashboard (one shared skeleton)
 
-**Free Public Data**
+1. Question, role, and approved plan (collapsed)
+2. Summary of findings with inline `[n]` citations (T2/T3 labelled "written for the default layer mix")
+3. Findings — ranked top-3 (area) or top-3 hypotheses (point), plus a Location/Hypothesis Battle
+4. Map — PLR heatmap with hover values and citation links; point mode shows the space, its cell, and competitors
+5. Layer panel — checkboxes with default weights and a **Present / Present + future** toggle; recomputes score, heatmap, and top-3 client-side
+6. Sources — generated from the ledger only: URL, verbatim quote, method, confidence badge, and a "could not verify" appendix
+7. Trace — plan, every tool call with *why*, skipped paid sources, fact-checker rejections, model per role, tokens, seconds
 
-- **OpenStreetMap / Overpass API:** Cafés, kindergartens, restaurants, shops, parks, and amenities.
-- **Berlin Open Data:** Population, demographics, neighborhood boundaries, and socioeconomic characteristics.
-- **Berlin Kita Registry:** Existing kindergartens and publicly reported facility information.
-- **VBB:** Public transport stops, routes, and accessibility.
-- **Berlin Planning Data:** Land usage, commercial centers, and planned developments.
+## Technology
 
-**Application**
+- **Nebius Token Factory** — planning, classification, researchers, skeptic, writer.
+- **Tavily** — `search` (domain-restricted first) and `extract` for verbatim quotes.
+- **Berlin open geodata** — `lor_2021` (PLR geometries), `ua_einwohnerdichte_2025`, `mss_2025`, `gewerbedaten` (NACE 56), `oepnv_ungestoert`, `schulen`, `brw2026`, `wohnlagenadr2026`, `kita`, `step_wo_2040`, `adressen_berlin`; plus OpenStreetMap via Overpass.
+- **Optional paid slots** (skipped unless a key is given) — hystreet.com footfall, Google Places competitor ratings.
+- **Application** — Python + FastAPI backend; dashboard as a single HTML page (Leaflet/MapLibre + vanilla JS) is the recommended stack.
 
-- Python + FastAPI for backend services.
-- GeoPandas / Shapely for spatial calculations.
-- React + MapLibre GL for the interactive frontend.
-- JSON-based contracts between components.
+## Work streams
 
-## 3. How It Works
+- **S1 — Agent & orchestration (area):** classify → plan → approve → researchers → skeptic → fact-checker → writer; research events; HTTP API.
+- **S1b — Point path (LocalLens):** hypotheses → per-hypothesis FOR/AGAINST researchers → operator-fit scoring → `candidates.json`.
+- **S2 — Data & scoring:** PLR cells, WFS/Overpass layers, normalization, scoring, `cells.json`; `locate(address)` for the point path.
+- **S3 — Frontend:** dashboard, map, layer mixer, live investigation view, sources; both result shapes.
+- **S4 — Evidence & delivery:** ledger, fact-checker, `verify_citations.py`, README, repo, rehearsal, video.
 
-**Step 1 — Understand the Objective**
+Frozen contracts (see the spec): HTTP API (`POST /research`, `POST /runs/{id}/approve`, `GET /runs/{id}/events` SSE, `GET /runs/{id}/result`), research event, ledger entry, `cells.json`, `candidates.json`.
 
-The user enters a business type, preferred geographic area, and optional priorities such as customer demand, accessibility, or low competition.
+## Timeline — Sunday 18 Oct 2026
 
-**Step 2 — Discover Opportunities**
+| Time | Phase |
+|---|---|
+| 14:50–15:10 | Phase 0 — freeze contracts, demo district, demo storefront + operator profile |
+| 15:10–16:30 | Phase 1 — build in parallel |
+| 16:30–17:00 | Phase 2 — integrate; **17:00 feature freeze** |
+| 17:00–17:45 | Phase 3 — harden and rehearse |
+| 17:45–18:30 | Phase 4 — record and **submit video by 18:30** |
+| 18:30–20:00 | Phase 5 — grand-final prep (final at 20:00) |
 
-The system analyzes population, existing businesses, accessibility, and neighborhood characteristics. A deterministic scoring engine identifies promising locations.
+## Two-minute demo storyboard
 
-**Step 3 — Autonomous Deep Research**
+0:00 type "Where is it smart to open a coffee place in Kreuzberg?" → 0:10 planner classifies `location`, shows the plan with layers, web sources, and skipped hystreet/Google Places slots → 0:25 click *Approve* → 0:30 trace streams WFS calls and Tavily searches with *why* → 1:00 fact-checker rejects one web claim, planner re-plans → 1:15 dashboard: summary, top-3, heatmap → 1:30 toggle *Present + future*, untick *competition*, ranking changes → 1:45 click three citations (WFS URL, IHK/berlin.de page, news page) → 2:00 self-grade. Closing switch: point path or Kita.
 
-Nebius plans investigations into the leading candidates. Tavily searches for relevant information such as local developments, competitors, rental conditions, and potential risks.
-
-**Step 4 — Challenge the Findings**
-
-A verifier actively tries to disprove the leading recommendation, identifies evidence gaps, and triggers additional research where necessary.
-
-**Step 5 — Deliver Actionable Results**
-
-The user receives a ranked shortlist, interactive map, supporting evidence, potential risks, and concrete recommendations.
-
-Every factual claim should link to its original source.
-
-## 4. Work Division — Three Parallel Streams
-
-### Team 1 — AI Research & Orchestration
-
-**Mission:** Make the agent think, investigate, and verify.
-
-- Set up the Nebius + Tavily deep research cookbook.
-- Implement planning, tool calling, and hypothesis generation.
-- Connect structured data tools.
-- Build evidence verification and contradiction detection.
-- Return structured recommendations with citations.
-
-**Deliverable:** Working research API and visible investigation trace.
-
-### Team 2 — Data & Geospatial Intelligence
-
-**Mission:** Turn public datasets into usable location insights.
-
-- Implement OpenStreetMap, Berlin Open Data, and Kita connectors.
-- Normalize and cache relevant data.
-- Calculate competition, local demand, and accessibility metrics.
-- Build the initial location ranking engine.
-- Return geographic coordinates, scoring metrics, and data provenance.
-
-**Deliverable:** Reusable location analysis API for Berlin.
-
-### Team 3 — Frontend & Visualization
-
-**Mission:** Make complex research understandable and impressive.
-
-- Build the user input experience.
-- Implement an interactive Berlin map.
-- Visualize promising areas and competing businesses.
-- Show real-time agent activities and discoveries.
-- Present recommendations, evidence, risks, and scores.
-
-**Deliverable:** Interactive application ready for the demo.
-
-**Shared dependency:** Agree on the API request/response format and research-event schema before development begins. All teams work against mock responses until integration.
-
-## 5. Creative Presentation Ideas
-
-**A. Opportunity Heatmap**
-
-Display Berlin as a dynamic heatmap, where promising areas become brighter as new data is evaluated. Users can switch between coffee shop and kindergarten to see how the opportunity landscape changes.
-
-**B. Live Investigation View**
-
-Show the agent's investigation as it happens:
-
-- Investigating neighborhood demographics
-- Identifying nearby competitors
-- Checking public transport access
-- Researching planned developments
-- Challenging the leading candidate
-- Revising its recommendation
-
-This demonstrates real agentic decision-making rather than a static report.
-
-**C. Research Evidence Graph**
-
-A visual network connects locations, research findings, supporting sources, contradictions, and final recommendations.
-
-Click any claim to inspect its supporting evidence and original URL.
-
-**D. Location Battle**
-
-Compare the top three areas side by side across demand, competition, accessibility, cost uncertainty, and research confidence.
-
-A particularly strong demo moment would be when the initially highest-ranked area loses because the verifier uncovers an important risk.
-
-**E. What-If Simulator**
-
-Let users modify priorities:
-
-- What if low competition matters more than accessibility?
-- What if we target families instead of commuters?
-- What if rent is higher than expected?
-
-The rankings update based on the available data, while unsupported assumptions remain explicitly labeled.
-
-## 6. Hackathon Scope
-
-**Must Have**
-
-- One end-to-end research workflow using Nebius and Tavily.
-- OpenStreetMap and Berlin population data.
-- Deterministic location ranking.
-- Interactive map with recommended areas.
-- Clickable sources and a verification step.
-- Working coffee shop use case.
-
-**Nice to Have**
-
-- Kindergarten-specific data and scoring.
-- Live research progress.
-- Evidence graph and location comparison.
-- Interactive scenario analysis.
-
-**Out of Scope**
+## Out of scope
 
 - Precise commercial revenue predictions.
 - Comprehensive rental property availability.
 - Automatically verified premises or permits.
-- Fully automated location booking or acquisition.
+- Model-estimated magnitudes — numbers appear only when a source states them.
 
-## 7. Two-Minute Demo Story
+## Success criteria
 
-**0:00–0:20 — The Problem**
+A judge can:
 
-"Choosing a location requires combining dozens of fragmented datasets, demographic statistics, local competition, and information that might change tomorrow."
-
-Ask: *Where should I open a coffee shop in Berlin?*
-
-**0:20–0:45 — The Discovery**
-
-Berlin's map comes alive. The system analyzes public datasets and identifies promising neighborhoods.
-
-**0:45–1:15 — The Investigation**
-
-The agent researches the leading candidates using Tavily, follows unexpected findings, and challenges its initial recommendation.
-
-**1:15–1:40 — The Result**
-
-Show the top three locations, their scores, evidence, risks, and source links. Demonstrate how one challenged assumption changes the ranking.
-
-**1:40–2:00 — The Vision**
-
-Switch the use case from *coffee shop* to *kindergarten*.
-
-The same research engine now evaluates childcare demand instead of commercial opportunity.
-
-**Closing line:**
-
-"Today we discover where to open a coffee shop. Tomorrow, the same system could help decide where to build schools, healthcare facilities, or critical infrastructure."
-
----
-
-## Success Criteria
-
-We succeed if a judge can:
-
-1. Enter a real location-selection question.
-2. Watch the agent make autonomous research decisions.
-3. See real public data influence the recommendation.
-4. Inspect and verify randomly selected citations.
+1. Type a real location question and approve the plan.
+2. Watch the agent make autonomous research decisions with visible *why*.
+3. See real public data influence the ranking.
+4. Click and verify randomly selected citations (`verify_citations.py` passes 100 % on demo runs).
 5. Understand why the recommendation was made — and what evidence could change it.
-
-**Our pitch:** An explainable, agent-powered location intelligence platform that transforms freely available public data into researched, verifiable decisions.
