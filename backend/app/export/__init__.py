@@ -2,7 +2,7 @@
 
 from app.export.mix import Mix, rank_cells
 from app.export.report import render_html, render_markdown
-from app.export.run import RunBundle, load_run
+from app.export.run import RunBundle, load_run, normalize_evidence
 from app.export.sources import sources_bibtex, sources_csv
 
 EXPORT_FORMATS = {
@@ -15,6 +15,7 @@ EXPORT_FORMATS = {
 __all__ = [
     "RunBundle",
     "load_run",
+    "normalize_evidence",
     "Mix",
     "rank_cells",
     "render_markdown",

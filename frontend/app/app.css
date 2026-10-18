@@ -24,7 +24,10 @@ select,input[type=text],input[type=password]{font:inherit;padding:7px 9px;border
 .btn:hover{background:var(--acc2)}
 .btn.ghost{background:#fff;color:var(--ink);border:1px solid #cdd6de}
 .btn.ghost:hover{background:var(--chip)}
+.btn:disabled{opacity:.55;cursor:wait}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.export-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+.export-label{font-size:13px;font-weight:700;color:var(--mut);margin-right:2px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .tpl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
 .tpl .t{border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;background:#fbfcfd}
