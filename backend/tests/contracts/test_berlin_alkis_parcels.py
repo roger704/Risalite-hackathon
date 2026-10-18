@@ -9,13 +9,17 @@ from pathlib import Path
 
 import httpx
 import pytest
-from shapely.geometry import Polygon, mapping
+from pyproj import Transformer
+from shapely.geometry import Polygon, mapping, shape
+from shapely.ops import transform, unary_union
 
 from app.connectors.berlin_alkis_parcels import BerlinALKISParcelsConnector
 from app.connectors.berlin_wfs import page_url
 from app.domain import (
+    DEVELOPMENT_PLAN_STATUSES,
     ConfigError,
     DatasetConfig,
+    DevelopmentPlan,
     FetchRequest,
     Parcel,
     RawAsset,
@@ -370,3 +374,83 @@ def test_parcel_index_boundary_bbox_and_many_to_many_relations():
         "parcel_ids": ["parcel-a", "parcel-b"],
         "multiple_parcels": True,
     }
+
+
+def test_parcel_index_relates_real_development_plans_with_pinned_snapshot(tmp_path):
+    parcels = normalize(tmp_path).records
+    parcel_by_id = {parcel.parcel_id: parcel for parcel in parcels}
+    parcel_ids = ("11000192100498____", "11000192100499____")
+    indexed_parcels = [parcel_by_id[parcel_id] for parcel_id in parcel_ids]
+    spanning_geometry = unary_union(
+        [shape(parcel_by_id[parcel_id].geometry) for parcel_id in parcel_ids]
+    )
+    touching_geometry = spanning_geometry.buffer(0.001).difference(spanning_geometry)
+    snapshot_id = "berlin-planning-contract-snapshot"
+
+    def plan(plan_id, geometry):
+        status = "adopted"
+        assert status in DEVELOPMENT_PLAN_STATUSES
+        return DevelopmentPlan(
+            source_id="berlin_planning",
+            snapshot_id=snapshot_id,
+            source_record_id=plan_id,
+            record_id=f"berlin_planning:{plan_id}",
+            geometry=mapping(geometry),
+            plan_id=plan_id,
+            name=plan_id,
+            status=status,
+            raw_status="In Kraft getreten",
+            source_layer="bplan:b_bp_fs",
+            district=None,
+            plan_type=None,
+            procedure_type=None,
+            area_description=None,
+            land_use_text=None,
+            aufstellungsbeschluss_date=None,
+            festsetzung_date=None,
+            dates={},
+            document_urls={},
+            attributes={},
+        )
+
+    spanning_plan = plan("spanning-two-parcels", spanning_geometry)
+    touching_plan = plan("touching-only", touching_geometry)
+    index = ParcelIndex(indexed_parcels)
+    relations, touches_only = index.relate_geometries(
+        "berlin_planning", snapshot_id, (spanning_plan, touching_plan)
+    )
+
+    spanning_rows = [
+        relation for relation in relations if relation.related_record_id == spanning_plan.record_id
+    ]
+    assert {relation.parcel_id for relation in spanning_rows} == set(parcel_ids)
+    assert all(relation.relation == "intersects" for relation in spanning_rows)
+    assert all(relation.related_dataset_id == "berlin_planning" for relation in spanning_rows)
+    assert all(relation.related_snapshot_id == snapshot_id for relation in spanning_rows)
+    metric = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
+    spanning_metric = transform(metric.transform, shape(spanning_plan.geometry))
+    for relation in spanning_rows:
+        parcel_metric = transform(
+            metric.transform, shape(parcel_by_id[relation.parcel_id].geometry)
+        )
+        intersection_area = parcel_metric.intersection(spanning_metric).area
+        assert relation.intersection_area_m2 == pytest.approx(round(intersection_area, 2))
+        assert relation.parcel_area_share == pytest.approx(
+            round(intersection_area / parcel_metric.area, 8)
+        )
+        assert relation.related_area_share == pytest.approx(
+            round(intersection_area / spanning_metric.area, 8)
+        )
+
+    summaries = summarize_by_related(relations)
+    assert summaries[spanning_plan.record_id] == {
+        "parcel_ids": sorted(parcel_ids),
+        "multiple_parcels": True,
+    }
+    assert touching_plan.record_id not in {relation.related_record_id for relation in relations}
+    assert touches_only >= 1
+    touch_relations, isolated_touches = ParcelIndex((indexed_parcels[0],)).relate_geometries(
+        "berlin_planning", snapshot_id, (touching_plan,)
+    )
+    assert touch_relations == []
+    assert isolated_touches == 1
