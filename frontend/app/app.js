@@ -133,12 +133,19 @@ function live() {
   };
   let finished = false;
   const finish = () => { if (finished || gen !== GEN) return; finished = true; stopLive(); const g = GEN; $('#bar').style.width = '100%'; doneT = setTimeout(() => { if (g === GEN) loadResult(g); }, 400); };
-  $('#skip').onclick = finish;
+  $('#skip').onclick = () => MOCK ? finish() : getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/result`)
+    .then(r => { if (gen !== GEN) return; if (r.status === 'running') err('#live-err', 'The run is still in progress. Results will open automatically when it finishes.'); else finish(); })
+    .catch(e => err('#live-err', e.message));
   if (MOCK) {
-    $('#l-src').textContent = '· replaying fixtures/trace.jsonl';
-    getJSONL(FIX + 'trace.jsonl').then(evs => {
+    $('#l-src').textContent = '· replaying fixtures/' + traceFile();
+    getJSONL(FIX + traceFile()).then(evs => {
+      if (gen !== GEN) return;
       let i = 0;
-      timer = setInterval(() => { if (i >= evs.length) return finish(); $('#bar').style.width = ((i + 1) / evs.length * 100) + '%'; add(evs[i++]); }, 350);
+      timer = setInterval(() => {
+        if (gen !== GEN) { clearInterval(timer); return; }
+        if (i >= evs.length) return finish();
+        $('#bar').style.width = ((i + 1) / evs.length * 100) + '%'; add(evs[i++]);
+      }, 350);
     }).catch(e => err('#live-err', e.message));
     return;
   }
@@ -164,22 +171,27 @@ function evRow(ev, t) {
 
 /* ---------- 4 · result ---------- */
 async function loadResult(g = GEN) {
+  const runId = RUN.run_id, point = RUN.classification?.shape === 'point';
+  let res;
   try {
     if (MOCK) {
-      const point = RUN.classification?.shape === 'point';
-      R = await getJSON(FIX + (point ? 'result_point.json' : 'result_location.json'));
-      const [evidence, trace] = await Promise.all([getJSONL(FIX + 'evidence.jsonl'), getJSONL(FIX + 'trace.jsonl')]);
-      Object.assign(R, { evidence, trace });
-      if (point) R.candidates = await getJSON(FIX + 'candidates.json');
-      else[R.cells, R.cells_geojson] = await Promise.all([getJSON(FIX + 'cells.json'), getJSON(FIX + 'cells.geojson')]);
-      if (point) R.cells_geojson = await getJSON(FIX + 'cells.geojson');
+      res = await getJSON(FIX + (point ? 'result_point.json' : 'result_location.json'));
+      const [evidence, trace] = await Promise.all([getJSONL(FIX + 'evidence.jsonl'), getJSONL(FIX + traceFile(point))]);
+      Object.assign(res, { evidence, trace });
+      if (point) [res.candidates, res.cells_geojson] = await Promise.all([getJSON(FIX + 'candidates.json'), getJSON(FIX + 'cells.geojson')]);
+      else [res.cells, res.cells_geojson] = await Promise.all([getJSON(FIX + 'cells.json'), getJSON(FIX + 'cells.geojson')]);
     } else {
-      R = await getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/result`);
-      if (R.cells && !R.cells_geojson) R.cells_geojson = await getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/cells.geojson`).catch(() => null);
+      const base = `${API}/runs/${encodeURIComponent(runId)}`;
+      res = await getJSON(`${base}/result`);
+      if (res.cells && !res.cells_geojson) res.cells_geojson = await getJSON(`${base}/cells.geojson`).catch(() => null);
     }
   } catch (e) { if (g === GEN) err('#live-err', 'Could not load result: ' + e.message); return; }
-  if (g === GEN) dash();
+  if (g !== GEN) return;
+  if (res.status === 'failed') return err('#live-err', 'The run failed' + (res.error || res.summary ? ': ' + (res.error || res.summary) : '.'));
+  if (res.status === 'running') { doneT = setTimeout(() => { if (g === GEN) loadResult(g); }, 2000); return err('#live-err', 'Finalising results…'); }
+  R = res; dash();
 }
+function traceFile(point = RUN?.classification?.shape === 'point') { return point ? 'trace_point.jsonl' : 'trace.jsonl'; }
 
 function dash() {
   show('s-dash');
@@ -231,7 +243,12 @@ function layerVal(l, c) {
 }
 function renderArea() {
   const L = R.cells.layers;
-  if (!L.some(l => state.on[l.id])) { $('#d-find').innerHTML = '<p class="mut">Tick at least one layer.</p>'; return; }
+  if (!L.some(l => state.on[l.id])) {
+    $('#d-find').innerHTML = '<p class="mut">Tick at least one layer.</p>';
+    $('#battle-card').classList.add('hidden'); $('#legend').innerHTML = '';
+    if (map) { const v = map._loaded ? [map.getCenter(), map.getZoom()] : null; resetMap(); if (v) map.setView(...v); }
+    return;
+  }
   const ranked = RisaliteScoring.scoreCells(R.cells, state.on, state.w, state.mode), byId = {};
   ranked.forEach((r, i) => byId[r.cell.id] = { ...r, rank: i + 1 });
   const defRank = {}; R.defaultRank.forEach((r, i) => defRank[r.cell.id] = i + 1);
