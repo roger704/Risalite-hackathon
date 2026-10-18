@@ -1,4 +1,4 @@
-# Risalite dashboard mockup
+# SpotWise dashboard mockup
 
 Clickable, self-contained mockup of the S3 frontend described in `docs/01_Architecture/Risalite_Spec.md` and `docs/02_State/Execution_Plan.md`. No build step. The 3D map needs network access (MapLibre GL JS from unpkg, OpenFreeMap vector tiles, Berlin orthophoto WMS); offline or without WebGL it falls back to a flat SVG map.
 
