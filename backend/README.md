@@ -1,6 +1,6 @@
 # Location intelligence backend
 
-The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, and OpenStreetMap points of interest. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
+The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, OpenStreetMap points of interest, bounded ALKIS building footprints, and bounded ALKIS parcel data. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
 ## Setup
 
@@ -27,6 +27,7 @@ Import boundaries first, then population:
 ```sh
 uv run location-data ingest berlin_lor
 uv run location-data ingest berlin_population
+uv run location-data ingest berlin_alkis_buildings
 uv run location-data datasets
 ```
 
@@ -119,17 +120,19 @@ Pin snapshots with `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_
 
 ## Validated sources and meaning
 
-Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline fixtures are small reviewed subsets or synthetic. Berlin environmental WFS subsets preserve source geometries. Fixtures contain no derived research findings.
+Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline fixtures are small reviewed subsets or synthetic. ALKIS fixtures are trimmed examples from the public WFS, and Berlin environmental WFS subsets preserve their source geometries. Fixtures contain no derived research findings.
 
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
+| `berlin_alkis_buildings` | [Berlin cadastral download information](https://www.berlin.de/sen/stadt/stadtdaten/geoinformation/liegenschaftskataster/geobasisdaten-online/datenbereitstellung/), WFS `alkis_gebaeude:gebaeude` | Bounded `AX_Gebaeude` footprints; metadata revision `2026-09-25` is not a pinned live-layer edition. The checked hit query returned 2,759 features for the configured extent. Licensed DL-DE-Zero 2.0. |
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
-| `berlin_addresses` | [Official Berlin address WFS](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba), layer `adressen_berlin:adressen_berlin` | 402,756 official address-point features (source `numberMatched` checked 18 October 2026), 18 properties, source CRS EPSG:25833, paged at 10,000 features. Licensed [Datenlizenz Deutschland – Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attributed to Amt für Statistik Berlin-Brandenburg and Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. |
-| `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
-| `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
-| `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_centers` | [StEP Zentren 2040 dataset](https://daten.berlin.de/datensaetze/stadtentwicklungsplan-step-zentren-2040-wfs-7eb416eb), [WFS service](https://gdi.berlin.de/services/wfs/step_zen_2040) | Source edition/reference date `2026-01-13`: 81 `zh` features (79 Points, 2 MultiPolygons) and 33 `fma` Points. Mapping `step_zentren_2040_v1`; source CRS EPSG:25833 and stored geometry WGS84. DL-DE-Zero-2.0, attributed to Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. Specialist-retail sites are complementary planning sites, not städtische Zentren; only two Zentrumsbereich polygons have published boundaries. |
+| `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
+| `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
+| `berlin_parks` | [Grünanlagenbestand Berlin (inkl. öffentlicher Spielplätze) WFS](https://daten.berlin.de/datensaetze/grunanlagenbestand-berlin-einschliesslich-der-offentlichen-spielplatze-wfs-737fd0a4), WFS `gruenanlagen:gruenanlagen` and `gruenanlagen:spielplaetze`, [format description](https://gdi.berlin.de/data/gruenanlagen/docs/Datenformatbeschreibung_Gruenanlagen_Spielplaetze.pdf) | 2,563 green spaces and 1,886 playgrounds (18 October 2026), dataset revision `2026-04-09` (CSW metadata `737fd0a4-3811-34ef-bbca-f26b93fd4326`), source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200/page). Polygons kept as `GreenSpace` records; see the section below. [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Geoportal Berlin / Grünanlagenbestand Berlin. |
+| `berlin_addresses` | [Official Berlin address WFS](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba), layer `adressen_berlin:adressen_berlin` | 402,756 official address-point features (source `numberMatched` checked 18 October 2026), 18 properties, source CRS EPSG:25833, paged at 10,000 features. Licensed [Datenlizenz Deutschland – Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attributed to Amt für Statistik Berlin-Brandenburg and Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. |
+| `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
@@ -140,6 +143,8 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
+| `berlin_alkis_parcels` | [ALKIS Berlin Flurstücke](https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7), WFS `alkis_flurstuecke:flurstuecke` | Reviewed source edition `2026-09-22`; bounded EPSG:25833 extent and monthly updates. `afl` is official source area; geometry area is derived separately. DL-DE-Zero 2.0. |
+| `berlin_bicycle_counts` | [Berlin bicycle-counts page](https://daten.berlin.de/datensaetze/radzahldaten-in-berlin), [hourly workbook](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx) | Reviewed edition `2026-06-25`; hourly values from 35 fixed bicycle counters are normalized to daily totals and configured time-window means. Counts measure bicycle traffic only at those counters, not pedestrian footfall, customers, or revenue, and are not projected onto unobserved streets. Attribution: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin; [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0). |
 
 ### Berlin address points
 
@@ -299,6 +304,38 @@ uv run location-data catchment zensus_grid --snapshot "$ZENSUS_SNAPSHOT_ID" \
 
 OSM is a community-maintained map, not a verified inventory of currently operating businesses. Opening-hours and website tags may be missing or outdated; completeness and tagging practices vary. `shop=coffee` may represent beans or equipment rather than a café. Overpass way/relation centers can lie outside the small query bbox when their geometry intersects it, so returned points are checked against the broader Berlin extent instead; Overpass nodes are additionally constrained to the query bbox. Derived databases remain subject to ODbL share-alike requirements, and dated Geofabrik URLs may expire or be removed; changing the pinned source or minimum expected counts requires a reviewed configuration update.
 
+## ALKIS building footprints (`berlin_alkis_buildings`)
+
+Import the configured `kreuzberg_kottbusser_tor` extent:
+
+```sh
+uv run location-data ingest berlin_alkis_buildings
+uv run location-data manifest berlin_alkis_buildings BUILDINGS_SNAPSHOT_ID
+uv run location-data records berlin_alkis_buildings --snapshot BUILDINGS_SNAPSHOT_ID --limit 10
+```
+
+The source is Berlin's live ALKIS WFS layer `alkis_gebaeude:gebaeude`, requested in GeoJSON/EPSG:25833 and filtered to `bezeich='AX_Gebaeude' AND BBOX(geom,391600,5817000,393600,5818600)`. The bbox uses intersects semantics, so a footprint may extend outside it. `AX_Bauteil` parts (including parts with their own storeys, basements, and passages) are excluded. `source_edition=2026-09-25` is the metadata revision date, not a frozen layer edition. The provider license is DL-DE-Zero 2.0.
+
+To widen the area, update `parser_options.extent.bbox_25833` in `config/datasets/berlin_alkis_buildings.json` and make the resource URL's `CQL_FILTER` exactly match the same four numbers; ingestion rejects a mismatch. A broader bbox must remain within the configured Berlin source bounds and should be rechecked against the reviewed expected-count range and import budgets. For independent district refreshes, use separate dataset IDs/configurations rather than silently changing one snapshot's coverage. Berlin-wide `AX_Gebaeude` contains 543,964 features; the measured per-feature and citywide storage estimate is recorded after the import measurements below.
+
+The 25 documented source fields are normalized into record properties and string attributes. Blank strings become null; unknown `aog`/`aug` values remain null rather than zero. `gfk`/`bezgfk` are cadastral function codes/labels, not current tenant, ground-floor use, vacancy, or permitted business use. `shape_area` is provider-computed ground-plan area; multiplying it by storeys does not produce usable or rentable floor area. `namlag` is a cadastral location label: `lag` street keys do not map positionally to its streets, and a `pnr` pseudonumber is not the building's own address. Address matching preserves ambiguity; nearby unmatched footprints are informational only. Distances are straight-line, not walking time. Parcel-overlap helpers target the future ALKIS parcels dataset and are tested only with synthetic parcels.
+
+The read API requires an explicit snapshot:
+
+```text
+GET /api/v1/datasets/berlin_alkis_buildings/at?snapshot_id=...&lon=13.4179&lat=52.4991&radius_m=20
+GET /api/v1/datasets/berlin_alkis_buildings/buildings/{record_id}?snapshot_id=...
+GET /api/v1/datasets/berlin_alkis_buildings/by-address?snapshot_id=...&street=...&house_number=...&street_code=...&lon=...&lat=...
+```
+
+Frontend flow: call address search (issue #47), then pass its street, house number, street code, longitude, and latitude to `/by-address`; draw the returned building `geometry`, display `function_label`, recorded storeys and per-building `source_url`/`source_edition`, and retain the response's uncertainty notice. The generic `/records` endpoint also serves `record_type: "building"`.
+
+### Measured import and capacity estimate
+
+On 18 October 2026, a fresh import of the configured extent matched and normalized all 2,759 WFS features, with 0 rejected rows. The two raw pages totaled 2,874,474 bytes (2.8 MB by `du -sh`); normalized Parquet was 2,363,185 bytes (2.3 MB). The timed ALKIS ingest took 4.81 seconds and peaked at 204,532 KB RSS. Its quality report found 59 records without `aog`, 0 without a `gfk` function code, 0 geometries needing repair, and 1,046 pseudonumber references.
+
+The provider reports 543,964 citywide `AX_Gebaeude` features. Linear extrapolation from this bounded import estimates roughly 567 MB raw, 466 MB normalized, or 1.03 GB combined; this is a capacity estimate, not a citywide import, and geometry/attribute complexity may differ elsewhere.
+
 ## VBB GTFS scheduled-service summaries
 
 Import the reviewed feed from VBB or a previously downloaded ZIP:
@@ -399,6 +436,73 @@ IHK records keep `opendata_id` as `record_id`, the supplied `planungsraum_id` as
 
 Categories come from the versioned mapping [`config/categories/ihk_v1.json`](config/categories/ihk_v1.json). `coffee_shop` means IHK branches `56114` (Cafés) and `561141` (Stehcafés). NACE 56.30 *Ausschank von Getränken* is mapped to `bar` (and `56302` to `nightclub`), because its IHK subclasses are pubs, bars, discos and shisha lounges, not cafés. Records classified only as `56`, `561` or `5611` may be cafés, but stay `food_service_unspecified`. Bakeries, coffee retail, coffee roasting, catering and other hospitality and retail classes are separate categories; the remaining codes stay unmapped (`canonical_category` null).
 
+## ALKIS parcels (`berlin_alkis_parcels`)
+
+The reviewed provider layer is the Berlin ALKIS WFS `alkis_flurstuecke:flurstuecke`, licensed [DL-DE-Zero 2.0](https://www.govdata.de/dl-de/zero-2-0). The configuration requests only the fixed EPSG:25833 extent `[387500, 5816500, 392500, 5821500]` (5 × 5 km), 5,000 features per page, at most 10 pages, and 40 MB cumulative raw response bytes. The 11,434 features intersecting this extent are returned as whole parcel geometries; edge parcels can extend beyond the box. Do not change the request to citywide coverage: the service reports 403,526 parcels (approximately 420 MB raw), which needs a tiled/streaming ingestion design. ALKIS ingestion does not accept `--file`.
+
+Each `Parcel` is identified by provider `uuid` (`source_record_id`, with `record_id` `flurstueck:{uuid}`) and exposes the cadastral `fsko` as `parcel_id`. `uuid` is the object identity; `fsko` may change after parcel splits or merges. Identifier and code fields remain strings, preserving leading zeros. `official_area_m2` is the source-provided `afl` (Amtliche Fläche); blank, zero, invalid, or missing values stay null and are flagged. `geometry_area_m2` is computed separately from the source geometry in EPSG:25833. The two measures differ for some parcels (observed `geometry_area_m2 / afl` ratio p50 approximately 0.9995, with outliers from approximately 0.29 to 3.38); the derived area never replaces the official area.
+
+```json
+{
+  "record_type": "parcel",
+  "source_record_id": "DEBE00YY11p000zH",
+  "record_id": "flurstueck:DEBE00YY11p000zH",
+  "parcel_id": "11000102100383____",
+  "cadastral_district_code": "0001",
+  "parcel_numerator": "383",
+  "official_area_m2": 1065.0,
+  "geometry_area_m2": 1064.17,
+  "area_unit": "m2"
+}
+```
+
+Parcel APIs require an explicit `snapshot_id`, expose provenance and quality warnings, and reject unknown query parameters:
+
+```sh
+PARCEL_SNAPSHOT_ID='replace-with-alkis-snapshot_id'
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/at \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'lon=13.4034' \
+  --data-urlencode 'lat=52.4986'
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/in-bbox \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'bbox=13.40,52.49,13.41,52.50' \
+  --data-urlencode 'limit=100'
+curl --fail "http://127.0.0.1:8000/api/v1/parcels/11000102100383____?snapshot_id=$PARCEL_SNAPSHOT_ID"
+curl --fail --get http://127.0.0.1:8000/api/v1/parcels/11000102100383____/relations \
+  --data-urlencode "snapshot_id=$PARCEL_SNAPSHOT_ID" \
+  --data-urlencode 'related_dataset_id=berlin_lor' \
+  --data-urlencode 'related_snapshot_id=replace-with-lor-snapshot_id'
+```
+
+The point endpoint returns all parcel matches: shared-boundary points can match multiple features. Polygon relationships are EPSG:25833 geometric intersections; boundary-only touches have no area share. Building, address, and planning records may relate to multiple parcels, and related responses pin both snapshots. This does not assign legal parcel ownership or imply ownership, use, development permission, available premises, commercial tenancy, or an acquisition offer. An address can be looked up by passing its WGS84 point to `/api/v1/parcels/at`; no address-search endpoint is added.
+
+Frontend callers can request the same read API without introducing a frontend integration in this backend change:
+
+```js
+const url = new URL("/api/v1/parcels/at", window.location.origin);
+url.search = new URLSearchParams({
+  snapshot_id: parcelSnapshotId,
+  lon: String(longitude),
+  lat: String(latitude),
+});
+const response = await fetch(url);
+if (!response.ok) throw new Error(`Parcel lookup failed: ${response.status}`);
+const result = await response.json();
+```
+
+Import LOR first and pin its returned snapshot when ingesting the bounded parcel extent:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_alkis_parcels --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+The manifest coverage records the pinned LOR snapshot, extent, parcel count, PLR codes intersecting the extent, and parcels whose representative points fall outside all PLRs. The source is monthly-updated, edition `2026-09-22`; per-feature `beg` dates do not provide a complete historical edition.
+
+Real bounded imports checked **2026-10-18**: LOR published 542 records with 0 rejected in 4.89 seconds (peak RSS 286,892 KB; 812 KB raw and 7.3 MB normalized). ALKIS published 11,434 records, matching `numberMatched=11,434`, with 0 rejected in 16.61 seconds (peak RSS 366,976 KB; 11 MB raw and 10 MB normalized). ALKIS quality counts were 1 missing or invalid official area, 0 geometries repaired after reprojection, and 87 official-to-derived area ratios outside 0.9–1.1.
+
 ## Adding a connector
 
 Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `AreaIndicatorClass` (ordinal area-indicator classes), `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
@@ -492,6 +596,26 @@ Facility counts and permitted places are not available places, vacancies, or pro
 
 Opt-in live check (5 features): `RUN_LIVE_TESTS=1 uv run pytest -m live tests/live/test_berlin_kitas_live.py`.
 
+## Official green spaces and playgrounds (`berlin_parks`, `berlin_green_spaces`)
+
+`berlin_parks` emits one `GreenSpace` record per official inventory polygon from two reviewed WFS layers: `feature_type = green_space` (`objartname` `Grünanlage`) and `feature_type = playground` (`Spielplatz`). The layer decides `feature_type`; an `objartname` that disagrees or is unmapped is kept in `original_category` and flagged. Record IDs are `<feature_type>:<pitid>`.
+
+- `geometry` is the source Polygon/MultiPolygon in WGS84. `display_point` is a derived marker (representative point computed in EPSG:25833, `display_point_method`), not an entrance.
+- `source_area_m2` (`katasterfl`) and `net_play_area_m2` (`nettospfl`, playgrounds only) are provider values; `0` and blanks become `null` and are flagged. `geometry_area_m2` is computed from the polygon in EPSG:25833.
+- `area_code` is the provider `plannr`, reported against the pinned `berlin_lor` snapshot in `coverage` (missing, unknown, display point outside the supplied PLR, features spanning several PLRs) and never reassigned.
+- `adjacent_record_ids` links green spaces and playgrounds whose polygons are within 1 m of each other. The layers are separate inventory objects, mostly adjacent rather than nested.
+- Records come from the official inventory only. They are not matched against OSM `leisure` features, so do not add counts from both sources.
+
+```bash
+uv run location-data ingest berlin_parks --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run location-data records berlin_parks --snapshot "$PARKS_SNAPSHOT_ID" --area-code 04100101
+curl "http://127.0.0.1:8000/api/v1/datasets/berlin_parks/green-spaces/nearby?snapshot_id=$PARKS_SNAPSHOT_ID&lon=13.3275&lat=52.5375&radius_m=300&feature_type=playground"
+```
+
+The `nearby` endpoint returns `straight_line_distance_m` to the nearest polygon edge in EPSG:25833 (`0` and `contains_origin: true` inside a polygon), plus counts per feature type within `radius_m` (maximum 5,000 m). This is not walking distance or walking time; entrances, fences and the street network are ignored. `--file` imports are not supported because a snapshot needs the pages of both layers.
+
+Real import (18 October 2026): 4,449 records (2,563 + 1,886, equal to `numberMatched`), 0 rejected, 23 raw pages (26.0 MB), normalized GeoParquet 26.7 MB, 45.7 s, 637,228 KB maximum RSS. 7 features have no `plannr`; 3 use `07030301`, which is not in the LOR 2021 code set.
+
 ## Berlin retail centers (`berlin_centers`)
 
 `berlin_centers` imports both layers from the Berlin StEP Zentren 2040 WFS,
@@ -533,6 +657,79 @@ these sites are not städtische Zentren. Missing source names and unmapped sourc
 types remain explicitly missing or flagged. License: [Datenlizenz Deutschland –
 Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attribution to
 Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin.
+
+## Berlin Mietspiegel 2026 address-level Wohnlagen
+
+The `berlin_mietspiegel_wohnlagen` dataset imports the provider's WFS address points and the official `einfach`, `mittel`, or `gut` classification. Pin a compatible LOR snapshot for the point-in-polygon coverage check:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-snapshot_id-printed-by-the-LOR-import'
+uv run location-data ingest berlin_mietspiegel_wohnlagen --lor-snapshot "$LOR_SNAPSHOT_ID"
+WOHNLAGE_SNAPSHOT_ID='replace-with-wohnlage-snapshot_id'
+uv run location-data records berlin_mietspiegel_wohnlagen --snapshot "$WOHNLAGE_SNAPSHOT_ID" --limit 10
+```
+
+The `ResidentialLocationClass` record includes `address_key`, street and house-number labels, district and planning-area labels, the source Ost/West marker, a WGS84 point, `wohnlage_class`, `class_status`, edition, validity, and source attributes. `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage` requires `snapshot_id` and exactly one of:
+
+- `address_key=00001004A`
+- `street_code=00001&house_number=4&house_number_suffix=A`
+- `address_snapshot_id=<id>&address_id=<id>` (for an address snapshot published by the address connector)
+
+The API reports `matched`, `matched_unclassified`, `not_found`, `not_joinable`, or `ambiguous`. `not_found` may include suffix variants as candidates, but does not select one. A street-name/postcode disagreement yields an `ambiguous` candidate with a null selected class. The address-snapshot mode requires the address dataset and snapshot to be available in this backend.
+
+When adding a frontend flow, use the address search result's `address_id` and `address_snapshot_id` to request this endpoint; do not reconstruct its provider key from display text. For example:
+
+```js
+const response = await fetch(
+  `/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage?${new URLSearchParams({
+    snapshot_id: wohnlageSnapshotId,
+    address_snapshot_id: addressSnapshotId,
+    address_id: addressId,
+  })}`,
+);
+const result = await response.json();
+
+if (result.join_status === "matched") {
+  showWohnlage({
+    class: result.wohnlage_class,
+    edition: result.edition,
+    valid: `${result.valid_from}–${result.valid_to}`,
+    source: result.source_links,
+    limitations: result.limitations,
+  });
+} else {
+  showWohnlageUnresolved(result.join_status, result.candidates);
+}
+```
+
+Display the edition, validity, source link, limitations, and unresolved status. Do not label this classification as income, purchasing power, commercial suitability, pedestrian footfall, shop rent, or a rent amount. It describes residential surroundings under the Mietspiegel 2026, not whether an individual dwelling is within scope. The official Straßenverzeichnis is authoritative for address assignment; do not infer the class from generalized map colors. The source's Ost/West field is a former east/west rent-table marker, not a current district.
+
+## Berlin bicycle counters (`berlin_bicycle_counts`)
+
+Import the reviewed annual workbook with:
+
+```sh
+uv run location-data ingest berlin_bicycle_counts
+```
+
+The `mobility_observation` records preserve counter location and direction, explicit
+Europe/Berlin local intervals, value status, and interval coverage. Daily totals are
+published only when every expected hour is usable; window means require at least 80%
+usable coverage. Missing or implausible hours are never filled with zero. The
+`/api/v1/datasets/{dataset_id}/layers/counters` endpoint returns pinned counter
+points for a selected window and year. These are permanent point counters, not a
+citywide cycling estimate, pedestrian-footfall measure, customer count, or revenue
+proxy. No LOR join is made; `area_code` remains null.
+
+The source labels timestamps in `Europe/Berlin`; the nonexistent spring DST hour is
+excluded, while the repeated autumn hour is flagged because the source's handling is
+undocumented. Two other theme-7 markings occur outside the spring gap: a blank row
+at `2020-10-26 04:00` and the repeated hour at `2021-10-31 02:00`. Their values are
+discarded and counted as missing, with an `unlegended_source_marking` quality flag.
+Directional counters report only their stated direction. The source publishes
+annual workbook editions and notes that construction, detours, network changes,
+replacement transport, and wrong-way cycling can affect counts.
 
 ### Road traffic volumes 2019 (`berlin_traffic_volumes_2019`, `berlin_wfs`)
 

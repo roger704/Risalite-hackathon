@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
@@ -73,8 +73,14 @@ def configure(service: RunService | None) -> None:
     _SERVICE = service
 
 
-def service() -> RunService:
+def service(request: Request | None = None) -> RunService:
     global _SERVICE
+    if request is not None and getattr(request.app.state, "live_runs_dir", None) is not None:
+        current = getattr(request.app.state, "live_run_service", None)
+        if current is None:
+            current = RunService(default_deps(), Path(request.app.state.live_runs_dir))
+            request.app.state.live_run_service = current
+        return current
     if _SERVICE is None:
         _SERVICE = RunService(default_deps(), runs_dir())
     return _SERVICE
@@ -87,59 +93,83 @@ def _call(function, *args):
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
 
-def _get(run_id: str, authorization: str | None) -> dict:
-    return _call(service().get, run_id, authorization)
+def _get(run_id: str, authorization: str | None, request: Request) -> dict:
+    return _call(service(request).get, run_id, authorization)
 
 
 @router.post("/research")
-async def research(body: ResearchRequest):
+async def research(body: ResearchRequest, request: Request):
     try:
-        return await service().create(body.question, body.role, body.profile, body.template_hint)
+        return await service(request).create(
+            body.question, body.role, body.profile, body.template_hint
+        )
     except RunError as exc:
         return JSONResponse(status_code=exc.status, content={"detail": exc.detail})
 
 
 @router.post("/runs/{run_id}/clarify")
-def clarify(run_id: str, payload: dict, authorization: str | None = Header(default=None)):
-    run = _get(run_id, authorization)
+def clarify(
+    run_id: str,
+    payload: dict,
+    request: Request,
+    authorization: str | None = Header(default=None),
+):
+    run_service = service(request)
+    run = _get(run_id, authorization, request)
     try:
         body = ClarifyRequest.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="A non-empty answer is required") from exc
     token = authorization.removeprefix("Bearer ") if authorization else ""
-    return _call(service().clarify, run, body.answer, token)
+    return _call(run_service.clarify, run, body.answer, token)
 
 
 @router.get("/runs/{run_id}/areas")
 def search_areas(
-    run_id: str, q: str = Query(default=""), authorization: str | None = Header(default=None)
+    run_id: str,
+    request: Request,
+    q: str = Query(default=""),
+    authorization: str | None = Header(default=None),
 ):
-    _get(run_id, authorization)
-    return service().search_areas(q)
+    _get(run_id, authorization, request)
+    return service(request).search_areas(q)
 
 
 @router.post("/runs/{run_id}/approve")
-async def approve(run_id: str, payload: dict, authorization: str | None = Header(default=None)):
-    run = _get(run_id, authorization)
+async def approve(
+    run_id: str,
+    payload: dict,
+    request: Request,
+    authorization: str | None = Header(default=None),
+):
+    run_service = service(request)
+    run = _get(run_id, authorization, request)
     if run["status"] != "awaiting_approval":
         raise HTTPException(status_code=409, detail="Run is not awaiting approval")
     try:
-        request = ApproveRequest.model_validate(payload)
+        approval_request = ApproveRequest.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="Invalid approval payload") from exc
-    return _call(service().approve, run, request.model_dump(exclude_none=True), set(payload))
+    return _call(
+        run_service.approve,
+        run,
+        approval_request.model_dump(exclude_none=True),
+        set(payload),
+    )
 
 
 @router.get("/runs/{run_id}/events")
 async def events(
     run_id: str,
+    request: Request,
     authorization: str | None = Header(default=None),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ):
-    run = _get(run_id, authorization)
+    run_service = service(request)
+    run = _get(run_id, authorization, request)
     if run["status"] in {"needs_clarification", "awaiting_approval"}:
         raise HTTPException(status_code=409, detail="Run has not been approved")
-    log = service().log(run_id)
+    log = run_service.log(run_id)
     after = int(last_event_id) if last_event_id and last_event_id.isdigit() else -1
 
     async def stream():
@@ -164,6 +194,11 @@ async def events(
 
 
 @router.get("/runs/{run_id}/result")
-def result(run_id: str, authorization: str | None = Header(default=None)):
-    status, body = service().result(_get(run_id, authorization))
+def result(
+    run_id: str,
+    request: Request,
+    authorization: str | None = Header(default=None),
+):
+    run_service = service(request)
+    status, body = run_service.result(_get(run_id, authorization, request))
     return JSONResponse(status_code=status, content=json.loads(json.dumps(body, default=str)))

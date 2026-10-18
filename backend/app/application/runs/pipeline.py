@@ -115,6 +115,13 @@ def small(cfg: Any) -> Any:
     return _with(cfg, **SMALL_BUDGET)
 
 
+def _berlin_reference_timeout() -> float:
+    try:
+        return max(0.0, float(os.environ.get("RISALITE_BERLIN_REF_TIMEOUT_S", "90")))
+    except ValueError:
+        return 90.0
+
+
 def _finding_dict(finding: Any) -> dict[str, Any]:
     data = finding.model_dump(by_alias=True) if hasattr(finding, "model_dump") else dict(finding)
     return Finding.model_validate(data).model_dump(exclude_none=False)
@@ -351,7 +358,30 @@ async def run_area(ctx: Context) -> dict[str, Any]:
             },
             why="Layer values per PLR from pinned snapshots",
         )
-    reference = await asyncio.to_thread(port.berlin_reference, template) or None
+    timeout_s = _berlin_reference_timeout()
+    try:
+        reference = (
+            await asyncio.wait_for(
+                asyncio.to_thread(port.berlin_reference, template), timeout=timeout_s
+            )
+            or None
+        )
+    except TimeoutError:
+        reference = None
+        ctx.log.emit(
+            "tool_error",
+            "data",
+            {
+                "stage": "berlin_reference",
+                "error": f"Timed out after {timeout_s:g} seconds",
+            },
+            why="Berlin reference unavailable; scoring continues without it",
+        )
+        ctx.log.emit(
+            "status",
+            "orchestrator",
+            {"stage": "berlin_reference", "status": "timeout", "score_berlin": None},
+        )
     reasons = port.confidence_reasons(area_id)
     crosscheck = getattr(port, "crosscheck", None)
     crosscheck = crosscheck(area_id) if crosscheck else {}

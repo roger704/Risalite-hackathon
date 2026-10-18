@@ -7,8 +7,12 @@ template. Every layer value is recorded as a ``dataset`` ledger entry and its id
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
+import threading
+from collections import OrderedDict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -47,6 +51,8 @@ MIN_SATURATION_DENOMINATOR = 2000
 TRANSIT_WINDOWS = (("07:00", "10:00"), ("16:00", "19:00"))
 FOOTFALL_CATEGORIES = ("bakery", "restaurant", "fast_food")
 LANDING = "https://daten.berlin.de"
+_REFERENCE_CACHE: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+_REFERENCE_CACHE_LOCK = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -435,6 +441,8 @@ class SummaryAreaData:
         block_snapshot_id: str | None = None,
         center_geometries: Iterable[dict[str, Any]] = (),
         center_snapshot_id: str | None = None,
+        snapshot_ids: dict[str, str | None] | None = None,
+        reference_cache_dir: Path | None = None,
     ):
         self._summary = summary
         self._names = names
@@ -448,6 +456,8 @@ class SummaryAreaData:
             for geometry in center_geometries
         ]
         self._center_snapshot_id = center_snapshot_id
+        self._snapshot_ids = dict(snapshot_ids or {})
+        self._reference_cache_dir = reference_cache_dir
         self._rows: dict[str, dict[str, Any]] = {}
         self._notes: dict[str, list[str]] = {}
         self._reference: dict[str, list[CellInput]] = {}
@@ -473,7 +483,23 @@ class SummaryAreaData:
                 return None
             return candidate if data_service._snapshot_available(candidate) else None
 
-        blocks = published_snapshot("berlin_population_density_blocks")
+        dataset_ids = (
+            "berlin_lor",
+            "berlin_lor_names",
+            "berlin_population",
+            "osm_pois",
+            "vbb_gtfs",
+            "ihk_businesses",
+            "berlin_population_density_blocks",
+            "berlin_centers",
+        )
+        snapshots = {dataset_id: published_snapshot(dataset_id) for dataset_id in dataset_ids}
+        snapshot_ids = {
+            dataset_id: manifest.snapshot_id if manifest else None
+            for dataset_id, manifest in snapshots.items()
+        }
+
+        blocks = snapshots["berlin_population_density_blocks"]
         block_densities = {}
         if blocks:
             aggregates = block_aggregates(data_service, blocks.snapshot_id)
@@ -483,7 +509,7 @@ class SummaryAreaData:
                 if value.net_density_per_ha is not None
             }
 
-        centers = published_snapshot("berlin_centers")
+        centers = snapshots["berlin_centers"]
         center_geometries = []
         if centers:
             center_geometries = [
@@ -500,6 +526,8 @@ class SummaryAreaData:
             block_snapshot_id=blocks.snapshot_id if blocks else None,
             center_geometries=center_geometries,
             center_snapshot_id=centers.snapshot_id if centers else None,
+            snapshot_ids=snapshot_ids,
+            reference_cache_dir=data_service.root / "cache" / "berlin_reference",
         )
 
     def units(self) -> list[AreaUnit]:
@@ -645,11 +673,88 @@ class SummaryAreaData:
         return [self._cell(plr, template, ledger) for plr in self._by_id[area_id].plr_ids]
 
     def berlin_reference(self, template: Template) -> list[CellInput]:
-        if template.id not in self._reference:
-            self._reference[template.id] = [
-                self._cell(plr, template, None) for plr in sorted(self._names)
-            ]
-        return self._reference[template.id]
+        if not any(self._snapshot_ids.values()):
+            if template.id not in self._reference:
+                self._reference[template.id] = [
+                    self._cell(plr, template, None) for plr in sorted(self._names)
+                ]
+            return self._reference[template.id]
+
+        cache_input = {
+            "template_id": template.id,
+            "snapshot_ids": dict(sorted(self._snapshot_ids.items())),
+        }
+        cache_key = hashlib.sha256(
+            json.dumps(cache_input, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if cache_key in self._reference:
+            return self._reference[cache_key]
+
+        with _REFERENCE_CACHE_LOCK:
+            cached = _REFERENCE_CACHE.get(cache_key)
+            if cached is not None:
+                _REFERENCE_CACHE.move_to_end(cache_key)
+            if cached is None and self._reference_cache_dir is not None:
+                cache_path = self._reference_cache_dir / f"{cache_key}.json"
+                try:
+                    disk_cache = json.loads(cache_path.read_text(encoding="utf-8"))
+                    if disk_cache.get("key") == cache_input and isinstance(
+                        disk_cache.get("cells"), list
+                    ):
+                        cached = disk_cache["cells"]
+                except (OSError, ValueError, AttributeError):
+                    pass
+
+            if cached is not None:
+                _REFERENCE_CACHE[cache_key] = cached
+                _REFERENCE_CACHE.move_to_end(cache_key)
+                while len(_REFERENCE_CACHE) > 8:
+                    _REFERENCE_CACHE.popitem(last=False)
+
+            if cached is None:
+                cells = [self._cell(plr, template, None) for plr in sorted(self._names)]
+                cached = [
+                    {
+                        "cell_id": cell.cell_id,
+                        "name": cell.name,
+                        "residents": cell.residents,
+                        "raw": cell.raw,
+                        "parent_name": cell.parent_name,
+                        "incomplete": cell.incomplete,
+                        "gap_low": cell.gap_low,
+                        "gap_high": cell.gap_high,
+                        "fallback_layers": cell.fallback_layers,
+                    }
+                    for cell in cells
+                ]
+                if self._reference_cache_dir is not None:
+                    self._reference_cache_dir.mkdir(parents=True, exist_ok=True)
+                    cache_path = self._reference_cache_dir / f"{cache_key}.json"
+                    temp_path = cache_path.with_name(f"{cache_path.name}.{os.getpid()}.tmp")
+                    temp_path.write_text(
+                        json.dumps({"key": cache_input, "cells": cached}, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    temp_path.replace(cache_path)
+                _REFERENCE_CACHE[cache_key] = cached
+                while len(_REFERENCE_CACHE) > 8:
+                    _REFERENCE_CACHE.popitem(last=False)
+
+        self._reference[cache_key] = [
+            CellInput(
+                cell_id=cell["cell_id"],
+                name=cell["name"],
+                residents=cell["residents"],
+                raw=dict(cell["raw"]),
+                parent_name=cell.get("parent_name"),
+                incomplete=cell.get("incomplete", False),
+                gap_low=cell.get("gap_low"),
+                gap_high=cell.get("gap_high"),
+                fallback_layers=list(cell.get("fallback_layers") or []),
+            )
+            for cell in cached
+        ]
+        return self._reference[cache_key]
 
     def confidence_reasons(self, area_id: str) -> dict[str, list[str]]:
         return {

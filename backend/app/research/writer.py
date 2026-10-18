@@ -45,10 +45,14 @@ def top_items(result: dict, limit: int = 3) -> list[dict]:
     cells = result.get("cells")
     if isinstance(cells, dict):
         cells = cells.get("cells")
-    candidates = result.get("candidates")
-    if not isinstance(cells, list) and isinstance(candidates, dict):
-        cells = candidates.get("hypotheses")  # T1: ranked business hypotheses
-    items = cells if isinstance(cells, list) else result.get("hypotheses") or []
+    if isinstance(cells, list) and cells:
+        items = cells
+    elif isinstance(result.get("hypotheses"), list) and result["hypotheses"]:
+        items = result["hypotheses"]
+    else:
+        candidates = result.get("candidates")
+        items = candidates.get("hypotheses") if isinstance(candidates, dict) else []
+        items = items if isinstance(items, list) else []
     items = [dict(c) for c in items if isinstance(c, dict)]
     for item in items:
         item.setdefault("id", item.get("cell_id"))

@@ -77,5 +77,6 @@
   }
   const api = { scoreCells, rank };
   g.RisaliteScoring = api;
+  g.SpotWiseScoring = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

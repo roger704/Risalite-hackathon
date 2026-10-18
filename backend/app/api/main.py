@@ -1,5 +1,6 @@
 """Public local-snapshot reads. Acquisition is deliberately a CLI operation."""
 
+import json
 import os
 import re
 from datetime import date, datetime
@@ -7,19 +8,23 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.buildings import create_buildings_router
 from app.api.centers import create_centers_router
+from app.api.parcels import parcels_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
 from app.application.childcare import childcare_areas, childcare_facilities
+from app.application.green_spaces import nearby_green_spaces
+from app.application.mobility import station_layer
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
 from app.connectors.valhalla import ValhallaWalkingClient
@@ -31,6 +36,7 @@ from app.domain import (
     SnapshotManifest,
     record_from_dict,
 )
+from app.domain.models import MobilityObservation
 from app.domain.routing import load_routing_config
 from app.export import EXPORT_FORMATS, Mix, load_run
 from app.infrastructure.routing_cache import RoutingCache, default_routing_cache_path
@@ -53,7 +59,7 @@ class RecordsResponse(BaseModel):
     coverage: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     attribution: list[dict[str, Any]] = Field(default_factory=list)
-    records: list[NormalizedRecord]
+    records: list[NormalizedRecord | MobilityObservation]
     count: int = Field(ge=0)
     next_cursor: str | None = None
 
@@ -150,6 +156,21 @@ def create_app(
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
     application.state.routing_client = routing_client
+    runs_mode = os.environ.get("RISALITE_RUNS", "").casefold()
+    configured_runs_dir = os.environ.get("RISALITE_RUNS_DIR", "").strip()
+    default_runs_dir = (
+        Path("data/runs") if runs_mode == "live" else Path(__file__).resolve().parents[3] / "runs"
+    )
+    resolved_runs_dir = (
+        Path(runs_dir).expanduser()
+        if runs_dir is not None
+        else Path(configured_runs_dir).expanduser()
+        if configured_runs_dir
+        else default_runs_dir
+    )
+    application.state.runs_dir = resolved_runs_dir
+    application.state.live_runs_dir = resolved_runs_dir if runs_mode == "live" else None
+    application.state.live_run_service = None
 
     def get_service() -> DataService:
         if application.state.data_service is None:
@@ -180,14 +201,7 @@ def create_app(
             await client.__aexit__(None, None, None)
 
     def get_runs_dir() -> Path:
-        configured = os.environ.get("RISALITE_RUNS_DIR", "").strip()
-        return (
-            Path(runs_dir).expanduser()
-            if runs_dir is not None
-            else Path(configured).expanduser()
-            if configured
-            else Path(__file__).resolve().parents[3] / "runs"
-        )
+        return application.state.runs_dir
 
     @application.middleware("http")
     async def request_context(request: Request, call_next):
@@ -227,6 +241,8 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    application.include_router(create_buildings_router(get_service))
 
     @application.get("/api/v1/datasets", response_model=list[DatasetResponse])
     def datasets(data: Annotated[DataService, Depends(get_service)]):
@@ -276,6 +292,34 @@ def create_app(
             cursor=cursor,
         )
 
+    @application.get("/api/v1/datasets/{dataset_id}/green-spaces/nearby")
+    def green_spaces_nearby(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        lon: Annotated[float, Query(ge=-180, le=180)],
+        lat: Annotated[float, Query(ge=-90, le=90)],
+        radius_m: Annotated[float, Query(ge=0, le=5000)] = 500.0,
+        feature_type: Annotated[str | None, Query(min_length=1)] = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    ):
+        unknown = set(request.query_params) - {
+            "snapshot_id",
+            "lon",
+            "lat",
+            "radius_m",
+            "feature_type",
+            "limit",
+        }
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        return nearby_green_spaces(
+            data, dataset_id, snapshot_id, lon, lat, radius_m, feature_type, limit
+        )
+
     @application.get(
         "/api/v1/datasets/{dataset_id}/address-search",
         response_model=AddressSearchResponse,
@@ -313,6 +357,8 @@ def create_app(
             cursor=cursor,
         )
 
+    application.include_router(create_centers_router(get_service))
+
     @application.get("/api/v1/childcare/facilities")
     def childcare_facility_points(
         data: Annotated[DataService, Depends(get_service)],
@@ -327,6 +373,80 @@ def create_app(
         population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
     ) -> dict[str, Any]:
         return childcare_areas(data, snapshot_id, population_snapshot_id)
+
+    @application.get("/api/v1/datasets/{dataset_id}/wohnlage")
+    def wohnlage(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+    ):
+        allowed = {
+            "snapshot_id",
+            "address_key",
+            "street_code",
+            "house_number",
+            "house_number_suffix",
+            "address_snapshot_id",
+            "address_id",
+        }
+        unknown = set(request.query_params) - allowed
+        if unknown:
+            raise ConnectorError(
+                "INVALID_REQUEST", "Unsupported query parameters: " + ", ".join(sorted(unknown))
+            )
+        if any(len(request.query_params.getlist(name)) != 1 for name in request.query_params):
+            raise ConnectorError("INVALID_REQUEST", "Query parameters must be supplied once")
+        values = {name: request.query_params.get(name) for name in allowed}
+        if not values["snapshot_id"]:
+            raise ConnectorError("INVALID_REQUEST", "snapshot_id is required")
+        address_key_mode = values["address_key"] is not None
+        street_mode = any(
+            values[name] is not None
+            for name in ("street_code", "house_number", "house_number_suffix")
+        )
+        address_mode = any(
+            values[name] is not None for name in ("address_snapshot_id", "address_id")
+        )
+        if sum((address_key_mode, street_mode, address_mode)) != 1:
+            raise ConnectorError(
+                "INVALID_REQUEST",
+                "Supply exactly one of address_key, street_code/house_number, or "
+                "address_snapshot_id/address_id",
+            )
+        if street_mode and (values["street_code"] is None or values["house_number"] is None):
+            raise ConnectorError(
+                "INVALID_REQUEST", "street_code and house_number must be supplied together"
+            )
+        if address_mode and (not values["address_snapshot_id"] or not values["address_id"]):
+            raise ConnectorError(
+                "INVALID_REQUEST", "address_snapshot_id and address_id must be supplied together"
+            )
+        return data.wohnlage(
+            dataset_id,
+            values["snapshot_id"],
+            address_key=values["address_key"],
+            street_code=values["street_code"],
+            house_number=values["house_number"],
+            house_number_suffix=values["house_number_suffix"],
+            address_snapshot_id=values["address_snapshot_id"],
+            address_id=values["address_id"],
+        )
+
+    @application.get("/api/v1/datasets/{dataset_id}/layers/counters")
+    def counters(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        window_id: Annotated[str, Query(min_length=1)],
+        year: Annotated[int, Query(ge=1900, le=2100)],
+    ):
+        unknown = set(request.query_params) - {"snapshot_id", "window_id", "year"}
+        if unknown:
+            raise ConnectorError(
+                "INVALID_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        return station_layer(data, dataset_id, snapshot_id, window_id, year)
 
     @application.get("/api/v1/population-forecast/expected-change")
     def population_forecast_change(
@@ -448,8 +568,6 @@ def create_app(
             )
         return expected_change(bases[0], targets[0])
 
-    application.include_router(create_centers_router(get_service))
-
     def get_area_summaries(
         data: Annotated[DataService, Depends(get_service)],
     ) -> AreaSummaryService:
@@ -515,7 +633,22 @@ def create_app(
             else None
         )
         mix = Mix(layers_on=layers, mode=mode)
-        bundle = load_run(get_runs_dir() / run_id)
+        run_dir = get_runs_dir() / run_id
+        try:
+            persisted_run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            persisted_run = {}
+        if isinstance(persisted_run, dict) and "token_hash" in persisted_run:
+            from app.api.runs_live import service as live_run_service
+            from app.application.runs import RunError
+
+            try:
+                live_run_service(request).authorize_export(
+                    run_id, request.headers.get("authorization")
+                )
+            except RunError as exc:
+                raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+        bundle = load_run(run_dir)
         media_type, renderer = EXPORT_FORMATS[fmt]
         if fmt.startswith("report."):
             body = renderer(bundle, mix=mix)
@@ -528,13 +661,14 @@ def create_app(
         return Response(content=body, media_type=media_type, headers=headers)
 
     application.include_router(planning_router(get_service))
-    runs_mode = os.environ.get("RISALITE_RUNS", "").casefold()
     if runs_mode == "live":
         from app.api.runs_live import router as live_runs_router
 
         application.include_router(live_runs_router)
     elif runs_mode != "off":
         application.include_router(fixture_runs_router)
+
+    application.include_router(parcels_router(get_service))
 
     # Keep this last: the "/" mount catches every otherwise-unmatched route.
     mount_frontend(application)

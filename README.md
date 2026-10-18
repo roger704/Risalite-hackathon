@@ -15,11 +15,11 @@
 | [Data sources research](DATA_SOURCES.md) | Free datasets, access methods, licensing, limitations, integration order |
 | [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
 | [Landing page](frontend/landing/README.md) | Animated, looping landing page: what Risalite is for, the workflow and the deliverables, in 10 seconds |
-| [Backend setup guide](backend/README.md) | Working LOR and population connectors, ingestion CLI, versioned snapshots, read API |
+| [Backend setup guide](backend/README.md) | Per-connector import and query details, ingestion CLI, versioned snapshots, read API |
 | [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
 
-**Implementation status:** the backend implements the LOR and population connectors, ingestion CLI, snapshots, the read API, the research dashboard over fixture-backed runs, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`). The live research runtime (S1) is planned.
+**Implementation status:** the backend implements Berlin data ingestion and snapshots, the read API, the live S1 deep-research runtime, the research dashboard, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`).
 
 ## Run it
 
@@ -29,6 +29,47 @@ cp .env.example .env            # TAVILY_API_KEY, NEBIUS_API_KEY, NEBIUS_MODEL (
 cd backend && uv sync
 uv run uvicorn app.api.main:app --reload   # dashboard + API on http://127.0.0.1:8000/
 ```
+
+## Live deep research (S1)
+
+### Prerequisites and Berlin snapshots
+
+Install `uv`, use Python 3.11, and provide `NEBIUS_API_KEY` and `TAVILY_API_KEY` through your secret manager for live model and search calls. From the repository root:
+
+```sh
+export LOCATION_DATA_DIR=/home/ubuntu/data/risalite
+cd backend
+LOR_SNAPSHOT_ID=berlin_lor-099dc691163b4bdf82567d4e643fbeee
+uv run --python 3.11 location-data ingest berlin_lor
+uv run --python 3.11 location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_population
+uv run --python 3.11 location-data ingest zensus_grid
+uv run --python 3.11 location-data ingest osm_pois
+uv run --python 3.11 location-data ingest vbb_gtfs
+uv run --python 3.11 location-data ingest ihk_businesses
+uv run --python 3.11 location-data ingest berlin_population_density_blocks --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_addresses
+uv run --python 3.11 location-data ingest berlin_kitas --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run --python 3.11 location-data ingest berlin_centers --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+### Start and run
+
+Start the dashboard and live API from `backend/`; replace the two secret placeholders with secret-manager references:
+
+```sh
+LOCATION_DATA_DIR=/home/ubuntu/data/risalite RISALITE_RUNS=live \
+RISALITE_AREA_DATA=summary RISALITE_RUNS_DIR=/home/ubuntu/data/risalite/runs \
+NEBIUS_API_KEY='<NEBIUS_API_KEY secret reference>' \
+TAVILY_API_KEY='<TAVILY_API_KEY secret reference>' \
+uv run --python 3.11 uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000/>, ask **“Wo in Kreuzberg sollte ich ein Café eröffnen?”**, review the proposed area and research plan, then approve it to start the run. The planner resolves the area; data and scoring v2 prepare PLR cells; wave-1 and wave-2 researchers gather evidence; fact-checking verifies findings; the skeptic challenges risks; ranking scores the cells; and the writer produces the report. Citations use evidence-ledger IDs (`[ev_…]` for web sources and `[ds_…]` for datasets).
+
+Each `RISALITE_RUNS_DIR/<run_id>/` contains the report, result, plan, cells, evidence ledger, findings, fact-check output, event and trace logs, metrics, and run metadata (for example, `report.md`, `result.json`, `plan.json`, `cells.json`, `evidence.jsonl`, `findings.jsonl`, `factcheck.json`, `events.jsonl`, `trace.jsonl`, `metrics.json`, and `run.json`).
+
+For an offline run with local snapshots, set `RISALITE_RESEARCH_FAKE=1`; this uses deterministic fake research instead of Nebius or Tavily calls.
 
 Check the citations of a run (report marker → ledger entry → URL resolves → quote re-matches):
 
@@ -47,6 +88,58 @@ cd backend && uv run python ../scripts/verify_citations.py ../frontend/fixtures 
 | `matching.py` | Shared quote matcher: verified ≥ 0.85, partial ≥ 0.60 |
 | `factcheck.py` | Re-fetch per source (Tavily extract / HTTP with per-hop SSRF checks / allow-listed WFS + Overpass re-query / snapshot re-read); writes `factcheck.json`, `findings.jsonl` verification, `fact_check` trace events, strips uncited markers from `report.md` and appends "Could not verify" |
 | `judge.py` | Score used by `scripts/verify_citations.py` |
+## Data connectors
+
+The backend imports each dataset into an immutable local snapshot with provenance (source URL, retrieval time, licence, attribution, quality report). Nothing is downloaded at query time. Configurations live in [`backend/config/datasets/`](backend/config/datasets/); design rules are in the [connector blueprint](CONNECTOR_BLUEPRINT.md).
+
+- `ingest <dataset>` prints a manifest with its `snapshot_id`. Pin a boundary edition with `--lor-snapshot <id>`, or import a previously downloaded file with `--file <path>`. A failed import leaves the previous snapshot active.
+- Every `records` and API query takes an explicit `snapshot_id`. Global options such as `--data-dir` go **before** the subcommand; `LOCATION_DATA_DIR` sets the store for CLI and API.
+- No API keys are needed for these datasets. Live provider tests are opt-in: `RUN_LIVE_TESTS=1 uv run pytest -m live tests/live`.
+
+### Datasets
+
+| Dataset ID | What it contains | Import first | How to query | Details |
+|---|---|---|---|---|
+| `berlin_lor` | 542 LOR Planungsräume (boundaries, WGS84) | — | `records`; base for every area join | [docs](backend/README.md#import-the-official-data) |
+| `berlin_lor_names` | Official names of Planungsraum, Bezirksregion, Prognoseraum, Bezirk | `berlin_lor` | `records --area-code` | [docs](backend/README.md#official-lor-names-berlin_lor_names-berlin_wfs) |
+| `berlin_population` | Registered residents per Planungsraum (age bands) | `berlin_lor` | `records --metric-code population_total` | [docs](backend/README.md#inspect-snapshots) |
+| `berlin_population_density_blocks` | Residents per block (Umweltatlas 2023); 0–2 residents suppressed, not 0 | `berlin_lor` | `records` | [docs](backend/README.md#population-density-blocks-berlin_population_density_blocks) |
+| `berlin_households` | 27 household-structure metrics per Planungsraum (2025-12-31) | `berlin_lor` | `records --metric-code` | [docs](backend/README.md#berlin-household-profiles-berlin_households) |
+| `berlin_population_forecast` | Population forecast 2024–2040 per Prognoseraum. **Import blocked** until reuse terms are confirmed | `berlin_lor` | `GET /api/v1/population-forecast/expected-change` | [docs](backend/README.md#berlin-population-forecast-berlin_population_forecast) |
+| `zensus_grid` | Census 2022 100 m population grid (not register population) | `berlin_lor` | `catchment zensus_grid --lon --lat --radius-m` | [docs](backend/README.md#zensus-2022-population-grid) |
+| `ihk_businesses` | IHK Berlin registered businesses (NACE) | `berlin_lor` | `records`; counted separately from OSM | [docs](backend/README.md#ihk-businesses-ihk_businesses) |
+| `osm_pois` | OSM points of interest from the pinned Geofabrik extract (`osm_pois_overpass`: optional small bbox) | — | `records` | [docs](backend/README.md#openstreetmap-points-of-interest) |
+| `vbb_gtfs` | VBB stops/stations and scheduled departures per time window (supply, not footfall) | — | `records` | [docs](backend/README.md#vbb-gtfs-scheduled-service-summaries) |
+| `berlin_traffic_volumes_2019` | Motor vehicles per day per road segment, 2019 (not pedestrians) | — | `records` | [docs](backend/README.md#road-traffic-volumes-2019-berlin_traffic_volumes_2019-berlin_wfs) |
+| `berlin_bicycle_counts` | Official bike counters, daily and window totals 2012–2025 (cyclists only) | — | `GET /api/v1/datasets/berlin_bicycle_counts/layers/counters` | [docs](backend/README.md#berlin-bicycle-counters-berlin_bicycle_counts) |
+| `berlin_kitas` | Kitas with permitted places (not vacancies) | `berlin_lor` | `GET /api/v1/childcare/facilities`, `/api/v1/childcare/areas` | [docs](backend/README.md#official-kita-registry-berlin_kitas-berlin_wfs) |
+| `berlin_parks` | Official green spaces and playgrounds | `berlin_lor` | `GET /api/v1/datasets/berlin_parks/green-spaces/nearby` | [docs](backend/README.md#official-green-spaces-and-playgrounds-berlin_parks-berlin_green_spaces) |
+| `berlin_centers` | StEP Zentren 2040 shopping centres and retail-park sites | `berlin_lor` | `GET /api/v1/datasets/berlin_centers/nearby` | [docs](backend/README.md#berlin-retail-centers-berlin_centers) |
+| `berlin_planning` | Development plans (Bebauungspläne) with procedure status | `berlin_lor` | `GET /api/v1/planning/plans/near`, `/in-area`, `/{plan_id}` | [docs](backend/README.md#berlin-development-plans-berlin_planning) |
+| `berlin_environment` | 9 Umweltgerechtigkeit indicator classes per Planungsraum (categories, no score) | `berlin_lor` | `records`; `GET /api/v1/datasets/berlin_environment/legend` | [docs](backend/README.md#berlin-environmental-indicators-berlin_environment) |
+| `berlin_addresses` | 402,756 official address points with Planungsraum | `berlin_lor` | `GET /api/v1/datasets/berlin_addresses/address-search` | [docs](backend/README.md#berlin-address-points) |
+| `berlin_mietspiegel_wohnlagen` | Mietspiegel 2026 Wohnlage (einfach/mittel/gut) per address; not income or rent | `berlin_lor`, `berlin_addresses` | `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage` | [docs](backend/README.md#berlin-mietspiegel-2026-address-level-wohnlagen) |
+| `berlin_alkis_buildings` | ALKIS building footprints, function, storeys (bounded test area around Kottbusser Tor) | — | `GET /api/v1/datasets/berlin_alkis_buildings/at`, `/by-address`, `/buildings/{id}` | [docs](backend/README.md#alkis-building-footprints-berlin_alkis_buildings) |
+| `berlin_alkis_parcels` | ALKIS parcels with official area (bounded 5×5 km central area) | `berlin_lor` | `GET /api/v1/parcels/at`, `/in-bbox`, `/{parcel_id}`, `/{parcel_id}/relations` | [docs](backend/README.md#alkis-parcels-berlin_alkis_parcels) |
+
+All `records` commands also exist as `GET /api/v1/datasets/{dataset_id}/records?snapshot_id=...`.
+
+### Cross-dataset endpoints and services
+
+| Feature | How to use | Details |
+|---|---|---|
+| Area summary | `GET /api/v1/areas/{area_code}/summary`: population, OSM and IHK competitor counts (kept separate), nearest stations, each value with status, unit, source snapshot and date | [docs](backend/README.md#area-summary) |
+| Walking routes and reachable areas | Self-hosted Valhalla: `backend/routing/build_valhalla_graph.sh`, then `run_valhalla_service.sh`; `GET /api/v1/routing/walking/route`, `/reachable-area`, `/status` or `uv run location-routing ...` | [docs](backend/README.md#walking-routes-and-reachable-areas-valhalla) |
+| Research clients | Tavily search/extract and Nebius Token Factory; need `TAVILY_API_KEY`, `NEBIUS_API_KEY`, `NEBIUS_MODEL` | [docs](backend/README.md#research-adapters-tavily-nebius) |
+
+### Reading the data correctly
+
+- Missing or suppressed values are reported as such, never as 0.
+- OSM and IHK business counts are separate inventories; don't add them up.
+- Transit departures, road traffic and bike counts are not pedestrian footfall.
+- Straight-line distances are never walking times.
+- Development plans, addresses, buildings and parcels say nothing about vacancy, tenants, permitted use or rentable area. Wohnlage is not income or rent.
+- Census grid (`zensus_grid`) and register population (`berlin_population`) must not be mixed.
 
 ## Input flow (Gemini-Deep-Research-style)
 
