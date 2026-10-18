@@ -15,9 +15,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 
-COPY deep_research.py ./
+COPY deep_research.py ui.py ui.html ./
 
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin research
 USER research
+
+EXPOSE 8000
 
 ENTRYPOINT ["python", "deep_research.py"]
