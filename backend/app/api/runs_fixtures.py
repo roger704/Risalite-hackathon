@@ -28,6 +28,7 @@ from app.export import EXPORT_FORMATS, Mix, RunBundle, normalize_evidence
 router = APIRouter()
 RUNS: dict[str, dict] = {}
 RUNS_LOCK = RLock()
+LIVE_TASKS: set[asyncio.Task] = set()
 MAX_RUNS = 500
 IDLE_TTL = 3600
 SUPPORTED_AREAS = {"ortsteil:0202"}
@@ -694,7 +695,9 @@ async def approve(
         run["live_area_id"] = area_id
         run_dir = (Path(http_request.app.state.runs_dir) / run_id).resolve()
         run["live_run_dir"] = str(run_dir)
-        asyncio.create_task(_execute_live_run(run, run_dir))
+        task = asyncio.create_task(_execute_live_run(run, run_dir))
+        LIVE_TASKS.add(task)
+        task.add_done_callback(LIVE_TASKS.discard)
     return {"status": "approved"}
 
 
