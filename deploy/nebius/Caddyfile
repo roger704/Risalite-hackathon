@@ -7,6 +7,12 @@
         Referrer-Policy strict-origin-when-cross-origin
         X-Frame-Options DENY
     }
+    @homepage path /
+    handle @homepage {
+        rewrite * /landing/index.html
+        encode zstd gzip
+        reverse_proxy 127.0.0.1:8000
+    }
     @legacy_exports path /runs/*/export/*
     handle @legacy_exports {
         rewrite * /api/v1{uri}

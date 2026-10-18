@@ -1,4 +1,4 @@
-**[PROD — Open SpotWise](https://spotwise.81-85-0-244.sslip.io/)**
+**[PROD — SpotWise](https://spotwise.81-85-0-244.sslip.io/)** · [Launch research app](https://spotwise.81-85-0-244.sslip.io/app/)
 
 # Risalite — Agentic Deep Research for Berlin Locations
 
@@ -14,7 +14,7 @@
 
 **How it is built:** HTML/CSS/JavaScript, MapLibre GL and Leaflet in the browser; Python/FastAPI, GeoPandas, Shapely, and PyProj on the backend; GeoParquet/Parquet snapshots with a SQLite catalog for storage. DeepAgents research uses **Nebius Token Factory** for hosted models and **Tavily** for web search/extraction. The application runs on a laptop or CPU server.
 
-**Try it online:** [Open SpotWise — public judges' demo](https://spotwise.81-85-0-244.sslip.io/). Start with “Where is it smart to open a coffee place in Kreuzberg?”, review the plan, then approve it to run live research. No account is required. The review deployment allows one active run and 20 admitted runs in total, including validation runs; research uses real Nebius and Tavily credits.
+**Try it online:** [Explore the animated introduction](https://spotwise.81-85-0-244.sslip.io/) or [open the research app](https://spotwise.81-85-0-244.sslip.io/app/). Start with “Where is it smart to open a coffee place in Kreuzberg?”, review the plan, then approve it to run live research. No account is required. The review deployment allows one active run and 20 admitted runs in total, including validation runs; research uses real Nebius and Tavily credits.
 
 **Where we are:** the café workflow connects the demo dashboard to real data snapshots, deterministic scoring, live research agents, verification, maps, and exports. The app runs on a CPU-only Nebius server behind HTTPS. **Coming next:** stronger public-use controls, recovery for interrupted sessions, and broader property-level and childcare workflows. See the [status and roadmap](#status-and-roadmap) and [deployment guide](deploy/nebius/README.md).
 
@@ -173,7 +173,7 @@ Every reported fact should lead back to its dataset snapshot or original web sou
 | [Data sources research](DATA_SOURCES.md) | Free datasets, access methods, licensing, limitations, integration order |
 | [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
 | [Landing page](frontend/landing/README.md) | Animated, looping landing page: what Risalite is for, the workflow and the deliverables, in 10 seconds |
-| [Application frontend](frontend/app/README.md) | Demo design connected to the research API, served at `/`; replaces the standalone prototype |
+| [Application frontend](frontend/app/README.md) | Demo design connected to the research API, served publicly at `/app/`; replaces the standalone prototype |
 | [Backend setup guide](backend/README.md) | Per-connector import and query details, ingestion CLI, versioned snapshots, read API |
 | [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |

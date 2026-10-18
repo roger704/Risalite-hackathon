@@ -1,6 +1,6 @@
 # Public judges' deployment
 
-Public URL: **https://spotwise.81-85-0-244.sslip.io/**. The marketing page is at `/landing/`. Use the café location workflow for judging; the other examples need additional workflow-specific datasets and integration. Deployment prepared on 18 October 2026.
+Public homepage: **https://spotwise.81-85-0-244.sslip.io/**. The animated landing page introduces the project; **Try the demo** opens the research app at `/app/`. The landing page is also available at `/landing/`. Use the café location workflow for judging; the other examples need additional workflow-specific datasets and integration. Deployment prepared on 18 October 2026.
 
 | Resource | Value |
 |---|---|
@@ -17,7 +17,7 @@ Public URL: **https://spotwise.81-85-0-244.sslip.io/**. The marketing page is at
 
 The whole application runs on one dedicated Ubuntu 24.04 Nebius VM: `cpu-d3`, `2vcpu-8gb`, 40 GiB SSD, in the assigned hackathon project. It needs no GPU. Caddy terminates HTTPS and proxies the UI, API and streaming agent events to a single FastAPI worker listening only on `127.0.0.1:8000`.
 
-The `/runs/*/events` route bypasses response compression and flushes immediately so research progress reaches the browser while a run is active. Ordinary pages and API responses remain compressed.
+Caddy serves the landing page for the exact `/` path, while FastAPI serves the research app and its assets at `/app/`. API routes stay at their existing paths. The `/runs/*/events` route bypasses response compression and flushes immediately so research progress reaches the browser while a run is active. Ordinary pages and API responses remain compressed.
 
 Live downloads use `/api/v1/runs/{id}/export/{format}`. Caddy also forwards the older `/runs/{id}/export/{format}` URLs for browser sessions opened before this correction, preserving their authorization headers and selected layer mix.
 

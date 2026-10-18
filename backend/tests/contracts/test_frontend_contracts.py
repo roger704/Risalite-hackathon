@@ -39,8 +39,12 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
     assert 'class="search"' in response.text
     landing = client.get("/landing/")
     assert landing.status_code == 200
-    assert 'href="/"' in landing.text
+    assert 'href="/app/"' in landing.text
     assert "Try the demo" in landing.text
+    research_app = client.get("/app/")
+    assert research_app.status_code == 200
+    assert 'class="search"' in research_app.text
+    assert client.get("/app").url.path == "/app/"
     assert client.get("/mockup/index.html").status_code == 404
     assert client.get("/fixtures/cells.json").status_code == 200
     for asset in (
@@ -56,6 +60,7 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
         "/vendor/leaflet/images/marker-shadow.png",
     ):
         assert client.get(asset).status_code == 200
+        assert client.get("/app" + asset).status_code == 200
     assert client.get("/health").json() == {"status": "ok"}
 
 
