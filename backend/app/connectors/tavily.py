@@ -549,6 +549,7 @@ class TavilyClient:
         if cached:
             fetched_at, data = self._cache[key]
         else:
+            self.budget.consume_extract_urls(len(urls))
             data = await self._post("extract", payload, extract=True)
             fetched_at = self.clock()
             self._cache[key] = (fetched_at, data)
@@ -696,7 +697,7 @@ class TavilyClient:
             if self._cache_key(self._extract_payload(request, batch)) not in self._cache
         )
         if uncached_url_count:
-            self.budget.consume_extract_urls(uncached_url_count)
+            self.budget.ensure_extract_urls_available(uncached_url_count)
         batch_cached: list[bool] = []
         request_ids: list[str] = []
         credit_values: list[float] = []

@@ -207,13 +207,19 @@ class ResearchBudget:
             if used > limit:
                 raise ConfigError("Budget usage cannot exceed its cap")
 
-    def _consume(self, resource: str, amount: int, limit_name: str, used_name: str) -> None:
+    def _ensure_available(
+        self, resource: str, amount: int, limit_name: str, used_name: str
+    ) -> None:
         if type(amount) is not int or amount < 0:
             raise ConfigError(f"{resource} consumption must be a nonnegative integer")
         limit = getattr(self, limit_name)
         used = getattr(self, used_name)
         if used + amount > limit:
             raise BudgetExceededError(resource, limit, used)
+
+    def _consume(self, resource: str, amount: int, limit_name: str, used_name: str) -> None:
+        self._ensure_available(resource, amount, limit_name, used_name)
+        used = getattr(self, used_name)
         setattr(self, used_name, used + amount)
 
     def consume_search(self) -> None:
@@ -221,6 +227,9 @@ class ResearchBudget:
 
     def consume_extract_urls(self, n: int) -> None:
         self._consume("extract_urls", n, "max_extract_urls", "extract_urls_used")
+
+    def ensure_extract_urls_available(self, count: int) -> None:
+        self._ensure_available("extract_urls", count, "max_extract_urls", "extract_urls_used")
 
     def consume_inference_call(self) -> None:
         self._consume("inference_calls", 1, "max_inference_calls", "inference_calls_used")

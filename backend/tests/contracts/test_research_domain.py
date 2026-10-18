@@ -78,3 +78,14 @@ def test_budget_checks_before_incrementing_and_allows_final_token_overshoot():
     budget.record_tokens(3)
     assert budget.remaining_tokens() == 0
     assert budget.snapshot()["tokens_used"] == 3
+
+
+def test_extract_url_preflight_checks_availability_without_consuming_units():
+    budget = ResearchBudget(0, 3, 0, 0, extract_urls_used=1)
+    budget.ensure_extract_urls_available(2)
+    assert budget.extract_urls_used == 1
+
+    with pytest.raises(BudgetExceededError) as exc:
+        budget.ensure_extract_urls_available(3)
+    assert (exc.value.resource, exc.value.limit, exc.value.used) == ("extract_urls", 3, 1)
+    assert budget.extract_urls_used == 1

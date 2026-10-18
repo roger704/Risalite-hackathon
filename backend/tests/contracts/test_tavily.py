@@ -448,6 +448,36 @@ async def test_extract_budget_reserves_all_uncached_batches_before_http():
     with pytest.raises(BudgetExceededError):
         await connector.extract(ResearchExtract(urls))
     assert calls == 0
+    assert connector.budget.extract_urls_used == 0
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_charges_only_the_batch_sent_before_provider_failure():
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503)
+
+    async def no_wait(delay):
+        return None
+
+    urls = tuple(f"https://example.com/{index}" for index in range(21))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 21, 0, 0)
+    connector = TavilyClient(
+        config(max_retries=1, backoff_seconds=0),
+        budget,
+        client=http,
+        resolver=public_resolver,
+        sleep=no_wait,
+    )
+    with pytest.raises(SourceUnavailableError):
+        await connector.extract(ResearchExtract(urls))
+    assert calls == 2
+    assert budget.extract_urls_used == 20
     await http.aclose()
 
 
