@@ -890,6 +890,7 @@ function tipFor(r, ev) {
   let x = ev.clientX + off, y = ev.clientY + off;
   if (x + w + pad > innerWidth) x = ev.clientX - off - w;
   if (y + h + pad > innerHeight) y = ev.clientY - off - h;
+  y = Math.min(y, innerHeight - pad - h);
   tip.style.transform = `translate(${Math.round(Math.max(pad, x))}px,${Math.round(Math.max(pad, y))}px)`;
 }
 function hideTip() { $('#maptip').classList.remove('on'); tipKey = null; }
@@ -1165,6 +1166,7 @@ function renderPoint() {
   const S = P.space, hc = ['#0f766e', '#7c3aed', '#d97706', '#be185d'], hidx = Object.fromEntries(P.hypotheses.map((h, i) => [h.id, i]));
   $('#d-maparea').textContent = `the space, its PLR cell, and competitors within ${P.radius_m || 500} m`;
   show3D(false); $('#map-ctl').classList.add('hidden');
+  MAP2D_BOUNDS = null;
   resetMap().setView([S.lat, S.lon], 15);
   if (R.cells_geojson && S.cell_id) L.geoJSON(R.cells_geojson, { filter: f => String(f.properties?.id ?? f.id) === S.cell_id, style: { color: '#0f766e', weight: 2, fillColor: '#99f6e4', fillOpacity: .35 } }).addTo(map);
   L.circle([S.lat, S.lon], { radius: P.radius_m || 500, color: '#0b1720', weight: 1, dashArray: '4 3', fill: false }).addTo(map);

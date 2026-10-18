@@ -348,7 +348,7 @@ header .mode.mock{background:rgba(255,149,0,.14);color:#914100}
 @keyframes rankFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* Map hover tooltip (body-level, never clipped by the map frame). */
-.maptip{position:fixed;left:0;top:0;z-index:1100;pointer-events:none;width:max-content;min-width:230px;max-width:min(340px,calc(100vw - 20px));padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 12px 32px rgba(15,30,45,.22);font-size:12px;line-height:1.35;color:var(--ink);opacity:0;visibility:hidden;transition:opacity .12s,visibility .12s}
+.maptip{position:fixed;left:0;top:0;z-index:1100;pointer-events:none;width:max-content;min-width:230px;max-width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 20px);overflow:hidden;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 12px 32px rgba(15,30,45,.22);font-size:12px;line-height:1.35;color:var(--ink);opacity:0;visibility:hidden;transition:opacity .12s,visibility .12s}
 .maptip.on{opacity:1;visibility:visible}
 .tt-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .tt-h b{font-size:13px}
