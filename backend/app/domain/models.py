@@ -442,14 +442,439 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
+DEVELOPMENT_PLAN_STATUSES = frozenset(
+    {"in_progress", "adopted", "partially_in_force", "repealed", "unmapped"}
+)
+"""Coarse status values for Berlin development-plan procedures."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class DevelopmentPlan(Record):
+    """A Berlin development-plan procedure with WGS84 polygon geometry."""
+
+    geometry: dict[str, Any]
+    plan_id: str
+    name: str | None
+    status: str
+    raw_status: str | None
+    source_layer: str
+    district: str | None
+    plan_type: str | None
+    procedure_type: str | None
+    area_description: str | None
+    land_use_text: str | None
+    aufstellungsbeschluss_date: str | None
+    festsetzung_date: str | None
+    dates: dict[str, str]
+    document_urls: dict[str, str]
+    attributes: dict[str, str]
+    record_type: str = field(default="development_plan", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("plan_id", self.plan_id)
+        _text("source_layer", self.source_layer)
+        if self.status not in DEVELOPMENT_PLAN_STATUSES:
+            raise ValidationError(f"Unsupported development-plan status: {self.status}")
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Development-plan geometry must be a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Development-plan geometry must have coordinates")
+        for name in (
+            "name",
+            "raw_status",
+            "district",
+            "plan_type",
+            "procedure_type",
+            "area_description",
+            "land_use_text",
+            "aufstellungsbeschluss_date",
+            "festsetzung_date",
+        ):
+            _optional_text(name, getattr(self, name))
+        for name in ("dates", "document_urls", "attributes"):
+            value = getattr(self, name)
+            if not isinstance(value, dict) or any(
+                not isinstance(key, str) or not isinstance(item, str) for key, item in value.items()
+            ):
+                raise ValidationError(f"{name} must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ForecastObservation(Record):
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    metric_code: str
+    value: float | int
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    scenario: str
+    forecast_edition: str
+    base_period: str
+    age_min: int | None = None
+    age_max_exclusive: int | None = None
+    record_type: str = field(default="forecast_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("metric_code", self.metric_code)
+        _text("scenario", self.scenario)
+        _text("forecast_edition", self.forecast_edition)
+        if self.scenario not in {"middle", "upper", "lower"}:
+            raise ValidationError(f"Unsupported forecast scenario: {self.scenario}")
+        if self.hierarchy == "land":
+            valid_code = self.area_code == "11"
+        elif self.hierarchy == "bezirk":
+            valid_code = (
+                bool(re.fullmatch(r"\d{2}", self.area_code)) and 1 <= int(self.area_code) <= 12
+            )
+        elif self.hierarchy == "prognoseraum":
+            valid_code = (
+                bool(re.fullmatch(r"\d{4}", self.area_code)) and 1 <= int(self.area_code[:2]) <= 12
+            )
+        else:
+            valid_code = False
+        if not valid_code:
+            raise ValidationError(
+                f"Invalid area code {self.area_code!r} for hierarchy {self.hierarchy!r}"
+            )
+        for name in ("reference_period", "base_period"):
+            value = getattr(self, name)
+            try:
+                if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    raise ValueError
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        reference = date.fromisoformat(self.reference_period)
+        base = date.fromisoformat(self.base_period)
+        if reference < base:
+            raise ValidationError("reference_period cannot be before base_period")
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        expected_status = ValueStatus.OBSERVED if reference == base else ValueStatus.FORECAST
+        if status != expected_status:
+            raise ValidationError(
+                f"value_status must be {expected_status.value} for this reference_period"
+            )
+        object.__setattr__(self, "value_status", status)
+        if (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+        ):
+            raise ValidationError("Forecast value must be a finite nonnegative number")
+        if self.unit not in {"persons", "thousand_persons"}:
+            raise ValidationError(f"Unsupported forecast unit: {self.unit}")
+        _text("unit", self.unit)
+        lower, upper = self.age_min, self.age_max_exclusive
+        if lower is None and upper is not None:
+            raise ValidationError("Age bounds must both be null for totals or have an age_min")
+        if lower is not None and (
+            isinstance(lower, bool) or not isinstance(lower, int) or lower < 0
+        ):
+            raise ValidationError("age_min must be a nonnegative integer or null")
+        if upper is not None and (
+            isinstance(upper, bool) or not isinstance(upper, int) or lower is None or upper <= lower
+        ):
+            raise ValidationError("age_max_exclusive must be greater than age_min or null")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResidentialLocationClass(Record):
+    geometry: dict[str, Any]
+    address_key: str
+    street_code: str
+    house_number: int
+    house_number_suffix: str | None
+    house_number_label: str
+    street_name: str | None
+    postcode: str | None
+    district_name: str | None
+    planning_area_name: str | None
+    east_west_marker: str | None
+    wohnlage_class: str | None
+    class_status: str
+    source_label: str | None
+    edition: str
+    valid_from: str
+    valid_to: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="residential_location_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("address_key", self.address_key)
+        if not re.fullmatch(r"\d{8}[A-Z]{0,2}", self.address_key):
+            raise ValidationError("address_key must be an 8-digit key with optional suffix")
+        if not re.fullmatch(r"\d{5}", self.street_code):
+            raise ValidationError("street_code must contain five digits")
+        if type(self.house_number) is not int or not 0 <= self.house_number <= 999:
+            raise ValidationError("house_number must be an integer from 0 to 999")
+        _optional_text("house_number_suffix", self.house_number_suffix)
+        if self.house_number_suffix is not None and not re.fullmatch(
+            r"[A-Z]{1,2}", self.house_number_suffix
+        ):
+            raise ValidationError("house_number_suffix must be one or two uppercase letters")
+        _text("house_number_label", self.house_number_label)
+        if self.house_number_label != f"{self.house_number:03d}{self.house_number_suffix or ''}":
+            raise ValidationError("house_number_label does not match its numeric and suffix fields")
+        if self.address_key != f"{self.street_code}{self.house_number_label}":
+            raise ValidationError("address_key does not match street code and house number")
+        if self.source_record_id != self.address_key:
+            raise ValidationError("source_record_id must equal address_key")
+        if not isinstance(self.valid_from, str) or self.record_id != (
+            f"wohnlage:{self.valid_from[:4]}:{self.address_key}"
+        ):
+            raise ValidationError("record_id must use the Wohnlage edition year and address key")
+        for name in (
+            "street_name",
+            "postcode",
+            "district_name",
+            "planning_area_name",
+            "east_west_marker",
+            "wohnlage_class",
+            "source_label",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.class_status not in {"assigned", "unassigned", "unmapped"}:
+            raise ValidationError("class_status must be assigned, unassigned or unmapped")
+        if self.class_status == "assigned":
+            if (
+                self.wohnlage_class not in {"einfach", "mittel", "gut"}
+                or self.source_label != self.wohnlage_class
+            ):
+                raise ValidationError("assigned Wohnlage records require a known class")
+        elif self.wohnlage_class is not None:
+            raise ValidationError("unassigned or unmapped records cannot have a class")
+        if self.class_status == "unassigned" and self.source_label is not None:
+            raise ValidationError("unassigned records cannot have an original class label")
+        if self.class_status == "unmapped" and (
+            self.source_label is None or self.source_label in {"einfach", "mittel", "gut"}
+        ):
+            raise ValidationError("unmapped records require an unknown original source label")
+        _text("edition", self.edition)
+        for name in ("valid_from", "valid_to"):
+            try:
+                date.fromisoformat(getattr(self, name))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        if self.valid_from > self.valid_to:
+            raise ValidationError("valid_from cannot be after valid_to")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class AreaIndicatorClass(Record):
+    """Ordinal class a published indicator assigns to an area; not a numeric measurement."""
+
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    indicator_code: str
+    class_code: str | None
+    class_label: str | None
+    class_rank: int | None
+    class_count: int
+    rank_direction: str
+    reference_period: str
+    value_status: ValueStatus | str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="area_indicator_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("indicator_code", self.indicator_code)
+        _text("rank_direction", self.rank_direction)
+        _period(self.reference_period)
+        if type(self.class_count) is not int or self.class_count < 1:
+            raise ValidationError("class_count must be a positive integer")
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status == ValueStatus.FORECAST:
+            raise ValidationError("Area indicator classes cannot be forecasts")
+        if status in {
+            ValueStatus.MISSING,
+            ValueStatus.SUPPRESSED,
+            ValueStatus.NOT_APPLICABLE,
+        }:
+            if any(
+                value is not None for value in (self.class_code, self.class_label, self.class_rank)
+            ):
+                raise ValidationError("Missing classes must have null class fields")
+        else:
+            _text("class_code", self.class_code)
+            _text("class_label", self.class_label)
+            if type(self.class_rank) is not int or not 1 <= self.class_rank <= self.class_count:
+                raise ValidationError("class_rank must be within 1..class_count")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class GridObservation(Record):
+    geometry: dict[str, Any]
+    grid_id: str
+    grid_crs: str
+    resolution_m: int
+    metric_code: str
+    value: float | int | None
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    area_code: str | None = None
+    record_type: str = field(default="grid_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") != "Polygon":
+            raise ValidationError("Grid geometry must be a GeoJSON Polygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("Grid geometry must have coordinates")
+        for ring in coordinates:
+            if not isinstance(ring, (list, tuple)) or not ring:
+                raise ValidationError("Grid geometry must have polygon coordinate rings")
+            for position in ring:
+                if (
+                    not isinstance(position, (list, tuple))
+                    or len(position) != 2
+                    or any(
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not isfinite(value)
+                        for value in position
+                    )
+                ):
+                    raise ValidationError("Grid coordinates must be finite WGS84 positions")
+                longitude, latitude = position
+                if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+                    raise ValidationError("Grid coordinates must be WGS84 longitude/latitude")
+        for name in ("grid_id", "grid_crs", "metric_code", "unit"):
+            _text(name, getattr(self, name))
+        if type(self.resolution_m) is not int or self.resolution_m <= 0:
+            raise ValidationError("resolution_m must be a positive integer")
+        _period(self.reference_period)
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status in {ValueStatus.MISSING, ValueStatus.SUPPRESSED, ValueStatus.NOT_APPLICABLE}:
+            if self.value is not None:
+                raise ValidationError("Missing, suppressed and not-applicable values must be null")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+        ):
+            raise ValidationError("Observed, estimated and forecast values must be finite numbers")
+        _optional_text("area_code", self.area_code)
+
+
+@dataclass(frozen=True, kw_only=True)
+class Facility(Record):
+    """A registered facility at a WGS84 point. Capacity and vacancies are nullable;
+    a present value needs its own definition and ISO reference date."""
+
+    geometry: dict[str, Any]
+    facility_type: str
+    provider_facility_id: str
+    original_category: str
+    category_mapping_version: str
+    canonical_category: str | None = None
+    name: str | None = None
+    capacity: int | None = None
+    capacity_definition: str | None = None
+    capacity_reference_date: str | None = None
+    vacancies: int | None = None
+    vacancies_reference_date: str | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="facility", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "facility_type",
+            "provider_facility_id",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("canonical_category", "name", "capacity_definition", "area_code"):
+            _optional_text(name, getattr(self, name))
+        for value, reference in (
+            ("capacity", "capacity_reference_date"),
+            ("vacancies", "vacancies_reference_date"),
+        ):
+            _optional_count(value, getattr(self, value))
+            reference_date = getattr(self, reference)
+            if reference_date is not None:
+                try:
+                    date.fromisoformat(reference_date)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{reference} must be an ISO calendar date") from exc
+            if getattr(self, value) is not None and reference_date is None:
+                raise ValidationError(f"{value} requires {reference}")
+        if self.capacity is not None and self.capacity_definition is None:
+            raise ValidationError("capacity requires capacity_definition")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord: TypeAlias = (
+    Area
+    | AreaObservation
+    | ForecastObservation
+    | Place
+    | Business
+    | TransitStop
+    | StopService
+    | DevelopmentPlan
+    | AreaIndicatorClass
+    | GridObservation
+    | Facility
+    | ResidentialLocationClass
+)
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
+    "forecast_observation": ForecastObservation,
     "place": Place,
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "residential_location_class": ResidentialLocationClass,
+    "development_plan": DevelopmentPlan,
+    "area_indicator_class": AreaIndicatorClass,
+    "grid_observation": GridObservation,
+    "facility": Facility,
 }
 
 
@@ -579,3 +1004,258 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class MobilityObservation(Record):
+    """Counted traffic at one fixed counter for an explicit local interval.
+
+    A count measures the stated mode at that location only; it is not footfall,
+    customers or revenue and must not be projected onto other streets.
+    """
+
+    geometry: dict
+    location_id: str
+    location_name: str
+    mode: str
+    metric_code: str
+    unit: str
+    aggregation: str
+    interval_start: str
+    interval_end: str
+    timezone: str
+    measurement_status: str
+    value: int | float | None = None
+    value_status: ValueStatus = ValueStatus.MISSING
+    direction: str | None = None
+    window_id: str | None = None
+    expected_intervals: int = 0
+    observed_intervals: int = 0
+    reconstructed_intervals: int = 0
+    implausible_intervals: int = 0
+    missing_intervals: int = 0
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="mobility_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "location_id",
+            "location_name",
+            "mode",
+            "metric_code",
+            "unit",
+            "aggregation",
+            "interval_start",
+            "interval_end",
+            "timezone",
+            "measurement_status",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("direction", "window_id", "area_code"):
+            _optional_text(name, getattr(self, name))
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        null_status = status in {
+            ValueStatus.MISSING,
+            ValueStatus.NOT_APPLICABLE,
+            ValueStatus.SUPPRESSED,
+        }
+        if self.value is None:
+            if not null_status:
+                raise ValidationError("A null mobility value requires a null value_status")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+            or null_status
+        ):
+            raise ValidationError("Mobility values must be nonnegative finite numbers")
+        for name in (
+            "expected_intervals",
+            "observed_intervals",
+            "reconstructed_intervals",
+            "implausible_intervals",
+            "missing_intervals",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{name} must be a nonnegative integer")
+        if (
+            self.observed_intervals
+            + self.reconstructed_intervals
+            + self.implausible_intervals
+            + self.missing_intervals
+            != self.expected_intervals
+        ):
+            raise ValidationError("Mobility interval counts must sum to expected_intervals")
+        if self.aggregation not in {"day", "window"}:
+            raise ValidationError("aggregation must be day or window")
+        if self.aggregation == "window" and self.window_id is None:
+            raise ValidationError("Window observations require a window_id")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["mobility_observation"] = MobilityObservation
+
+
+@dataclass(frozen=True, kw_only=True)
+class RoadTrafficSegment(Record):
+    """Road segment with average daily motor-vehicle traffic (vehicles/day); WGS84 line geometry."""
+
+    geometry: dict[str, Any]
+    reference_period: str
+    dtv_motor_vehicles_per_day: int | None = None
+    vehicle_class_volumes_per_day: dict[str, int] = field(default_factory=dict)
+    name: str | None = None
+    source_length_m: int | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="road_traffic_segment", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _period(self.reference_period)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"LineString", "MultiLineString"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Road traffic geometry must have LineString coordinates")
+        _optional_count("dtv_motor_vehicles_per_day", self.dtv_motor_vehicles_per_day)
+        _optional_count("source_length_m", self.source_length_m)
+        for name in ("name", "area_code"):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.vehicle_class_volumes_per_day, dict) or any(
+            not isinstance(key, str)
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            for key, value in self.vehicle_class_volumes_per_day.items()
+        ):
+            raise ValidationError(
+                "vehicle_class_volumes_per_day must map strings to nonnegative integers"
+            )
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
+NormalizedRecord = NormalizedRecord | RoadTrafficSegment
+
+
+POPULATION_BLOCK_AGE_BANDS = (
+    "0-6",
+    "6-10",
+    "10-18",
+    "18-65",
+    "65-70",
+    "70-75",
+    "75-80",
+    "80+",
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PopulationBlock(Record):
+    """Umweltatlas ISU5 block (or block part) with registered residents as published."""
+
+    geometry: dict[str, Any]
+    block_id: str
+    area_ha: float
+    residents: int | None
+    residents_status: ValueStatus | str
+    density_per_ha: float | None
+    reference_period: str
+    residents_by_age: dict[str, int | None] = field(default_factory=dict)
+    land_use_type: str | None = None
+    land_use_type_en: str | None = None
+    area_code: str | None = None
+    hierarchy: str | None = None
+    boundary_edition: str | None = None
+    area_overlap_share: float | None = None
+    record_type: str = field(default="population_block", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("block_id", self.block_id)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"Polygon", "MultiPolygon"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Population block geometry must be a polygon with coordinates")
+        if (
+            isinstance(self.area_ha, bool)
+            or not isinstance(self.area_ha, (int, float))
+            or not isfinite(self.area_ha)
+            or self.area_ha <= 0
+        ):
+            raise ValidationError("area_ha must be a finite positive number")
+        try:
+            status = ValueStatus(self.residents_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported residents_status: {self.residents_status}") from exc
+        if status not in {ValueStatus.OBSERVED, ValueStatus.SUPPRESSED}:
+            raise ValidationError("residents_status must be observed or suppressed")
+        object.__setattr__(self, "residents_status", status)
+        if status is ValueStatus.OBSERVED:
+            if type(self.residents) is not int or self.residents < 0:
+                raise ValidationError("Observed residents must be a nonnegative integer")
+            if (
+                isinstance(self.density_per_ha, bool)
+                or not isinstance(self.density_per_ha, (int, float))
+                or not isfinite(self.density_per_ha)
+                or self.density_per_ha < 0
+            ):
+                raise ValidationError("Observed density_per_ha must be finite and nonnegative")
+        elif (
+            self.residents is not None
+            or self.density_per_ha is not None
+            or bool(self.residents_by_age)
+        ):
+            raise ValidationError("Suppressed population values and age bands must be missing")
+        if not isinstance(self.residents_by_age, dict):
+            raise ValidationError("residents_by_age must be an object")
+        if any(key not in POPULATION_BLOCK_AGE_BANDS for key in self.residents_by_age):
+            raise ValidationError("residents_by_age contains an unsupported age band")
+        if self.residents_by_age and set(self.residents_by_age) != set(POPULATION_BLOCK_AGE_BANDS):
+            raise ValidationError("residents_by_age must be empty or contain every age band")
+        if any(
+            value is not None and (type(value) is not int or value < 0)
+            for value in self.residents_by_age.values()
+        ):
+            raise ValidationError("Age-band residents must be nonnegative integers or missing")
+        _period(self.reference_period)
+        for name in ("land_use_type", "land_use_type_en"):
+            _optional_text(name, getattr(self, name))
+        parent_values = (self.area_code, self.hierarchy, self.boundary_edition)
+        if any(value is not None for value in (*parent_values, self.area_overlap_share)):
+            if any(value is None for value in (*parent_values, self.area_overlap_share)):
+                raise ValidationError("Parent assignment fields must be all set or all missing")
+            _area_keys(*parent_values)
+            share = self.area_overlap_share
+            if (
+                isinstance(share, bool)
+                or not isinstance(share, (int, float))
+                or not isfinite(share)
+                or not 0 < share <= 1
+            ):
+                raise ValidationError("area_overlap_share must be finite and in (0, 1]")
+
+
+RECORD_TYPES["population_block"] = PopulationBlock
+NormalizedRecord = NormalizedRecord | PopulationBlock

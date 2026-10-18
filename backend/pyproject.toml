@@ -23,6 +23,7 @@ dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.9,<1"]
 
 [project.scripts]
 location-data = "app.cli.main:main"
+location-routing = "app.cli.routing:main"
 
 [build-system]
 requires = ["hatchling"]

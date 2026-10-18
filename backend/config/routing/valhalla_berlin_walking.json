@@ -1,0 +1,68 @@
+{
+  "routing_id": "valhalla_berlin_walking",
+  "engine": "valhalla",
+  "engine_version": "3.9.1-7fd2228e5",
+  "engine_license_id": "MIT",
+  "engine_license_url": "https://github.com/valhalla/valhalla/blob/master/COPYING",
+  "container_image": "ghcr.io/valhalla/valhalla-scripted@sha256:c58f9d72ab8c99453dad83da8f0c3df483a1f577243d54d43d9dd1443de1dac5",
+  "base_url": "http://127.0.0.1:8002",
+  "allowed_hosts": ["127.0.0.1", "localhost", "valhalla"],
+  "denied_hosts": ["valhalla1.openstreetmap.de", "valhalla.openstreetmap.de"],
+  "graph": {
+    "source_url": "https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf",
+    "source_sha256": "3ac2970b662434290d9c42f3bd98c6be1b57b20f697533c99a28124be2e52cf6",
+    "source_edition": "2026-10-17",
+    "landing_url": "https://download.geofabrik.de/europe/germany/berlin.html",
+    "license_id": "ODbL-1.0",
+    "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+    "attribution": "© OpenStreetMap contributors, ODbL 1.0, https://www.openstreetmap.org/copyright; Berlin extract by Geofabrik GmbH.",
+    "manifest_path": null,
+    "coverage_bbox": [13.0, 52.3, 13.9, 52.8]
+  },
+  "profile": {
+    "profile_id": "walking_default_v1",
+    "costing": "pedestrian",
+    "costing_options": {
+      "walking_speed": 5.1,
+      "use_ferry": 0.0
+    },
+    "location_options": {
+      "minimum_reachability": 50,
+      "radius": 0
+    },
+    "isochrone": {
+      "generalize": 10,
+      "denoise": 1.0
+    }
+  },
+  "limits": {
+    "max_snap_distance_m": 150,
+    "max_route_straight_line_m": 10000,
+    "max_isochrone_minutes": 30,
+    "max_contours": 4,
+    "max_requests": 500,
+    "max_concurrency": 2,
+    "timeout_seconds": 10,
+    "status_ttl_seconds": 60,
+    "budget_window_seconds": 3600,
+    "max_response_bytes": 20000000
+  },
+  "assumptions": [
+    "Walking speed is 5.1 km/h on the OSM pedestrian network from extract 2026-10-17.",
+    "Input coordinates are normalized to six decimal places before routing and cache lookup.",
+    "Waiting at crossings and signals is not modelled; the graph was built without elevation.",
+    "Ferry segments may be included and are flagged as includes_ferry.",
+    "Barriers and access restrictions reflect OSM tags at the extract date; Valhalla pedestrian costing honours barrier nodes and access=no/private.",
+    "Snaps beyond 150 m are rejected.",
+    "Isochrones are grid-derived approximations with 10 m generalization and denoise 1.0; only the largest polygon per contour is retained, so small separate reachable pockets are dropped."
+  ],
+  "limitations": [
+    "Estimated walking time is not measured travel time.",
+    "Temporary closures, construction, indoor or station passages, and step-free accessibility are not modelled.",
+    "Straight-line distance is never walking time.",
+    "The public demo server (valhalla1.openstreetmap.de) has a fair-use policy and is not a production backend.",
+    "Free software and data do not imply free hosting: graph build requires about 1.7 GB peak RAM and 30 seconds and produces about 165 MB of tiles on this VM; service RSS is about 76 MB idle.",
+    "ODbL share-alike obligations apply to derived data.",
+    "Graph coverage is limited to the Geofabrik Berlin extract; points just outside Berlin, such as Potsdam, may fail to snap."
+  ]
+}

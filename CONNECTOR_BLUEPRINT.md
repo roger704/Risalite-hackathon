@@ -56,6 +56,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `berlin_kitas` | Berlin WFS | `Facility` | Next | Weekly |
 | `berlin_households` | Tabular file | `AreaObservation` | Next | Monthly check for new period |
 | `berlin_addresses` | Berlin WFS | `Address` | Next | Monthly |
+| `berlin_mietspiegel_wohnlagen` | Berlin WFS | `ResidentialLocationClass` | Next | Check each Mietspiegel edition |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
 | `berlin_centers` | Berlin WFS | `Area` | Next | Monthly |
 | `berlin_population_forecast` | Tabular file | `AreaObservation` with scenario | Next | Monthly check for new edition |
@@ -234,6 +235,12 @@ Public servers apply shared-resource limits; cache broad extractions and follow 
 
 The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_assets/stadtdaten/geoportal/aktuelles/austausch-diente-server-allgemein.pdf?ts=1691689866) show the current service URL pattern. Resolve actual endpoints through the dataset listing rather than copying obsolete FIS-Broker URLs.
 
+#### Address-level Mietspiegel Wohnlagen (`berlin_mietspiegel_wohnlagen`)
+
+The Berlin WFS source supplies address points and the 2026 official classes `einfach`, `mittel`, and `gut`. `ResidentialLocationClass` stores the source address key, address labels, WGS84 point, class status, edition, validity, and source provenance. The read endpoint is `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage`; callers provide a Wohnlagen `snapshot_id` and exactly one address key, street/house-number tuple, or address-snapshot/address-id pair. Responses distinguish `matched`, `matched_unclassified`, `not_found`, `not_joinable`, and `ambiguous`. An ambiguous candidate is not selected as a class.
+
+Address joins use the source key rule `five-digit street code + three-digit zero-padded house number + optional uppercase suffix`. The data are the official address-level classification, not a rent lookup: no rent-table values are imported, and the class must not be interpreted as income, purchasing power, commercial suitability, footfall, or shop rent. The official Mietspiegel [Wohnlagen explanation](https://mietspiegel.berlin.de/berliner-mietspiegel/erlaeuterungen-zum-mietspiegel/wohnlagen/) describes the classification. Its legally authoritative assignment is the official Straßenverzeichnis; generalized map colors are not a basis for inferring an address class. The classification is valid 2026-05-28 through 2028-05-28, and its existence for an address does not mean a particular dwelling falls within the Mietspiegel's scope. East/West is the source's former east/west rent-table marker, not a current district. Address shares are not population-weighted; edition is pinned from the service/configuration because the provider has no edition property, and raw WFS hashes can vary between downloads.
+
 ### C. LOR, Population, Households, and Forecasts
 
 **Access:** [LOR boundaries](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [population](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), and [households](https://www.statistik-berlin-brandenburg.de/a-i-17-j/).
@@ -262,7 +269,7 @@ The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_ass
 - Import `agency`, `stops`, `routes`, `trips`, and `stop_times`; apply `calendar` and/or `calendar_dates` as required by the feed. Retain service validity and timezone.
 - Check foreign keys and distinguish stations, platforms, and entrances. Deduplicate candidate-area service counts by documented trip/station rules.
 - Evaluate an explicit service date and time window, honoring exceptions and times after `24:00:00`. Handle frequency-based service if present; label estimates where schedules are not exact.
-- Compute straight-line stop distance first and label it accordingly. Walking times require a separately validated pedestrian network/routing method.
+- Compute straight-line stop distance first and label it accordingly. Walking times require a separately validated pedestrian network/routing method; see §I.
 - Scheduled departures measure service supply, not passenger footfall. Do not infer wheelchair access from a missing accessibility field.
 - Keep GTFS-RT optional. Its failures do not invalidate the static feed or a ranking based on scheduled accessibility.
 
@@ -296,15 +303,24 @@ Confirm endpoint and account capabilities against the [Nebius API documentation]
 - **Mobility/weather:** Preserve station or segment coverage, units, and intervals. A station nearby does not automatically measure conditions at a candidate premises.
 - **Reference documents:** Store URL plus page/section locator and extraction status. Manually curated excerpts are acceptable for the hackathon when automated extraction is unreliable, with the method disclosed.
 
+### I. Walking Routing Extension (Valhalla)
+
+Valhalla is a self-hosted routing-service adapter, not a dataset-registry entry. A reviewed routing config pins the Valhalla image/version, Geofabrik Berlin OSM graph source and edition, pedestrian profile, coverage, request limits, licenses, assumptions, and limitations. Walking route and reachable-area contracts preserve snapped locations, graph/profile provenance, and distinct `network_walking_estimate` / `network_walking_isochrone_estimate` measures; unreachable and invalid-snap results remain explicit rather than being turned into network distances.
+
+The SQLite routing cache is keyed by route/area kind, graph version, profile hash, rounded WGS84 coordinates, and requested contours. A graph rebuild or profile change therefore produces a separate cache namespace. The graph carries ODbL attribution/share-alike obligations; the Valhalla engine is MIT-licensed.
+
+For spatial metrics (§4.2), straight-line distance in EPSG:25833 remains the default proximity metric and is always reported alongside walking route estimates; the two are labelled separately. LOR observations are never reallocated to isochrones as measured counts. For VBB (§E), walking access to stops can use this routing method instead of straight-line buffers; scheduled service still comes from GTFS. Walking-plus-transit multimodal routing is out of scope.
+
 ## 7. API and Agent Tool Boundary
 
-Dataset listing, manifest, and record routes below are implemented under `/api/v1`, with OpenAPI available at `/docs` and `/openapi.json`. Analysis, evidence, and event routes remain proposed contracts.
+Dataset listing, manifest, record, and area-summary routes below are implemented under `/api/v1`, with OpenAPI available at `/docs` and `/openapi.json`. Analysis, evidence, and event routes remain proposed contracts.
 
 | Route | Behavior |
 |---|---|
 | `GET /api/v1/datasets` | List registered datasets, access-validation states, latest valid snapshots, freshness, coverage, and attribution |
 | `GET /api/v1/datasets/{dataset_id}/snapshots/{snapshot_id}` | Read an immutable manifest and quality summary |
 | `GET /api/v1/datasets/{dataset_id}/records` | Query a required `snapshot_id`, supported filters, `limit`, and opaque cursor |
+| `GET /api/v1/areas/{area_code}/summary` | One frontend-ready Planungsraum summary (schema `1.0`, calculation `area_summary_v1`) built from pinned LOR, name, population, OSM, IHK, and GTFS snapshots; see [Area Summary](#area-summary) |
 | `POST /api/v1/analyses` | Validate a use case and area; pin snapshots; create an analysis and return `202` with a status URL |
 | `GET /api/v1/analyses/{analysis_id}` | Return status, ranked results when available, input snapshots, warnings, and missing metrics |
 | `GET /api/v1/analyses/{analysis_id}/evidence` | Paginated source records, passages, and claim-support relationships |
@@ -347,6 +363,75 @@ The following example is synthetic contract data; IDs and counts are illustrativ
 ```
 
 An empty result only establishes that this extraction has no matching records in the requested scope. It does not establish that no real-world competitors exist.
+
+### Area Summary
+
+`GET /api/v1/areas/{area_code}/summary` returns one Planungsraum (eight-digit LOR code, leading zeroes preserved) so the frontend does not assemble raw provider records. It reads only published local snapshots and never downloads.
+
+Query parameters: `category` (canonical category, default `coffee_shop`), `include_geometry` (default `true`), and optional pins `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_id`, `osm_snapshot_id`, `ihk_snapshot_id`, `gtfs_snapshot_id`. Unpinned datasets use the active valid snapshot and are reported with `pinned_by: "active_snapshot"`; any other query parameter is `422 UNSUPPORTED_FILTER`. The same snapshot IDs and parameters always return the same body; to make a frontend view reproducible, copy every `snapshots[].snapshot_id` back into the pins.
+
+| Situation | Result |
+|---|---|
+| No usable `berlin_lor` snapshot (required boundary) | `503 DATA_UNAVAILABLE` |
+| Area code not in the boundary snapshot | `404 AREA_NOT_FOUND`; unknown pinned snapshot is `404 SNAPSHOT_NOT_FOUND` |
+| Explicitly pinned snapshot built on another LOR snapshot/boundary edition | `409 SNAPSHOT_INCOMPATIBLE` |
+| Explicitly pinned snapshot whose files are missing or quality is invalid | `503 DATA_UNAVAILABLE` |
+| Optional dataset not imported, unusable, or (active, unpinned) incompatible | `200`; its section and `snapshots[]` entry have `status` `missing`, `unavailable`, or `incompatible`, values are `null`, and a `warnings[]` entry explains why |
+
+Top-level keys: `schema_version`, `summary_type`, `calculation_version`, `metric_crs` (`EPSG:25833`), `geometry_crs` (`EPSG:4326`), `parameters`, `area`, `residents`, `competitors`, `workplaces`, `transit`, `snapshots`, `not_integrated`, `not_provided`, `limitations`, `warnings`.
+
+Every metric is a field envelope `{value, status, unit, sources[{dataset_id, snapshot_id}], reference_period, calculation}`. `status` is `observed` (copied from a record), `derived` (computed here; `calculation` then carries `id`, `version`, and `method`), `missing`, `suppressed`, `not_applicable`, or `not_available`. Missing and suppressed values are `null`, never `0`; a true zero is `0` with status `observed` or `derived`.
+
+- `area`: code, hierarchy, boundary edition, WGS84 `boundary`, `area_km2` (`planar_area`, EPSG:25833), official `name` and attributes from `berlin_lor_names` when available.
+- `residents`: registered residents `total`, age-band `count` and `share` (`age_band_share`; `not_applicable` when the total is `0`, `suppressed` when an input is suppressed), and `density` (`residents_per_km2`).
+- `competitors`: one entry per source for the requested category, never summed (`combination: "not_combined"`): OSM mapped places counted by point-in-polygon in EPSG:25833, IHK registered businesses counted by their IHK-supplied `planungsraum_id`, each with record IDs and the category mapping version recorded on that snapshot's records (not the currently installed config). A source whose mapping lacks the category is `not_applicable`.
+- `workplaces`: derived counts of IHK registered businesses and of businesses per employee size class (bounded labels `employees_min`/`employees_max`); `measured_daytime_population` is always `not_available`. Size classes are not headcounts.
+- `transit`: scheduled departures per configured GTFS window summed over stations inside the area (timetable supply, not passengers), stops by GTFS `location_type`, a per-window `includes_frequency_estimates` flag (plus per-station `quality_flags`) when departures were estimated from `frequencies.txt` headways, and `nearest_station` with `distance_type: "straight_line"` (EPSG:25833, from the area's representative point). `routed_distance` is `not_available`; straight-line distance is not walking time.
+- `snapshots`: role, status, pin origin, snapshot ID, source edition, reference period, retrieval time, landing/resource URLs, license, attribution, parent IDs, and quality warnings for each dataset consulted.
+- `not_integrated` lists later datasets (retail centers, planning, households, forecasts, routed walking access, measured daytime population) that will be added as optional sections when their connectors land; the endpoint does not wait for them. `not_provided` lists figures this endpoint deliberately never produces: ranking, score, footfall, rent, revenue, vacancy, confidence.
+
+Synthetic frontend fixtures (all snapshots carry a `SYNTHETIC FIXTURE` quality warning) live in `backend/tests/fixtures/area_summary/`: `complete`, `optional_missing`, `suppressed`, `zero`, `incompatible_default`, `incompatible_snapshot`, `missing_required`. Tests regenerate and diff them.
+
+Frontend example (abridged from `complete.json`):
+
+```ts
+const params = new URLSearchParams({ category: "coffee_shop", include_geometry: "true" });
+const res = await fetch(`/api/v1/areas/01011101/summary?${params}`);
+if (!res.ok) throw new Error((await res.json()).error.code); // 404/409/422/503
+const s = await res.json();
+const label = s.area.name.value ?? s.area.area_code;           // name may be missing
+const residents = s.residents.total?.value;                      // null = missing/suppressed, show "n/a"
+const osm = s.competitors.sources.find((c) => c.dataset_id === "osm_pois");
+const distanceType = s.transit.nearest_station?.distance_type; // "straight_line" — never label as walking time
+```
+
+```json
+{
+  "schema_version": "1.0",
+  "summary_type": "area_summary",
+  "calculation_version": "area_summary_v1",
+  "parameters": {"area_code": "01011101", "category": "coffee_shop"},
+  "area": {
+    "area_code": "01011101",
+    "name": {"value": "Synthetic Alpha", "status": "observed", "unit": null, "reference_period": "2021-01-01",
+             "sources": [{"dataset_id": "berlin_lor_names", "snapshot_id": "berlin_lor_names-synthetic-1"}], "calculation": null},
+    "area_km2": {"value": 0.7552, "status": "derived", "unit": "km2", "reference_period": "2023-01-01",
+                 "sources": [{"dataset_id": "berlin_lor", "snapshot_id": "berlin_lor-synthetic-1"}],
+                 "calculation": {"id": "planar_area", "version": "area_summary_v1", "method": "Polygon area in EPSG:25833"}}
+  },
+  "residents": {"status": "available", "reference_date": "2026-06-30",
+                "total": {"value": 100, "status": "observed", "unit": "persons", "...": "..."}},
+  "competitors": {"category": "coffee_shop", "combination": "not_combined", "sources": [
+    {"dataset_id": "osm_pois", "inventory": "mapped_places", "status": "used", "count": {"value": 2, "status": "derived", "unit": "records", "...": "..."}},
+    {"dataset_id": "ihk_businesses", "inventory": "registered_businesses", "status": "used", "count": {"value": 2, "status": "derived", "unit": "records", "...": "..."}}
+  ]},
+  "transit": {"nearest_station": {"stop_id": "S1", "distance_type": "straight_line",
+                                  "distance": {"value": 67.9, "unit": "m", "status": "derived", "...": "..."}},
+              "routed_distance": {"value": null, "status": "not_available", "unit": "m", "...": "..."}},
+  "not_provided": ["ranking", "score", "footfall", "rent", "revenue", "vacancy", "confidence"],
+  "warnings": []
+}
+```
 
 ### Errors and Events
 
