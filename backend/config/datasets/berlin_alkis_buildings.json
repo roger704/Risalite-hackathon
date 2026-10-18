@@ -1,0 +1,94 @@
+{
+  "dataset_id": "berlin_alkis_buildings",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_alkis_buildings",
+  "landing_url": "https://www.berlin.de/sen/stadt/stadtdaten/geoinformation/liegenschaftskataster/geobasisdaten-online/datenbereitstellung/",
+  "resource_url": "https://gdi.berlin.de/services/wfs/alkis_gebaeude?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=alkis_gebaeude:gebaeude&OUTPUTFORMAT=application/json&SORTBY=uuid&CQL_FILTER=bezeich='AX_Gebaeude'%20AND%20BBOX(geom,391600,5817000,393600,5818600)",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "DL-DE-Zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin; ALKIS Gebäudeflächen, DL-DE-Zero-2.0; transformed to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2026-09-25",
+  "source_crs": "urn:ogc:def:crs:EPSG::25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "typename": "alkis_gebaeude:gebaeude",
+    "expected_crs": "urn:ogc:def:crs:EPSG::25833",
+    "page_size": 2000,
+    "max_pages": 20,
+    "max_total_bytes": 50000000,
+    "max_download_bytes": 10000000,
+    "expected_count_range": [
+      1931,
+      3587
+    ],
+    "expected_properties": [
+      "uuid",
+      "gfk",
+      "bezgfk",
+      "ofl",
+      "bezofl",
+      "aog",
+      "aug",
+      "hoh",
+      "bat",
+      "bezbat",
+      "nam",
+      "baw",
+      "bezbaw",
+      "zus",
+      "bezzus",
+      "gkn",
+      "des",
+      "bezdes",
+      "lag",
+      "namlag",
+      "hnr",
+      "pnr",
+      "lnr",
+      "bezeich",
+      "shape_area"
+    ],
+    "id_pattern": "^DEBE[0-9A-Za-z]{12}$",
+    "object_type": "AX_Gebaeude",
+    "extent": {
+      "name": "kreuzberg_kottbusser_tor",
+      "bbox_25833": [
+        391600,
+        5817000,
+        393600,
+        5818600
+      ],
+      "description": "Bounded Kreuzberg candidate area around Kottbusser Tor; WFS BBOX uses intersects semantics."
+    },
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "limitations": [
+      "Footprints come from the ALKIS live layer; the source edition is the metadata revision date 2026-09-25, not a pinned data edition.",
+      "Only AX_Gebaeude features are included; AX_Bauteil parts (including parts with own storeys, Keller, and Durchfahrt) are excluded.",
+      "Coverage is bounded to the configured extent with intersects semantics and is not citywide.",
+      "gfk/bezgfk is the cadastral building function, not current tenant, ground-floor use, vacancy, or permitted business use.",
+      "aog/aug are recorded storey counts where populated; null means unknown.",
+      "Footprint area is provider-computed ground-plan area; footprint area multiplied by storeys is not usable or rentable floor area.",
+      "namlag/pnr values are cadastral Lagebezeichnungen; a Pseudonummer is not the building's own address.",
+      "Distances are straight-line distances, not walking times.",
+      "Source checked 2026-10-18."
+    ]
+  }
+}

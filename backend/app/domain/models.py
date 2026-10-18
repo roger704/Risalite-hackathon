@@ -442,6 +442,81 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
+GREEN_SPACE_FEATURE_TYPES = frozenset({"green_space", "playground"})
+
+
+def _optional_area(name: str, value: Any) -> None:
+    if value is not None and (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not isfinite(value)
+        or value < 0
+    ):
+        raise ValidationError(f"{name} must be a nonnegative finite number or null")
+
+
+@dataclass(frozen=True, kw_only=True)
+class GreenSpace(Record):
+    """An official public green space or playground polygon (WGS84).
+
+    ``display_point`` is a derived marker position, never the feature itself.
+    ``adjacent_record_ids`` lists records of the other feature type in the same
+    snapshot whose polygons touch or overlap within the configured tolerance.
+    """
+
+    geometry: dict[str, Any]
+    display_point: dict[str, Any]
+    display_point_method: str
+    feature_type: str
+    original_category: str
+    category_mapping_version: str
+    geometry_area_m2: float
+    name: str | None = None
+    area_code: str | None = None
+    hierarchy: str | None = None
+    boundary_edition: str | None = None
+    source_area_m2: float | None = None
+    net_play_area_m2: float | None = None
+    adjacent_record_ids: tuple[str, ...] = ()
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="green_space", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("GreenSpace geometry must preserve a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("GreenSpace geometry must have coordinates")
+        _point(self.display_point)
+        for name in (
+            "display_point_method",
+            "original_category",
+            "category_mapping_version",
+        ):
+            _text(name, getattr(self, name))
+        if self.feature_type not in GREEN_SPACE_FEATURE_TYPES:
+            raise ValidationError(f"Unsupported green space feature_type: {self.feature_type}")
+        for name in ("name", "area_code", "hierarchy", "boundary_edition"):
+            _optional_text(name, getattr(self, name))
+        if self.area_code is not None and (self.hierarchy is None or self.boundary_edition is None):
+            raise ValidationError("area_code requires hierarchy and boundary_edition")
+        if self.geometry_area_m2 is None:
+            raise ValidationError("geometry_area_m2 is required")
+        for name in ("geometry_area_m2", "source_area_m2", "net_play_area_m2"):
+            _optional_area(name, getattr(self, name))
+        object.__setattr__(self, "adjacent_record_ids", tuple(self.adjacent_record_ids))
+        if any(not isinstance(value, str) or not value for value in self.adjacent_record_ids):
+            raise ValidationError("adjacent_record_ids must be nonempty strings")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
 DEVELOPMENT_PLAN_STATUSES = frozenset(
     {"in_progress", "adopted", "partially_in_force", "repealed", "unmapped"}
 )
@@ -635,6 +710,168 @@ class ForecastObservation(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Building(Record):
+    """An official ALKIS building footprint (WGS84 Polygon/MultiPolygon). Function is the cadastral
+    building function, not current use; storeys are recorded counts; no floor-area claim."""
+
+    geometry: dict[str, Any]
+    alkis_object_type: str
+    function_code: str | None = None
+    function_label: str | None = None
+    storeys_above_ground: int | None = None
+    storeys_below_ground: int | None = None
+    building_name: str | None = None
+    footprint_area_m2: float | None = None
+    street_codes: tuple[str, ...] = ()
+    address_labels: tuple[str, ...] = ()
+    address_reference_kind: str | None = None
+    source_url: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="building", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("alkis_object_type", self.alkis_object_type)
+        for name in ("function_code", "function_label", "building_name", "address_reference_kind"):
+            _optional_text(name, getattr(self, name))
+        _optional_text("source_url", self.source_url)
+        for name in ("storeys_above_ground", "storeys_below_ground"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValidationError(f"{name} must be a nonnegative integer or null")
+        area = self.footprint_area_m2
+        if area is not None and (
+            isinstance(area, bool)
+            or not isinstance(area, (int, float))
+            or not isfinite(area)
+            or area < 0
+        ):
+            raise ValidationError("footprint_area_m2 must be finite and nonnegative or null")
+        for name in ("street_codes", "address_labels"):
+            values = getattr(self, name)
+            if not isinstance(values, (tuple, list)) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValidationError(f"{name} must contain nonempty strings")
+            object.__setattr__(self, name, tuple(values))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Building geometry must be a Polygon or MultiPolygon")
+        from shapely.geometry import shape
+
+        try:
+            geometry = shape(self.geometry)
+        except Exception as exc:
+            raise ValidationError("Building geometry is invalid") from exc
+        if (
+            geometry.is_empty
+            or not geometry.is_valid
+            or geometry.geom_type
+            not in {
+                "Polygon",
+                "MultiPolygon",
+            }
+        ):
+            raise ValidationError("Building geometry must be a valid nonempty polygon")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResidentialLocationClass(Record):
+    geometry: dict[str, Any]
+    address_key: str
+    street_code: str
+    house_number: int
+    house_number_suffix: str | None
+    house_number_label: str
+    street_name: str | None
+    postcode: str | None
+    district_name: str | None
+    planning_area_name: str | None
+    east_west_marker: str | None
+    wohnlage_class: str | None
+    class_status: str
+    source_label: str | None
+    edition: str
+    valid_from: str
+    valid_to: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="residential_location_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("address_key", self.address_key)
+        if not re.fullmatch(r"\d{8}[A-Z]{0,2}", self.address_key):
+            raise ValidationError("address_key must be an 8-digit key with optional suffix")
+        if not re.fullmatch(r"\d{5}", self.street_code):
+            raise ValidationError("street_code must contain five digits")
+        if type(self.house_number) is not int or not 0 <= self.house_number <= 999:
+            raise ValidationError("house_number must be an integer from 0 to 999")
+        _optional_text("house_number_suffix", self.house_number_suffix)
+        if self.house_number_suffix is not None and not re.fullmatch(
+            r"[A-Z]{1,2}", self.house_number_suffix
+        ):
+            raise ValidationError("house_number_suffix must be one or two uppercase letters")
+        _text("house_number_label", self.house_number_label)
+        if self.house_number_label != f"{self.house_number:03d}{self.house_number_suffix or ''}":
+            raise ValidationError("house_number_label does not match its numeric and suffix fields")
+        if self.address_key != f"{self.street_code}{self.house_number_label}":
+            raise ValidationError("address_key does not match street code and house number")
+        if self.source_record_id != self.address_key:
+            raise ValidationError("source_record_id must equal address_key")
+        if not isinstance(self.valid_from, str) or self.record_id != (
+            f"wohnlage:{self.valid_from[:4]}:{self.address_key}"
+        ):
+            raise ValidationError("record_id must use the Wohnlage edition year and address key")
+        for name in (
+            "street_name",
+            "postcode",
+            "district_name",
+            "planning_area_name",
+            "east_west_marker",
+            "wohnlage_class",
+            "source_label",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.class_status not in {"assigned", "unassigned", "unmapped"}:
+            raise ValidationError("class_status must be assigned, unassigned or unmapped")
+        if self.class_status == "assigned":
+            if (
+                self.wohnlage_class not in {"einfach", "mittel", "gut"}
+                or self.source_label != self.wohnlage_class
+            ):
+                raise ValidationError("assigned Wohnlage records require a known class")
+        elif self.wohnlage_class is not None:
+            raise ValidationError("unassigned or unmapped records cannot have a class")
+        if self.class_status == "unassigned" and self.source_label is not None:
+            raise ValidationError("unassigned records cannot have an original class label")
+        if self.class_status == "unmapped" and (
+            self.source_label is None or self.source_label in {"einfach", "mittel", "gut"}
+        ):
+            raise ValidationError("unmapped records require an unknown original source label")
+        _text("edition", self.edition)
+        for name in ("valid_from", "valid_to"):
+            try:
+                date.fromisoformat(getattr(self, name))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        if self.valid_from > self.valid_to:
+            raise ValidationError("valid_from cannot be after valid_to")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class AreaIndicatorClass(Record):
     """Ordinal class a published indicator assigns to an area; not a numeric measurement."""
 
@@ -812,11 +1049,14 @@ NormalizedRecord: TypeAlias = (
     | Business
     | TransitStop
     | StopService
+    | GreenSpace
     | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
     | Address
     | Facility
+    | Building
+    | ResidentialLocationClass
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -826,11 +1066,14 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "green_space": GreenSpace,
     "address": Address,
+    "residential_location_class": ResidentialLocationClass,
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
     "facility": Facility,
+    "building": Building,
 }
 
 
@@ -1065,6 +1308,111 @@ RECORD_TYPES["retail_center"] = RetailCenter
 
 
 @dataclass(frozen=True, kw_only=True)
+class MobilityObservation(Record):
+    """Counted traffic at one fixed counter for an explicit local interval.
+
+    A count measures the stated mode at that location only; it is not footfall,
+    customers or revenue and must not be projected onto other streets.
+    """
+
+    geometry: dict
+    location_id: str
+    location_name: str
+    mode: str
+    metric_code: str
+    unit: str
+    aggregation: str
+    interval_start: str
+    interval_end: str
+    timezone: str
+    measurement_status: str
+    value: int | float | None = None
+    value_status: ValueStatus = ValueStatus.MISSING
+    direction: str | None = None
+    window_id: str | None = None
+    expected_intervals: int = 0
+    observed_intervals: int = 0
+    reconstructed_intervals: int = 0
+    implausible_intervals: int = 0
+    missing_intervals: int = 0
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="mobility_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "location_id",
+            "location_name",
+            "mode",
+            "metric_code",
+            "unit",
+            "aggregation",
+            "interval_start",
+            "interval_end",
+            "timezone",
+            "measurement_status",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("direction", "window_id", "area_code"):
+            _optional_text(name, getattr(self, name))
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        null_status = status in {
+            ValueStatus.MISSING,
+            ValueStatus.NOT_APPLICABLE,
+            ValueStatus.SUPPRESSED,
+        }
+        if self.value is None:
+            if not null_status:
+                raise ValidationError("A null mobility value requires a null value_status")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+            or null_status
+        ):
+            raise ValidationError("Mobility values must be nonnegative finite numbers")
+        for name in (
+            "expected_intervals",
+            "observed_intervals",
+            "reconstructed_intervals",
+            "implausible_intervals",
+            "missing_intervals",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{name} must be a nonnegative integer")
+        if (
+            self.observed_intervals
+            + self.reconstructed_intervals
+            + self.implausible_intervals
+            + self.missing_intervals
+            != self.expected_intervals
+        ):
+            raise ValidationError("Mobility interval counts must sum to expected_intervals")
+        if self.aggregation not in {"day", "window"}:
+            raise ValidationError("aggregation must be day or window")
+        if self.aggregation == "window" and self.window_id is None:
+            raise ValidationError("Window observations require a window_id")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["mobility_observation"] = MobilityObservation
+
+NormalizedRecord = NormalizedRecord | MobilityObservation
+
+
+@dataclass(frozen=True, kw_only=True)
 class RoadTrafficSegment(Record):
     """Road segment with average daily motor-vehicle traffic (vehicles/day); WGS84 line geometry."""
 
@@ -1214,3 +1562,79 @@ class PopulationBlock(Record):
 
 RECORD_TYPES["population_block"] = PopulationBlock
 NormalizedRecord = NormalizedRecord | PopulationBlock
+NormalizedRecord = NormalizedRecord | Address | Building
+
+
+@dataclass(frozen=True, kw_only=True)
+class Parcel(Record):
+    geometry: dict[str, Any]
+    parcel_id: str
+    cadastral_district_code: str
+    parcel_numerator: str
+    cadastral_district_name: str | None = None
+    cadastral_section: str | None = None
+    parcel_denominator: str | None = None
+    municipality_code: str | None = None
+    municipality_name: str | None = None
+    responsible_office: str | None = None
+    official_area_m2: float | None = None
+    official_area_source: str = "ALKIS afl (Amtliche Fläche), source-provided"
+    geometry_area_m2: float
+    geometry_area_method: str = "planar area of source geometry in EPSG:25833"
+    area_unit: str = "m2"
+    created_date: str | None = None
+    lifespan_start: str | None = None
+    record_type: str = field(default="parcel", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        for name in (
+            "parcel_id",
+            "cadastral_district_code",
+            "parcel_numerator",
+            "official_area_source",
+            "geometry_area_method",
+            "area_unit",
+        ):
+            _text(name, getattr(self, name))
+        for name in (
+            "cadastral_district_name",
+            "cadastral_section",
+            "parcel_denominator",
+            "municipality_code",
+            "municipality_name",
+            "responsible_office",
+        ):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Parcel geometry must preserve a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Parcel geometry must have coordinates")
+        if self.official_area_m2 is not None and (
+            isinstance(self.official_area_m2, bool)
+            or not isinstance(self.official_area_m2, (int, float))
+            or not isfinite(self.official_area_m2)
+            or self.official_area_m2 <= 0
+        ):
+            raise ValidationError("official_area_m2 must be a finite positive number or null")
+        if (
+            isinstance(self.geometry_area_m2, bool)
+            or not isinstance(self.geometry_area_m2, (int, float))
+            or not isfinite(self.geometry_area_m2)
+            or self.geometry_area_m2 < 0
+        ):
+            raise ValidationError("geometry_area_m2 must be a finite nonnegative number")
+        for name in ("created_date", "lifespan_start"):
+            value = getattr(self, name)
+            if value is not None:
+                try:
+                    date.fromisoformat(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{name} must be an ISO calendar date or null") from exc
+
+
+RECORD_TYPES["parcel"] = Parcel
+NormalizedRecord = NormalizedRecord | Parcel

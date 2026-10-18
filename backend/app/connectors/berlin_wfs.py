@@ -249,6 +249,8 @@ def _options(config: DatasetConfig) -> dict:
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
     if options["record_type"] == "address":
         return options
+    if options["record_type"] == "residential_location_class":
+        return options
     if options["record_type"] not in {
         "area",
         "facility",
@@ -554,14 +556,14 @@ class BerlinWFSConnector(FileConnector):
     def validate(self, batch: NormalizedBatch) -> QualityReport:
         if batch.records and all(isinstance(record, PopulationBlock) for record in batch.records):
             return validate_population_blocks(batch)
-        if batch.records and batch.records[0].record_type == "development_plan":
-            from app.connectors.berlin_wfs_plans import validate_development_plans
-
-            return validate_development_plans(batch)
         if any(getattr(record, "record_type", None) == "facility" for record in batch.records):
             from app.connectors.berlin_wfs_facility import validate_facilities
 
             return validate_facilities(batch)
+        if batch.records and batch.records[0].record_type == "development_plan":
+            from app.connectors.berlin_wfs_plans import validate_development_plans
+
+            return validate_development_plans(batch)
         if batch.records and all(
             isinstance(record, RoadTrafficSegment) for record in batch.records
         ):
