@@ -1,13 +1,15 @@
+import asyncio
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from app.domain.errors import ValidationError
 from app.evidence.citations import citable, strip_unknown_citations
-from app.evidence.factcheck import FactChecker, fact_check_run
+from app.evidence.factcheck import CheckResult, FactChecker, fact_check_run
 from app.evidence.judge import judge_run
 from app.evidence.ledger import EvidenceLedger, dataset_entry
 from app.evidence.matching import classify_ratio, quote_ratio
@@ -30,6 +32,8 @@ def handler(request: httpx.Request) -> httpx.Response:
     pages = {"/a": PAGE_A, "/b": PAGE_B}
     if request.url.path == "/moved":
         return httpx.Response(302, headers={"location": "http://127.0.0.1/secret"})
+    if request.url.path == "/rate-limited":
+        return httpx.Response(429)
     if request.url.path in pages:
         return httpx.Response(200, text=pages[request.url.path])
     return httpx.Response(404)
@@ -166,6 +170,98 @@ async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
     async with checker(snapshot_reader=lambda entry: {"population": 12}) as fc:
         await fact_check_run(tmp_path, fc, recheck=True)
     assert (tmp_path / "report.md").read_text().count("## Could not verify") == 1
+
+
+async def test_fact_check_only_checks_and_prefetches_selected_ids(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.extend(
+        [
+            web("ev_a", "https://example.org/a", quote="quote A"),
+            web("ev_b", "https://example.org/b", quote="quote B"),
+        ]
+    )
+    requested = []
+
+    class Research:
+        async def extract(self, request):
+            requested.extend(request.urls)
+            return SimpleNamespace(
+                evidence=[],
+                failures=[{"url": url, "reason": "HTTP 429"} for url in request.urls],
+            )
+
+    async with FactChecker(research=Research()) as fc:
+        report = await fact_check_run(tmp_path, fc, only_ids={"ev_a"})
+
+    assert requested == ["https://example.org/a"]
+    assert [item.id for item in report.evidence] == ["ev_a"]
+    assert ledger.get("ev_a")["status"] == "unsupported"
+    assert ledger.get("ev_b").get("status", "unverified") == "unverified"
+
+
+async def test_fact_check_entries_run_concurrently_but_write_in_ledger_order(tmp_path, monkeypatch):
+    monkeypatch.setenv("RISALITE_FACTCHECK_CONCURRENCY", "2")
+    evidence_ids = ["ev_slow", "ev_medium", "ev_fast"]
+    EvidenceLedger(tmp_path).extend(
+        [web(evidence_id, f"https://example.org/{evidence_id}") for evidence_id in evidence_ids]
+    )
+
+    class DelayedChecker(FactChecker):
+        def __init__(self):
+            super().__init__(offline=True)
+            self.active = 0
+            self.max_active = 0
+            self.completed = []
+
+        async def check_entry(self, entry):
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            try:
+                await asyncio.sleep(
+                    {"ev_slow": 0.05, "ev_medium": 0.01, "ev_fast": 0.001}[entry["evidence_id"]]
+                )
+                self.completed.append(entry["evidence_id"])
+                return CheckResult(entry["evidence_id"], "evidence", "verified", 1.0, "test")
+            finally:
+                self.active -= 1
+
+    async with DelayedChecker() as fc:
+        report = await fact_check_run(tmp_path, fc)
+
+    assert fc.max_active == 2
+    assert fc.completed != evidence_ids
+    assert [item.id for item in report.evidence] == evidence_ids
+    assert [item["evidence_id"] for item in EvidenceLedger(tmp_path).history()[-3:]] == (
+        evidence_ids
+    )
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    check_events = [event for event in events if event.get("detail", {}).get("evidence_ids")]
+    assert [event["detail"]["summary"].split()[0] for event in check_events] == evidence_ids
+
+
+async def test_recheck_failure_uses_a_matching_stored_extract():
+    quote = "Erdgeschossmieten im Wrangelkiez stiegen um 18 %"
+    stored = web(
+        "ev_stored",
+        "https://example.org/rate-limited",
+        quote=quote,
+        passage="Die Erdgeschossmieten im Wrangelkiez stiegen um 18 % gegenüber dem Vorjahr.",
+    )
+    missing = web("ev_missing", "https://example.org/rate-limited", quote=quote)
+
+    async with checker() as fc:
+        stored_result = await fc.check_entry(stored)
+        missing_result = await fc.check_entry(missing)
+        finding_result = await fc.check_finding(
+            {"finding_id": "f_stored", "quote": quote, "evidence_ids": ["ev_stored"]},
+            {"ev_stored": stored},
+        )
+
+    assert stored_result.status == "partial"
+    assert stored_result.reason == ("re-fetch failed (HTTP 429); matched stored extract")
+    assert finding_result.status == "partial"
+    assert finding_result.matched_ids == ("ev_stored",)
+    assert missing_result.status == "unsupported"
 
 
 async def test_rejected_entry_renumbers_citations_and_cannot_verify(tmp_path):

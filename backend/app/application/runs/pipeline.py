@@ -201,7 +201,13 @@ async def fact_check_stage(ctx: Context, checker: Any) -> list[dict[str, Any]]:
         f for f in ctx.findings if not f.get("verification") and f.get("status") != "rejected"
     ]
     _write_jsonl(ctx.run_dir / "findings.jsonl", ctx.findings)
-    await fact_check_run(ctx.run_dir, checker, trace=_Trace(ctx.log))
+    cited_ids = {
+        evidence_id
+        for finding in ctx.findings
+        if finding.get("status") != "rejected"
+        for evidence_id in (finding.get("cited_evidence_ids") or finding.get("evidence_ids") or [])
+    }
+    await fact_check_run(ctx.run_dir, checker, trace=_Trace(ctx.log), only_ids=cited_ids)
     ctx.findings = _read_jsonl(ctx.run_dir / "findings.jsonl")
     fresh = {f["finding_id"] for f in pending}
     for item in ctx.findings:

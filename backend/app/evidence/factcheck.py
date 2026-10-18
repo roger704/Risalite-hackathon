@@ -15,8 +15,11 @@ are listed under "Could not verify" in ``report.md`` and ``factcheck.json``.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
+import os
+import re
 from dataclasses import asdict, dataclass, field
 from inspect import isawaitable
 from pathlib import Path
@@ -54,12 +57,21 @@ WEB_METHODS = {"tavily-search", "tavily-extract", "web"}
 REQUERY_METHODS = {"wfs", "wfs-cached", "overpass"}
 DEFAULT_REQUERY_HOSTS = ("gdi.berlin.de", "fbinter.stadt-berlin.de", "overpass-api.de")
 MAX_REDIRECTS = 5
+FETCH_TIMEOUT_S = 10.0
+DEFAULT_FACTCHECK_CONCURRENCY = 8
 FACTCHECK_FILE = "factcheck.json"
 FINDINGS_FILE = "findings.jsonl"
 FACT_CHECKED_MARK = "<!-- fact-checked: see factcheck.json -->"
 AGENT = "factcheck"
 
 SnapshotReader = Callable[[dict[str, Any]], Any]
+
+
+def _factcheck_concurrency() -> int:
+    try:
+        return max(1, int(os.environ.get("RISALITE_FACTCHECK_CONCURRENCY", "8")))
+    except ValueError:
+        return DEFAULT_FACTCHECK_CONCURRENCY
 
 
 @dataclass(frozen=True)
@@ -180,7 +192,9 @@ class FactChecker:
 
     async def _client(self) -> httpx.AsyncClient:
         if self.http is None:
-            self.http = httpx.AsyncClient(timeout=30.0, follow_redirects=False, trust_env=False)
+            self.http = httpx.AsyncClient(
+                timeout=FETCH_TIMEOUT_S, follow_redirects=False, trust_env=False
+            )
         return self.http
 
     async def _pin(self, url: str) -> tuple[str, dict[str, str], dict[str, Any]]:
@@ -223,26 +237,52 @@ class FactChecker:
         raise httpx.TooManyRedirects("too many redirects", request=response.request)
 
     # -- fetching ------------------------------------------------------------------------
-    async def prefetch(self, entries: Iterable[dict[str, Any]]) -> None:
+    @staticmethod
+    def _refetch_failure_reason(reason: str) -> str:
+        message = str(reason).strip()
+        if message.startswith("re-fetch failed:"):
+            return message
+        status = re.search(
+            r"\b(?:HTTP[_\s-]*|status(?:[_\s-]*code)?[:=\s]+)(\d{3})\b",
+            message,
+            re.IGNORECASE,
+        )
+        if status:
+            message = f"HTTP {status.group(1)}"
+        elif "timeout" in message.lower():
+            message = "TimeoutError"
+        return f"re-fetch failed: {message or 'no content returned'}"
+
+    async def prefetch(
+        self, entries: Iterable[dict[str, Any]], *, only_ids: set[str] | None = None
+    ) -> None:
         """Batch Tavily extract for web entries not fetched yet in this run."""
         if self.offline or self.research is None:
             return
+        selected = [
+            entry for entry in entries if only_ids is None or entry.get("evidence_id") in only_ids
+        ]
         urls = tuple(
             dict.fromkeys(
                 entry_url(e)
-                for e in entries
+                for e in selected
                 if e.get("method") in WEB_METHODS and entry_url(e) not in self._cache
             )
         )
         if not urls:
             return
         try:
-            page = await self.research.extract(ResearchExtract(urls=urls))
+            async with asyncio.timeout(FETCH_TIMEOUT_S):
+                page = await self.research.extract(ResearchExtract(urls=urls))
         except Exception as exc:  # provider down, budget exhausted, ...
+            reason = self._refetch_failure_reason(type(exc).__name__)
             for url in urls:
-                self._cache[url] = Fetched(None, "tavily-extract", f"{type(exc).__name__}")
+                self._cache[url] = Fetched(None, "tavily-extract", reason)
             return
-        failures = {f.get("url"): f.get("reason", "failed") for f in page.failures}
+        failures = {
+            f.get("url"): self._refetch_failure_reason(f.get("reason", "failed"))
+            for f in page.failures
+        }
         for evidence in page.evidence:
             if evidence.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}:
                 text = evidence.passage or evidence.snippet or ""
@@ -250,7 +290,12 @@ class FactChecker:
                     self._cache.setdefault(url, Fetched(text, "tavily-extract"))
         for url in urls:
             self._cache.setdefault(
-                url, Fetched(None, "tavily-extract", failures.get(url, "no content returned"))
+                url,
+                Fetched(
+                    None,
+                    "tavily-extract",
+                    failures.get(url, self._refetch_failure_reason("no content returned")),
+                ),
             )
 
     async def fetch(self, entry: dict[str, Any]) -> Fetched:
@@ -279,11 +324,13 @@ class FactChecker:
 
     async def _http_text(self, url: str, how: str, *, html: bool) -> Fetched:
         try:
-            response = await self.get_public(url)
+            async with asyncio.timeout(FETCH_TIMEOUT_S):
+                response = await self.get_public(url)
         except Exception as exc:
-            return Fetched(None, how, f"re-fetch failed: {type(exc).__name__}")
+            return Fetched(None, how, self._refetch_failure_reason(type(exc).__name__))
         if response.status_code != 200:
-            return Fetched(None, how, f"re-fetch failed: HTTP {response.status_code}")
+            reason = self._refetch_failure_reason(f"HTTP {response.status_code}")
+            return Fetched(None, how, reason)
         return Fetched(html_to_text(response.text) if html else response.text, how)
 
     # -- checks --------------------------------------------------------------------------
@@ -317,6 +364,30 @@ class FactChecker:
         }[status]
         return status, ratio, reason
 
+    def _judge_entry(
+        self, entry: dict[str, Any], quote: str, fetched: Fetched
+    ) -> tuple[str, float | None, str]:
+        if fetched.text is None and fetched.reason.startswith("re-fetch failed:"):
+            stored = entry_text(entry) or entry.get("raw_content") or entry.get("raw_text") or ""
+            if not stored:
+                return "unsupported", None, fetched.reason
+            if not isinstance(stored, str):
+                stored = str(stored)
+            ratio = round(quote_ratio(quote, stored), 3)
+            if classify_ratio(ratio) != "unsupported":
+                failure = fetched.reason.removeprefix("re-fetch failed:").strip()
+                return (
+                    "partial",
+                    ratio,
+                    f"re-fetch failed ({failure}); matched stored extract",
+                )
+            return (
+                "unsupported",
+                ratio,
+                f"{fetched.reason}; quote not found in stored extract",
+            )
+        return self._judge(quote, fetched)
+
     async def check_entry(self, entry: dict[str, Any]) -> CheckResult:
         eid, url = entry["evidence_id"], entry_url(entry)
         if entry.get("method") == "dataset":
@@ -334,10 +405,15 @@ class FactChecker:
                 )
             )
             return CheckResult(eid, "evidence", status, None, reason, url)
-        if fetched.text is None and entry.get("method") in {"wfs-cached", "csv", "osm"}:
+        status, ratio, reason = self._judge_entry(entry, quote, fetched)
+        if (
+            status == "unsupported"
+            and fetched.text is None
+            and not fetched.reason.startswith("re-fetch failed:")
+            and entry.get("method") in {"wfs-cached", "csv", "osm"}
+        ):
             reason = f"{fetched.reason}; value is from a pinned download"
             return CheckResult(eid, "evidence", "partial", None, reason, url)
-        status, ratio, reason = self._judge(quote, fetched)
         return CheckResult(eid, "evidence", status, ratio, reason, url)
 
     async def check_finding(
@@ -364,7 +440,7 @@ class FactChecker:
                 status, ratio, reason = result.status, result.best_score, result.reason
             else:
                 quote = finding.get("quote", "")
-                status, ratio, reason = self._judge(quote, await self.fetch(entry))
+                status, ratio, reason = self._judge_entry(entry, quote, await self.fetch(entry))
             if ratio is not None:
                 best = ratio if best is None else max(best, ratio)
             if status == "verified":
@@ -451,6 +527,7 @@ async def fact_check_run(
     *,
     trace: TraceWriter | None = None,
     recheck: bool = False,
+    only_ids: set[str] | None = None,
 ) -> FactCheckReport:
     """Verify ledger entries and findings of one run directory and write the results.
 
@@ -468,12 +545,23 @@ async def fact_check_run(
     pinned = _original(report_md, ledger.entries()) if report_md.exists() else None
     findings_path = run_dir / FINDINGS_FILE
     findings = _read_jsonl(findings_path)
-    await checker.prefetch(ledger.entries())
+    entries = ledger.entries()
+    await checker.prefetch(entries, only_ids=only_ids)
 
-    for entry in ledger.entries():
-        if not recheck and entry_status(entry) != "unverified":
-            continue
-        result = await checker.check_entry(entry)
+    entries_to_check = [
+        entry
+        for entry in entries
+        if (only_ids is None or entry["evidence_id"] in only_ids)
+        and (recheck or entry_status(entry) == "unverified")
+    ]
+    semaphore = asyncio.Semaphore(_factcheck_concurrency())
+
+    async def check_entry(entry: dict[str, Any]) -> CheckResult:
+        async with semaphore:
+            return await checker.check_entry(entry)
+
+    results = await asyncio.gather(*(check_entry(entry) for entry in entries_to_check))
+    for entry, result in zip(entries_to_check, results):
         ledger.set_status(
             result.id,
             result.status,
