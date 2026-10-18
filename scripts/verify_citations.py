@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.connectors.tavily import TavilyClient, TavilyConfig  # noqa: E402
+from app.domain.research import ResearchBudget  # noqa: E402
 from app.evidence.factcheck import FactChecker, datasvc_snapshot_reader  # noqa: E402
 from app.evidence.judge import DEFAULT_THRESHOLD, judge_run  # noqa: E402
 
@@ -40,7 +41,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     research = None
     if not args.offline and os.environ.get("TAVILY_API_KEY"):
-        research = TavilyClient(TavilyConfig.from_env())
+        research = TavilyClient(TavilyConfig.from_env(), ResearchBudget(0, 30, 0, 200_000))
     checker = FactChecker(
         research=research, snapshot_reader=datasvc_snapshot_reader(), offline=args.offline
     )
