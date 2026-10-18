@@ -57,3 +57,60 @@ def strip_unknown_citations(text: str, entries: Iterable[dict[str, Any]]) -> Str
         return f"{match.group(1)}[{', '.join(good)}]" if good else ""
 
     return StripReport(_MARKER.sub(replace, text), tuple(kept), tuple(stripped))
+
+
+def pin_citations(text: str, entries: Iterable[dict[str, Any]]) -> str:
+    """Replace ``[n]`` with ``[evidence_id]`` so later status changes cannot shift numbers."""
+    table = citable(entries)
+
+    def replace(match: re.Match[str]) -> str:
+        tokens = [t.strip() for t in match.group(2).split(",")]
+        pinned = [table[t]["evidence_id"] if t in table else t for t in tokens]
+        return f"{match.group(1)}[{', '.join(pinned)}]"
+
+    return _MARKER.sub(replace, text)
+
+
+_SENTENCE = re.compile(r"(?<=[.!?])[ \t]+")
+
+
+def render_citations(
+    text: str, entries: Iterable[dict[str, Any]], exclude: Iterable[str] = ()
+) -> StripReport:
+    """Render pinned markers as current ledger numbers.
+
+    Markers whose entry is unknown, unsupported or in ``exclude`` (evidence backing only
+    unsupported findings) are removed; a sentence that loses all of its markers is dropped.
+    """
+    table = citable(entries)
+    excluded = set(exclude)
+    number = {e["evidence_id"]: n for n, e in table.items() if n.isdigit()}
+    kept: list[str] = []
+    stripped: list[str] = []
+
+    def replace(match: re.Match[str]) -> str:
+        tokens = [t.strip() for t in match.group(2).split(",")]
+        good = []
+        for token in tokens:
+            entry = table.get(token)
+            if entry is None or entry["evidence_id"] in excluded:
+                stripped.append(token)
+            else:
+                good.append(number[entry["evidence_id"]])
+        kept.extend(good)
+        good = list(dict.fromkeys(good))
+        return f"{match.group(1)}[{', '.join(good)}]" if good else ""
+
+    lines = []
+    for line in text.split("\n"):
+        sentences = []
+        for sentence in _SENTENCE.split(line):
+            had_markers = bool(CITATION.search(sentence))
+            rendered = _MARKER.sub(replace, sentence)
+            if had_markers and not CITATION.search(rendered):
+                continue
+            sentences.append(rendered)
+        if line.strip() and not sentences:
+            continue
+        lines.append(" ".join(sentences))
+    return StripReport("\n".join(lines), tuple(kept), tuple(stripped))

@@ -149,7 +149,8 @@ async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
     assert ledger.get(ds["evidence_id"])["status"] == "verified"
 
     text = (tmp_path / "report.md").read_text()
-    assert "Ghost." in text and "[7]" not in text
+    assert text.startswith("Rents rose [1] [1].\n")
+    assert "Ghost" not in text and "Campus" not in text
     assert "## Could not verify" in text and "Footfall +30%" in text
     saved = json.loads((tmp_path / "factcheck.json").read_text())
     assert saved["counts"]["findings"] == {"verified": 1, "partial": 1, "unsupported": 1}
@@ -158,8 +159,66 @@ async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
     assert [e["seq"] for e in events] == list(range(len(events)))
 
     async with checker(snapshot_reader=lambda entry: {"population": 12}) as fc:
+        again = await fact_check_run(tmp_path, fc)
+    assert again.to_dict()["counts"] == saved["counts"]
+    assert (tmp_path / "report.md").read_text() == text
+
+    async with checker(snapshot_reader=lambda entry: {"population": 12}) as fc:
         await fact_check_run(tmp_path, fc, recheck=True)
     assert (tmp_path / "report.md").read_text().count("## Could not verify") == 1
+
+
+async def test_rejected_entry_renumbers_citations_and_cannot_verify(tmp_path):
+    EvidenceLedger(tmp_path).extend(
+        [
+            web("ev_x", "https://example.org/a", quote="rent doubled overnight in Kreuzberg"),
+            web("ev_a", "https://example.org/a"),
+            web("ev_b", "https://example.org/b"),
+        ]
+    )
+    quote = "Erdgeschossmieten im Wrangelkiez stiegen um 18 %"
+    write_findings(
+        tmp_path,
+        [{"finding_id": "f1", "claim": "c", "quote": quote, "evidence_ids": ["ev_x"]}],
+    )
+    (tmp_path / "report.md").write_text("Wrong [1]. Rents [2]. Campus [3].\n")
+    async with checker() as fc:
+        report = await fact_check_run(tmp_path, fc)
+    assert {r.id: r.status for r in report.findings} == {"f1": "unsupported"}
+    assert "ledger entry unsupported" in report.findings[0].reason
+    assert (tmp_path / "report.md").read_text().startswith("Rents [1]. Campus [2].\n")
+
+
+async def test_offline_dataset_finding_is_partial(tmp_path):
+    ds = EvidenceLedger(tmp_path).add_dataset_value(
+        dataset_id="lor", snapshot_id="s1", layer_id="d", source_url="https://x", value=1
+    )
+    finding = {"finding_id": "f", "quote": "q", "evidence_ids": [ds["evidence_id"]]}
+    async with FactChecker(offline=True) as fc:
+        result = await fc.check_finding(finding, {ds["evidence_id"]: ds})
+    assert result.status == "partial" and result.matched_ids == (ds["evidence_id"],)
+
+
+async def test_get_public_pins_validated_address():
+    seen = []
+    answers = iter([["93.184.216.34"], ["127.0.0.1"]])
+
+    async def rebinding(host, port):
+        return next(answers)
+
+    def record(request):
+        seen.append((request.url.host, request.headers["host"], request.extensions))
+        return httpx.Response(200, text="ok")
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(record))
+    async with FactChecker(http=http, resolver=rebinding) as fc:
+        assert (await fc.get_public("https://example.org/a")).status_code == 200
+    host, header, extensions = seen[0]
+    assert (host, header, extensions["sni_hostname"]) == (
+        "93.184.216.34",
+        "example.org",
+        "example.org",
+    )
 
 
 async def test_changed_snapshot_and_unlisted_requery_host_are_unsupported():

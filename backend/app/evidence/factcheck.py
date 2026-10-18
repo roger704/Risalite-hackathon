@@ -15,17 +15,24 @@ are listed under "Could not verify" in ``report.md`` and ``factcheck.json``.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 from dataclasses import asdict, dataclass, field
+from inspect import isawaitable
 from pathlib import Path
 from typing import Any, Callable, Iterable
 from urllib.parse import urlsplit
 
 import httpx
 
-from app.connectors.tavily import validate_public_url
+from app.connectors.tavily import (
+    UnsafeURLError,
+    _address,
+    _default_resolver,
+    validate_public_url,
+)
 from app.domain.research import ExtractionStatus, ResearchConnector, ResearchExtract
-from app.evidence.citations import strip_unknown_citations
+from app.evidence.citations import pin_citations, render_citations
 from app.evidence.ledger import (
     EvidenceLedger,
     entry_status,
@@ -176,15 +183,40 @@ class FactChecker:
             self.http = httpx.AsyncClient(timeout=30.0, follow_redirects=False)
         return self.http
 
+    async def _pin(self, url: str) -> tuple[str, dict[str, str], dict[str, Any]]:
+        """Resolve once, validate that answer and connect to it (no DNS rebinding window)."""
+        parts = urlsplit(url)
+        host = (parts.hostname or "").rstrip(".").lower()
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            await validate_public_url(url)
+            return url, {}, {}
+        try:
+            resolved = (self.resolver or _default_resolver)(host, parts.port or 0)
+            if isawaitable(resolved):
+                resolved = await resolved
+            resolved = list(resolved)
+        except Exception as exc:
+            raise UnsafeURLError("dns_resolution_failed") from exc
+        await validate_public_url(url, lambda *_: resolved)
+        address = _address(resolved[0])
+        netloc = f"[{address}]" if address.version == 6 else str(address)
+        extensions = {"sni_hostname": host} if parts.scheme.lower() == "https" else {}
+        return parts._replace(netloc=netloc).geturl(), {"Host": parts.netloc}, extensions
+
     async def get_public(self, url: str) -> httpx.Response:
-        """GET that re-validates every redirect hop so a redirect cannot reach a private host."""
+        """GET pinned to a validated public address; every redirect hop is re-validated."""
         client = await self._client()
         for _ in range(MAX_REDIRECTS + 1):
-            await validate_public_url(url, self.resolver)
-            response = await client.get(url, follow_redirects=False)
+            target, headers, extensions = await self._pin(url)
+            request = client.build_request("GET", target, headers=headers, extensions=extensions)
+            response = await client.send(request, follow_redirects=False)
             if not response.is_redirect:
                 return response
-            url = str(response.url.join(response.headers["location"]))
+            url = str(httpx.URL(url).join(response.headers["location"]))
         raise httpx.TooManyRedirects("too many redirects", request=response.request)
 
     # -- fetching ------------------------------------------------------------------------
@@ -313,6 +345,7 @@ class FactChecker:
         if not ids:
             return CheckResult(fid, "finding", "unsupported", None, "no evidence ids")
         matched: list[str] = []
+        weak: list[str] = []
         best: float | None = None
         reasons: list[str] = []
         for eid in ids:
@@ -320,19 +353,28 @@ class FactChecker:
             if entry is None:
                 reasons.append(f"{eid}: not in ledger")
                 continue
+            if entry_status(entry) == "unsupported":
+                reasons.append(f"{eid}: ledger entry unsupported")
+                continue
             if entry.get("method") == "dataset":
                 result = self._dataset(entry)
                 status, ratio, reason = result.status, result.best_score, result.reason
             else:
-                status, ratio, reason = self._judge(
-                    finding.get("quote", ""), await self.fetch(entry)
-                )
+                quote = finding.get("quote", "")
+                status, ratio, reason = self._judge(quote, await self.fetch(entry))
             if ratio is not None:
                 best = ratio if best is None else max(best, ratio)
             if status == "verified":
                 matched.append(eid)
+            elif status == "partial":
+                weak.append(eid)
             reasons.append(f"{eid}: {reason}")
-        status = "verified" if len(matched) == len(ids) else "partial" if matched else "unsupported"
+        if len(matched) == len(ids):
+            status = "verified"
+        elif matched or weak:
+            status, matched = "partial", [e for e in ids if e in {*matched, *weak}]
+        else:
+            status = "unsupported"
         return CheckResult(fid, "finding", status, best, "; ".join(reasons), None, tuple(matched))
 
 
@@ -342,13 +384,14 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
 
 
-def _original(path: Path) -> str:
-    """Pre-fact-check text of ``path``, kept as ``<stem>.orig<suffix>`` for rechecks."""
+def _original(path: Path, entries: list[dict[str, Any]]) -> str:
+    """Writer text with ``[n]`` pinned to ids, kept as ``<stem>.orig<suffix>`` for rechecks."""
     original = path.with_name(f"{path.stem}.orig{path.suffix}")
     text = path.read_text(encoding="utf-8")
     if FACT_CHECKED_MARK not in text or not original.exists():
-        original.write_text(text, encoding="utf-8")
-        return text
+        pinned = pin_citations(text, entries)
+        original.write_text(pinned, encoding="utf-8")
+        return pinned
     return original.read_text(encoding="utf-8")
 
 
@@ -363,6 +406,42 @@ def _appendix(report: FactCheckReport, findings: dict[str, dict[str, Any]]) -> s
     return "\n".join(lines) + "\n"
 
 
+def _stored_results(
+    entries: list[dict[str, Any]], findings: list[dict[str, Any]], checked_at: str
+) -> FactCheckReport:
+    """Report built from every persisted status, so skipped items keep their results."""
+    report = FactCheckReport(checked_at=checked_at)
+    for entry in entries:
+        status = entry_status(entry)
+        if status == "unverified":
+            continue
+        check = entry.get("fact_check") or {}
+        report.evidence.append(
+            CheckResult(
+                entry["evidence_id"],
+                "evidence",
+                status,
+                check.get("ratio"),
+                check.get("reason", "status from ledger"),
+                entry_url(entry) or None,
+            )
+        )
+    for finding in findings:
+        if finding.get("status") == "rejected" or not finding.get("verification"):
+            continue
+        report.findings.append(
+            CheckResult(
+                finding["finding_id"],
+                "finding",
+                finding["verification"],
+                finding.get("best_score"),
+                finding.get("fact_check_reason", ""),
+                matched_ids=tuple(finding.get("evidence_ids") or ()),
+            )
+        )
+    return report
+
+
 async def fact_check_run(
     run_dir: Path | str,
     checker: FactChecker,
@@ -373,25 +452,29 @@ async def fact_check_run(
     """Verify ledger entries and findings of one run directory and write the results.
 
     Writes ledger revisions, ``findings.jsonl`` (``verification``, ``best_score``; partial
-    findings keep only matching ids), ``factcheck.json``, a stripped ``report.md`` with a
-    "Could not verify" appendix and ``fact_check`` events.
+    findings keep only matching ids), ``factcheck.json``, ``report.md`` (markers renumbered,
+    claims without surviving support dropped, "Could not verify" appendix) and
+    ``fact_check`` events. Run it before the writer when possible (§5.7); an existing
+    ``report.md`` is cleaned up afterwards.
     """
     run_dir = Path(run_dir)
     ledger = EvidenceLedger(run_dir)
     trace = trace or TraceWriter(run_dir)
-    report = FactCheckReport(checked_at=utc_now())
-    todo = [e for e in ledger.entries() if recheck or entry_status(e) == "unverified"]
+    checked_at = utc_now()
+    report_md = run_dir / "report.md"
+    pinned = _original(report_md, ledger.entries()) if report_md.exists() else None
     findings_path = run_dir / FINDINGS_FILE
     findings = _read_jsonl(findings_path)
     await checker.prefetch(ledger.entries())
 
-    for entry in todo:
+    for entry in ledger.entries():
+        if not recheck and entry_status(entry) != "unverified":
+            continue
         result = await checker.check_entry(entry)
-        report.evidence.append(result)
         ledger.set_status(
             result.id,
             result.status,
-            {"checked_at": report.checked_at, "ratio": result.best_score, "reason": result.reason},
+            {"checked_at": checked_at, "ratio": result.best_score, "reason": result.reason},
         )
         trace.emit(
             "fact_check",
@@ -406,13 +489,15 @@ async def fact_check_run(
             continue
         if finding.get("verification") and not recheck:
             continue
-        result = await checker.check_finding(finding, by_id)
-        report.findings.append(result)
         cited = finding.get("cited_evidence_ids") or finding.get("evidence_ids") or []
-        finding.update(verification=result.status, best_score=result.best_score)
-        if result.status == "partial":
-            finding["cited_evidence_ids"] = cited
-            finding["evidence_ids"] = list(result.matched_ids)
+        result = await checker.check_finding(finding, by_id)
+        finding.update(
+            verification=result.status,
+            best_score=result.best_score,
+            fact_check_reason=result.reason,
+            cited_evidence_ids=list(cited),
+            evidence_ids=list(result.matched_ids) if result.status != "unsupported" else [],
+        )
         trace.emit(
             "fact_check",
             AGENT,
@@ -429,11 +514,24 @@ async def fact_check_run(
             "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in findings), encoding="utf-8"
         )
 
-    report_md = run_dir / "report.md"
-    if report_md.exists():
-        stripped = strip_unknown_citations(_original(report_md), ledger.entries())
-        report.stripped_citations = list(stripped.stripped)
-        body = stripped.text.rstrip("\n") + "\n"
+    report = _stored_results(ledger.entries(), findings, checked_at)
+    if pinned is not None:
+        live = [f for f in findings if f.get("status") != "rejected"]
+        supported = {
+            e
+            for f in live
+            if f.get("verification") != "unsupported"
+            for e in f.get("evidence_ids") or ()
+        }
+        only_unsupported = {
+            e
+            for f in live
+            if f.get("verification") == "unsupported"
+            for e in f.get("cited_evidence_ids") or ()
+        } - supported
+        rendered = render_citations(pinned, ledger.entries(), exclude=only_unsupported)
+        report.stripped_citations = list(rendered.stripped)
+        body = rendered.text.rstrip("\n") + "\n"
         named = {f["finding_id"]: f for f in findings}
         appendix = _appendix(report, named) if report.could_not_verify else ""
         report_md.write_text(body + appendix + FACT_CHECKED_MARK + "\n", encoding="utf-8")
@@ -441,11 +539,10 @@ async def fact_check_run(
     (run_dir / FACTCHECK_FILE).write_text(
         json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    counts = report.to_dict()["counts"]
     trace.emit(
         "fact_check",
         AGENT,
         "Unsupported claims are excluded from the writer and listed under 'Could not verify'",
-        detail={"summary": "fact-check done", "counts": counts},
+        detail={"summary": "fact-check done", "counts": report.to_dict()["counts"]},
     )
     return report
