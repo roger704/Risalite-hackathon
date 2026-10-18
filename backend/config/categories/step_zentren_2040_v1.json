@@ -1,0 +1,60 @@
+{
+  "mapping_version": "step_zentren_2040_v1",
+  "citation": "AV Zentren und Einzelhandel, ABl. Nr. 10 / 6. März 2026, §2.2.1 (städtische Zentren) and §2.3 (Fachmarktstandorte).",
+  "layers": {
+    "zh": {
+      "Zentrumsbereichskern": {
+        "category": "zentrumsbereichskern",
+        "role": "center",
+        "hierarchy_level": 1
+      },
+      "Zentrumsbereichskern (klein)": {
+        "category": "zentrumsbereichskern_klein",
+        "role": "center",
+        "hierarchy_level": 1
+      },
+      "Hauptzentrum": {
+        "category": "hauptzentrum",
+        "role": "center",
+        "hierarchy_level": 2
+      },
+      "Stadtteilzentrum": {
+        "category": "stadtteilzentrum",
+        "role": "center",
+        "hierarchy_level": 3
+      },
+      "Ortsteilzentrum": {
+        "category": "ortsteilzentrum",
+        "role": "center",
+        "hierarchy_level": 4
+      },
+      "Zentrumsbereich": {
+        "category": "zentrumsbereich",
+        "role": "center_area",
+        "hierarchy_level": null
+      },
+      "Sonderzentrum": {
+        "category": "sonderzentrum",
+        "role": "special_center",
+        "hierarchy_level": null
+      }
+    },
+    "fma": {
+      "Fachmarktagglomeration": {
+        "category": "fachmarktagglomeration",
+        "role": "specialist_retail_site",
+        "hierarchy_level": null
+      },
+      "übergeordneter Fachmarktstandort": {
+        "category": "fachmarktstandort_uebergeordnet",
+        "role": "specialist_retail_site",
+        "hierarchy_level": null
+      },
+      "bezirklicher Fachmarktstandort": {
+        "category": "fachmarktstandort_bezirklich",
+        "role": "specialist_retail_site",
+        "hierarchy_level": null
+      }
+    }
+  }
+}

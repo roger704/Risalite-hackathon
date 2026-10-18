@@ -126,6 +126,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `berlin_parks` | [Grünanlagenbestand Berlin (inkl. öffentlicher Spielplätze) WFS](https://daten.berlin.de/datensaetze/grunanlagenbestand-berlin-einschliesslich-der-offentlichen-spielplatze-wfs-737fd0a4), WFS `gruenanlagen:gruenanlagen` and `gruenanlagen:spielplaetze`, [format description](https://gdi.berlin.de/data/gruenanlagen/docs/Datenformatbeschreibung_Gruenanlagen_Spielplaetze.pdf) | 2,563 green spaces and 1,886 playgrounds (18 October 2026), dataset revision `2026-04-09` (CSW metadata `737fd0a4-3811-34ef-bbca-f26b93fd4326`), source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200/page). Polygons kept as `GreenSpace` records; see the section below. [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Geoportal Berlin / Grünanlagenbestand Berlin. |
+| `berlin_centers` | [StEP Zentren 2040 dataset](https://daten.berlin.de/datensaetze/stadtentwicklungsplan-step-zentren-2040-wfs-7eb416eb), [WFS service](https://gdi.berlin.de/services/wfs/step_zen_2040) | Source edition/reference date `2026-01-13`: 81 `zh` features (79 Points, 2 MultiPolygons) and 33 `fma` Points. Mapping `step_zentren_2040_v1`; source CRS EPSG:25833 and stored geometry WGS84. DL-DE-Zero-2.0, attributed to Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. Specialist-retail sites are complementary planning sites, not städtische Zentren; only two Zentrumsbereich polygons have published boundaries. |
 | `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
 | `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
 | `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
@@ -427,6 +428,48 @@ curl "http://127.0.0.1:8000/api/v1/datasets/berlin_parks/green-spaces/nearby?sna
 The `nearby` endpoint returns `straight_line_distance_m` to the nearest polygon edge in EPSG:25833 (`0` and `contains_origin: true` inside a polygon), plus counts per feature type within `radius_m` (maximum 5,000 m). This is not walking distance or walking time; entrances, fences and the street network are ignored. `--file` imports are not supported because a snapshot needs the pages of both layers.
 
 Real import (18 October 2026): 4,449 records (2,563 + 1,886, equal to `numberMatched`), 0 rejected, 23 raw pages (26.0 MB), normalized GeoParquet 26.7 MB, 45.7 s, 637,228 KB maximum RSS. 7 features have no `plannr`; 3 use `07030301`, which is not in the LOR 2021 code set.
+
+## Berlin retail centers (`berlin_centers`)
+
+`berlin_centers` imports both layers from the Berlin StEP Zentren 2040 WFS,
+`step_zen_2040:step_zen_2040_zh` (Zentrenhierarchie) and
+`step_zen_2040:step_zen_2040_fma` (Fachmarktagglomerationen). The reviewed source
+edition and reference date is `2026-01-13`. The source contains 81 hierarchy features
+(79 Points and two MultiPolygons) and 33 specialist-retail Points. Source geometries
+are validated in EPSG:25833, transformed to WGS84 GeoJSON for storage, and retain
+their feature IDs, source links, mapped categories, and source attributes. Category
+semantics are versioned in `config/categories/step_zentren_2040_v1.json`.
+
+Import against a pinned Berlin LOR snapshot so the point and representative-point
+locations can be checked for coverage:
+
+```sh
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_centers --lor-snapshot "$LOR_SNAPSHOT_ID"
+CENTERS_SNAPSHOT_ID='replace-with-berlin_centers-snapshot_id'
+uv run location-data records berlin_centers --snapshot "$CENTERS_SNAPSHOT_ID" --limit 100
+```
+
+The nearby API is
+`GET /api/v1/datasets/berlin_centers/nearby?snapshot_id=...&lon=...&lat=...&radius_m=...`.
+It returns centers within a straight-line radius (metres). Distances are computed in
+EPSG:25833 to the published polygon area (zero when the candidate is inside it) or
+to the published center point. Membership is determined only when the candidate is
+covered by a published Zentrumsbereich polygon. Point records have no boundary and
+are not treated as membership areas. The response labels the result as planning
+context, not footfall, revenue, or suitability, and explicitly distinguishes
+straight-line distance from walking distance or time.
+
+StEP Zentren 2040 is a planning designation, not a measurement of customer traffic,
+sales, rents, vacancy, or shop counts. Only two Zentrumsbereich polygons have
+published boundaries; boundaries are not inferred for point features. Parcel-exact
+boundaries for central supply areas and Nahversorgungszentren belong to district
+center concepts and are not present in this WFS. The `fma` layer describes
+complementary sites for large specialist stores with non-center-relevant assortments;
+these sites are not städtische Zentren. Missing source names and unmapped source
+types remain explicitly missing or flagged. License: [Datenlizenz Deutschland –
+Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attribution to
+Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin.
 
 ## Official Kita registry (`berlin_kitas`, `berlin_wfs`)
 
