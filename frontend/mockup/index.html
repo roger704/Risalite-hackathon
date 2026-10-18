@@ -102,6 +102,9 @@ details summary{cursor:pointer;font-weight:600}
 .fa h4{margin:0 0 4px;font-size:12px}
 .fa ul{margin:0;padding-left:16px;font-size:12px}
 .grade td:first-child{width:24px}
+.export{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.btn.sm{padding:5px 10px;font-size:12px}
+#x-link{flex:1 1 100%;font-size:12px}
 @media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}}
 </style>
 </head>
@@ -186,6 +189,16 @@ details summary{cursor:pointer;font-weight:600}
     <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
     <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
     <div id="d-note" class="demo-note hidden"></div>
+    <div class="export" id="d-export"><span class="mut small" style="font-weight:600">Export</span>
+      <button class="btn ghost sm" data-x="md" title="Markdown report for the current mix">Report .md</button>
+      <button class="btn ghost sm" data-x="html" title="Self-contained, printable HTML report">Report .html</button>
+      <button class="btn ghost sm" data-x="pdf" title="Open the report and the print dialog (Save as PDF)">Print / PDF</button>
+      <button class="btn ghost sm" data-x="csv" title="Sources from evidence.jsonl, incl. unsupported">Sources .csv</button>
+      <button class="btn ghost sm" data-x="bib" title="BibTeX of verified + partial sources">Sources .bib</button>
+      <button class="btn ghost sm" data-x="link" title="URL that restores the question, approved plan and layer mix">Copy share link</button>
+      <span id="x-msg" class="small mut"></span>
+      <input type="text" id="x-link" readonly class="hidden" aria-label="Share link">
+    </div>
   </div>
   <div class="dash">
     <div>
@@ -395,12 +408,12 @@ function show(id){['s-ask','s-plan','s-live','s-dash'].forEach(s=>$('#'+s).class
 let C=null;
 $$('.tpl .t').forEach(t=>t.onclick=()=>{$('#q').value=t.dataset.q;$('#op').value=t.dataset.op||'';$('#clar').classList.add('hidden')});
 $('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return}
-  C=classify(q);C.q=q;C.role=$('#role').value;C.op=$('#op').value;
+  C=classify(q);C.q=C.q0=q;C.role=$('#role').value;C.op=$('#op').value;
   if(!C.area&&C.shape!=='point'){$('#clar').classList.remove('hidden');return}
   if(C.shape==='point')C.area='kreuzberg';
   plan()};
-$$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
-$('#restart').onclick=()=>{show('s-ask')};
+$$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.clar=b.dataset.area;C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
+$('#restart').onclick=()=>{clearInterval(timer);clearHash();show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
 
 function plan(){
@@ -436,16 +449,16 @@ function demoNote(){
   return '';
 }
 
-$('#approve').onclick=()=>{
+function approvePlan(){
   SC.sel=new Set($$('#p-sub input').filter(i=>i.checked).map(i=>+i.dataset.s));
   SC.planChecks=$$('#p-sub input').map(i=>i.checked);
   if(C.shape==='point'){
     const hs=$$('#p-layers-wrap input[data-h]').filter(i=>i.checked).map(i=>+i.dataset.h);
-    if(!hs.length){alert('Keep at least one business hypothesis.');return}
+    if(!hs.length){alert('Keep at least one business hypothesis.');return false}
     SC.H=hs.map(i=>SC.Hall[i]).sort((a,b)=>b.score-a.score);
   } else {
     state.on={};SC.layers.forEach(l=>state.on[l.id]=true);$$('#p-layers input').forEach(i=>state.on[i.dataset.l]=i.checked);
-    if(!Object.values(state.on).some(Boolean)){alert('Keep at least one scoring layer.');return}
+    if(!Object.values(state.on).some(Boolean)){alert('Keep at least one scoring layer.');return false}
     SC.defaultOn={...state.on};
     SC.cells.forEach(c=>c.modifiers=c.modifiers.filter(m=>SC.sel.has(m.q)));
     SC.subq.forEach((s,i)=>{if(SC.sel.has(i))return;
@@ -453,7 +466,8 @@ $('#approve').onclick=()=>{
       if(/IHK/.test(s[0]))C.extra.ihk=null;
       if(/Kita plan/.test(s[0]))C.extra.planDoc=null;});
   }
-  TR=traceFor(SC);live()};
+  return true}
+$('#approve').onclick=()=>{if(approvePlan()){TR=traceFor(SC);live()}};
 
 let timer=null;
 function live(){
@@ -525,7 +539,7 @@ function renderArea(){
   $('#d-battle').innerHTML=`<div class="battle">${SC.layers.filter(l=>state.on[l.id]).map(l=>{const va=l.dir==='+'?a.cell.values[l.id]:1-a.cell.values[l.id],vb=l.dir==='+'?b.cell.values[l.id]:1-b.cell.values[l.id];
     return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#0f766e':'#94a3b8'}"></span></div><div class="lab">${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#0f766e':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
     <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each layer's contribution direction-adjusted (longer = better for a ${C.shape==='gap'?'gap':SC.noun}).</p>`;
-  drawMap(ranked,byId);bindCites();
+  drawMap(ranked,byId);bindCites();syncHash();
 }
 
 function drawMap(ranked,byId){
@@ -581,7 +595,7 @@ function renderPoint(){
   $('#legend').innerHTML=`<span style="color:#dc2626">■</span> the space <span style="color:#0f766e">●</span> bakeries <span style="color:#7c3aed">●</span> bars <span style="color:#d97706">●</span> grocery/organic <span style="margin-left:auto" class="small">competitor positions illustrative</span>`;
   const tip=$('#tip'),map=$('#map');
   $$('#map path.cell').forEach(p=>{const c=A.cells.find(x=>x.id===p.dataset.id);p.onmousemove=ev=>{const b=map.getBoundingClientRect();tip.style.display='block';tip.style.left=Math.min(ev.clientX-b.left+14,b.width-230)+'px';tip.style.top=(ev.clientY-b.top+14)+'px';tip.innerHTML=`<b>${c.name}</b> <span style="color:#8fa5b5">${c.id}</span>${c.id===P.cellId?'<br>contains the space [1]':''}`};p.onmouseleave=()=>tip.style.display='none'});
-  bindCites();
+  bindCites();syncHash();
 }
 
 function renderSources(){
@@ -602,6 +616,197 @@ function renderGrade(){
   $('#d-grade').innerHTML=g.map(r=>`<tr><td style="color:${r[0]==='✓'?'var(--ok)':'var(--warn)'};font-weight:800">${r[0]}</td><td>${r[1]}</td></tr>`).join('');
 }
 function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
+/* ---------- exports: report (.md / printable .html), sources (.csv / .bib), share link ---------- */
+const plain=h=>{const d=document.createElement('div');d.innerHTML=String(h??'');return d.textContent.replace(/\s+/g,' ').trim()};
+const mdc=s=>plain(s).replace(/\|/g,'\\|');
+const stamp=()=>new Date().toISOString().slice(0,16).replace(/[-:T]/g,'').replace(/^(\d{8})/,'$1-');
+const runId=()=>`mockup-${C.shape}-${C.area}`;
+const bits=sel=>$$(sel).map(x=>x.checked?'1':'0').join('');
+let lastHash='';
+function shareParams(){
+  const p=new URLSearchParams();p.set('q',C.q0);
+  if(C.role)p.set('role',C.role);if(C.op)p.set('op',C.op);if(C.clar)p.set('area',C.clar);
+  p.set('sub',bits('#p-sub input'));
+  if(C.shape==='point')p.set('hyp',bits('#p-layers-wrap input[data-h]'));
+  else{p.set('lay',bits('#p-layers input'));p.set('on',SC.layers.map(l=>state.on[l.id]?'1':'0').join(''));p.set('mode',state.mode)}
+  return p.toString();
+}
+const shareURL=()=>location.href.split('#')[0]+'#'+shareParams();
+function syncHash(){lastHash=shareParams();try{history.replaceState(null,'','#'+lastHash)}catch(e){}}
+function clearHash(){lastHash='';try{history.replaceState(null,'',location.href.split('#')[0])}catch(e){}}
+function restoreFromHash(){
+  const p=new URLSearchParams(location.hash.slice(1)),q=(p.get('q')||'').trim();if(!q)return;
+  lastHash=location.hash.slice(1);
+  $('#q').value=q;$('#role').value=p.get('role')||'';$('#op').value=p.get('op')||'';$('#clar').classList.add('hidden');
+  C=classify(q);C.q=C.q0=q;C.role=$('#role').value;C.op=$('#op').value;
+  if(C.shape==='point')C.area='kreuzberg';
+  else if(!C.area){const a=p.get('area');
+    if(a!=='Kreuzberg'&&a!=='Neukölln'){show('s-ask');$('#clar').classList.remove('hidden');return}
+    C.area=a==='Kreuzberg'?'kreuzberg':'neukoelln';C.clar=a;C.q+=` (${a})`}
+  plan();
+  const setBits=(sel,b)=>{const xs=$$(sel);if(b&&/^[01]+$/.test(b)&&b.length===xs.length)xs.forEach((x,i)=>x.checked=b[i]==='1')};
+  setBits('#p-sub input',p.get('sub'));setBits('#p-layers input',p.get('lay'));setBits('#p-layers-wrap input[data-h]',p.get('hyp'));
+  if(!approvePlan())return;
+  TR=traceFor(SC);dash();
+  if(C.shape!=='point'){const on=p.get('on');
+    if(on&&/^[01]+$/.test(on)&&on.length===SC.layers.length&&on.includes('1'))SC.layers.forEach((l,i)=>state.on[l.id]=on[i]==='1');
+    state.mode=p.get('mode')==='future'&&hasFut()?'future':'present';renderLayers();renderArea()}
+}
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==lastHash)restoreFromHash()});
+
+function mixInfo(){
+  if(C.shape==='point')return {custom:false,line:'point path (no layer mix)'};
+  const custom=state.mode!=='present'||SC.layers.some(l=>!!state.on[l.id]!==!!SC.defaultOn[l.id]);
+  const labels=SC.layers.filter(l=>state.on[l.id]).map(l=>plain(l.label));
+  return {custom,line:custom?`custom — layers: ${labels.join(', ')}; mode: ${state.mode==='future'?'present + future':'present only'}`:'default (approved layers, present only)'};
+}
+const areaLabel=()=>C.shape==='point'?'Wiener Straße 12 → PLR Lausitzer Platz (02300315)':`${SC.aname} (Bezirk ${SC.bez}) · ${SC.cells.length} PLR cells`;
+const planRows=()=>$$('#p-sub tbody tr').map(tr=>{const td=tr.querySelectorAll('td');return {ok:td[0].querySelector('input').checked,text:plain(td[1].innerHTML),cls:plain(td[2].innerHTML),layers:plain(td[3].innerHTML)}});
+function traceRows(){const per={};TR.forEach(e=>{const r=per[e.role]=per[e.role]||{n:0,t:0,s:0};r.n++;r.t+=e.tok;r.s+=+e.sec});return Object.entries(per).map(([role,v])=>({role,model:MODELS[role]||'deterministic',...v}))}
+const srcMeta=s=>`${s.method} · ${s.tier} · confidence ${s.conf} · ${s.status}`;
+const SYNTH='Mockup export — layer values, quotes, URLs under example-*.de and traces are synthetic; PLR boundaries are real (LOR 2021, Amt für Statistik Berlin-Brandenburg, CC BY 3.0).';
+const pref=x=>typeof x==='number'?`[${x}]`:`(${plain(x)})`;
+
+const mdu=u=>String(u).replace(/[ <>]/g,encodeURIComponent);
+function reportMarkdown(){
+  const L=[],mi=mixInfo(),pt=C.shape==='point';
+  L.push('# Risalite report','',`**Question:** ${plain(C.q)}`,'',`- Shape: \`${C.shape}\``,`- Area: ${areaLabel()}`);
+  if(C.role)L.push(`- Role: ${plain(C.role)}`);
+  if(pt)L.push(`- Operator profile: ${plain(C.op)||'— none given'}`);
+  L.push(`- Mix: ${mi.line}`,`- Generated: ${new Date().toISOString()}`,`- Share link: <${shareURL()}>`,'');
+  if(SC.note)L.push(`> ${plain(SC.note)}`,'');
+  L.push(`> ${SYNTH}`,'');
+  L.push('## 1. Approved plan','','| | Sub-question | Source class | Layers / domains |','|---|---|---|---|',
+    ...planRows().map(r=>`| ${r.ok?'✓':'✕ not approved'} | ${mdc(r.text)} | ${mdc(r.cls)} | ${mdc(r.layers)} |`),'');
+  if(!pt&&SC.paid.length)L.push('Optional paid sources: '+SC.paid.map(p=>`${plain(p[0])} (${plain(p[1])}) — key not provided, skipped`).join('; '),'');
+  L.push(`## 2. Summary (${pt?'point path':'written for the default mix'})`,'',plain($('#d-sum').innerHTML),'');
+  if(pt){
+    L.push('## 3. Top business hypotheses','');
+    SC.H.forEach((h,i)=>L.push(`### #${i+1} ${plain(h.name)} — ${h.score.toFixed(1)} / 10`,'','| Dimension | Score | Why |','|---|---|---|',
+      ...SC.dims.map((d,k)=>`| ${mdc(d)} | ${h.d[k]} | ${mdc(h.dw[k])} |`),'',
+      '**For**','',...h.for.map(f=>`- ${plain(f[0])} ${pref(f[1])}`),'',
+      '**Against**','',...h.against.map(f=>`- ${plain(f[0])} ${pref(f[1])}`),'',
+      '**Unknowns → validate**','',...h.unk.map(u=>`- ${plain(u[0])} → ${plain(u[1])}`),''));
+  } else {
+    const ranked=scores(SC,state.on,state.mode),mode=state.mode==='future'?'present + future':'present';
+    L.push(`## 3. ${C.shape==='gap'?'Top-3 cells by Kita gap':'Top-3 ranked cells'} (${mi.custom?'custom':'default'} mix)`,'');
+    ranked.slice(0,3).forEach((r,i)=>{const c=r.cell;
+      L.push(`### #${i+1} ${plain(c.name)} — ${r.score.toFixed(2)}`,'',`PLR ${c.id} · ${plain(c.bzr)} · ${C.shape==='gap'?'gap score':'score'} (${mode})`,'',
+        ...SC.layers.map(l=>`- ${plain(l.label)}: **${c.values[l.id].toFixed(2)}** [${l.src}]${state.on[l.id]?'':' _(layer off)_'}`),
+        ...c.modifiers.map(m=>`- Future: ${plain(m.label)} [${m.src}] — ${state.mode==='future'?'+0.10 applied':'+0.10 in future mode'}${m.magnitude?` · magnitude stated by source: ${plain(m.magnitude)}`:''}\n  > “${plain(m.quote)}”`),
+        ...c.risks.map(k=>`- Risk (${k.sev}): ${plain(k.text)} [${k.src}] — −0.08 skeptic demotion\n  > “${plain(k.quote)}”`),
+        ...c.unknowns.map(u=>`- Unknown: ${plain(u)}`),'')});
+    L.push('### Full ranking','','| # | PLR | Name | Score |','|---|---|---|---|',...ranked.map((r,i)=>`| ${i+1} | ${r.cell.id} | ${mdc(r.cell.name)} | ${r.score.toFixed(2)} |`),'');
+    L.push('## 4. Layers & default weights','','| On | Layer | Dir. | Weight | Source | Why |','|---|---|---|---|---|---|',
+      ...SC.layers.map(l=>`| ${state.on[l.id]?'✓':'—'} | ${mdc(l.label)} | ${l.dir} | ${l.w.toFixed(2)} | [${l.src}] | ${mdc(l.why)} |`),'',
+      'Score = Σ weight · (direction · value) over checked layers, min–max normalised 0–1 across cells; −0.08 for a high-severity skeptic risk; +0.10 per future modifier in present + future mode.','');
+  }
+  L.push('## 5. Sources','',...SC.sources.flatMap(s=>[`${s.n}. **${plain(s.title)}** — ${srcMeta(s)}  `,`   <${mdu(s.url)}>  `,`   > “${plain(s.quote)}”`,'']));
+  L.push('### Could not verify (dropped by the fact-checker)','',...SC.rejected.map(r=>`- ${plain(r.claim)} — <${mdu(r.url)}> — ${plain(r.reason)}`),'');
+  const tr=traceRows(),tot=tr.reduce((a,r)=>[a[0]+r.n,a[1]+r.t,a[2]+r.s],[0,0,0]);
+  L.push('## 6. Trace summary','','| Role | Model | Calls | Tokens | Seconds |','|---|---|---|---|---|',
+    ...tr.map(r=>`| ${mdc(r.role)} | ${mdc(r.model)} | ${r.n} | ${r.t} | ${r.s.toFixed(1)} |`),`| **Total** | | ${tot[0]} | ${tot[1]} | ${tot[2].toFixed(1)} |`,'');
+  const rej=TR.filter(e=>e.type==='reject');
+  if(rej.length)L.push('Fact-checker rejections:','',...rej.map(e=>`- ${plain(e.text)} — ${plain(e.why)}`),'');
+  return L.join('\n');
+}
+
+const REPORT_CSS=`body{font:12.5px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#14202b;margin:0;background:#fff}
+main{max-width:820px;margin:0 auto;padding:24px 28px}
+h1{font-size:21px;margin:2px 0 6px}h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #0f766e;break-after:avoid}h3{font-size:13.5px;margin:10px 0 4px;break-after:avoid}
+.brand{font-weight:800;font-size:13px;color:#0b1720}.brand span{color:#0f766e}
+.meta{color:#5d6b78;font-size:12px;margin:0;padding-left:18px}.meta b{color:#14202b}.meta a{color:#1d4ed8;word-break:break-all}
+.note{background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px 10px;font-size:11.5px;margin:8px 0}
+table{border-collapse:collapse;width:100%;margin:4px 0 8px}th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #e2e7ec;vertical-align:top;font-size:11.5px}th{color:#5d6b78;font-weight:600}
+.top{border:1px solid #e2e7ec;border-radius:8px;padding:8px 12px;margin:8px 0;break-inside:avoid}
+.sc{font-size:17px;font-weight:800;color:#0f766e}.off{opacity:.45}
+.vals{margin:4px 0;padding-left:18px;font-size:11.5px}
+.mod,.risk,.unk{padding:4px 8px;margin:4px 0;border-left:3px solid;font-size:11.5px}.mod{border-color:#0f766e;background:#f0fdfa}.risk{border-color:#b45309;background:#fff7ed}.unk{border-color:#94a3b8;background:#f8fafc}
+.quote{font-style:italic;color:#334155}.mut{color:#5d6b78}.small{font-size:11px}
+.cite{color:#0f766e;font-weight:700;text-decoration:none}
+.map svg{width:100%;height:auto;display:block;background:#eef3f6;border-radius:6px}.map path.cell{stroke:#fff;stroke-width:1.2}.map text{font-size:10px;fill:#0b1720;font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.legend{display:flex;gap:8px;align-items:center;font-size:10.5px;color:#5d6b78;margin-top:4px;flex-wrap:wrap}.legend .bar{flex:0 0 140px;height:8px;border-radius:4px;display:inline-block}
+.src{padding:5px 0;border-bottom:1px solid #e2e7ec;break-inside:avoid}.src a{color:#1d4ed8;word-break:break-all}.num{font-weight:800;color:#0f766e}
+.fa{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.fa h4{margin:4px 0 2px;font-size:11.5px}.fa ul{margin:2px 0;padding-left:16px;font-size:11.5px}
+.toolbar{position:sticky;top:0;background:#0b1720;padding:8px;text-align:center}.toolbar button{font:inherit;font-weight:600;background:#0f766e;color:#fff;border:0;border-radius:6px;padding:7px 16px;cursor:pointer}
+@page{size:A4;margin:14mm}
+@media print{.no-print{display:none!important}main{padding:0;max-width:none}.pb{break-before:page}a{color:inherit}}`;
+
+function reportHTML(){
+  const mi=mixInfo(),pt=C.shape==='point',e=x=>esc(plain(x)),cl=n=>`<a class="cite" href="#src-${n}">[${n}]</a>`;
+  const ln=u=>/^https?:\/\//i.test(u)?`<a href="${esc(u)}">${esc(u)}</a>`:esc(u);
+  const cites=h=>String(h).replace(/<a class="cite" data-n="(\d+)">/g,'<a class="cite" href="#src-$1">');
+  const ref=x=>typeof x==='number'?cl(x):`<span class="mut">(${e(x)})</span>`;
+  const H=[];
+  H.push(`<div class="brand">Risal<span>ite</span> report</div><h1>${e(C.q)}</h1><ul class="meta"><li>Shape: <b>${e(C.shape)}</b></li><li>Area: <b>${e(areaLabel())}</b></li>`
+    +(C.role?`<li>Role: <b>${e(C.role)}</b></li>`:'')+(pt?`<li>Operator profile: <b>${e(C.op)||'— none given'}</b></li>`:'')
+    +`<li>Mix: <b>${e(mi.line)}</b></li><li>Generated: ${esc(new Date().toISOString())}</li><li>Share link: ${ln(shareURL())}</li></ul>`);
+  if(SC.note)H.push(`<div class="note">${e(SC.note)}</div>`);
+  H.push(`<div class="note">${esc(SYNTH)}</div>`);
+  H.push(`<h2>1 · Approved plan</h2><table><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody>${planRows().map(r=>`<tr${r.ok?'':' class="off"'}><td>${r.ok?'✓':'✕ not approved'}</td><td>${esc(r.text)}</td><td>${esc(r.cls)}</td><td class="mut">${esc(r.layers)}</td></tr>`).join('')}</tbody></table>`);
+  if(!pt&&SC.paid.length)H.push(`<p class="small mut">Optional paid sources: ${SC.paid.map(p=>`${e(p[0])} (${e(p[1])}) — key not provided, skipped`).join('; ')}</p>`);
+  H.push(`<h2>2 · Summary <span class="mut small">(${pt?'point path':'written for the default mix'})</span></h2><div>${cites($('#d-sum').innerHTML)}</div>`);
+  const svg=$('#map svg');
+  const mapBlock=svg?`<div class="map">${svg.outerHTML}</div><div class="legend">${$('#legend').innerHTML}</div>`:'';
+  if(pt){
+    H.push(`<h2>3 · Top business hypotheses</h2>`+SC.H.map((h,i)=>`<div class="top"><h3>#${i+1} ${e(h.name)} — <span class="sc">${h.score.toFixed(1)}</span> <span class="mut small">/ 10</span></h3>
+      <table><thead><tr><th>Dimension</th><th>Score</th><th>Why</th></tr></thead><tbody>${SC.dims.map((d,k)=>`<tr><td>${e(d)}</td><td><b>${h.d[k]}</b></td><td>${esc(plain(h.dw[k])).replace(/\[(\d+)\]/g,(m,n)=>cl(n))}</td></tr>`).join('')}</tbody></table>
+      <div class="fa"><div><h4>FOR</h4><ul>${h.for.map(f=>`<li>${e(f[0])} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4>AGAINST</h4><ul>${h.against.map(f=>`<li>${e(f[0])} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4>UNKNOWNS → validate</h4><ul>${h.unk.map(u=>`<li>${e(u[0])}<br><span class="mut">→ ${e(u[1])}</span></li>`).join('')}</ul></div></div></div>`).join(''));
+    H.push(`<h2>4 · Map <span class="mut small">— the space, its PLR cell, and competitors within 500 m</span></h2>${mapBlock}`);
+  } else {
+    const ranked=scores(SC,state.on,state.mode),mode=state.mode==='future'?'present + future':'present';
+    H.push(`<h2>3 · ${C.shape==='gap'?'Top-3 cells by Kita gap':'Top-3 ranked cells'} <span class="mut small">(${mi.custom?'custom':'default'} mix)</span></h2>`+ranked.slice(0,3).map((r,i)=>{const c=r.cell;
+      return `<div class="top"><h3>#${i+1} ${e(c.name)} — <span class="sc">${r.score.toFixed(2)}</span></h3><div class="mut small">PLR ${esc(c.id)} · ${e(c.bzr)} · ${C.shape==='gap'?'gap score':'score'} (${mode})</div>
+        <ul class="vals">${SC.layers.map(l=>`<li${state.on[l.id]?'':' class="off"'}>${e(l.label)}: <b>${c.values[l.id].toFixed(2)}</b> ${cl(l.src)}${state.on[l.id]?'':' <i>(layer off)</i>'}</li>`).join('')}</ul>
+        ${c.modifiers.map(m=>`<div class="mod"><b>Future:</b> ${e(m.label)} ${cl(m.src)} — ${state.mode==='future'?'+0.10 applied':'+0.10 in future mode'}${m.magnitude?` · magnitude stated by source: ${e(m.magnitude)}`:''}<br><span class="quote">“${e(m.quote)}”</span></div>`).join('')}
+        ${c.risks.map(k=>`<div class="risk"><b>Risk (${e(k.sev)}):</b> ${e(k.text)} ${cl(k.src)} — −0.08 skeptic demotion<br><span class="quote">“${e(k.quote)}”</span></div>`).join('')}
+        ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${e(u)}</div>`).join('')}</div>`}).join(''));
+    H.push(`<h2>4 · Map <span class="mut small">— heatmap of the ${C.shape==='gap'?'gap score':'composite score'} for this mix</span></h2>${mapBlock}`);
+    H.push(`<h3>Full ranking</h3><table><thead><tr><th>#</th><th>PLR</th><th>Name</th><th>Score</th></tr></thead><tbody>${ranked.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.cell.id)}</td><td>${e(r.cell.name)}</td><td>${r.score.toFixed(2)}</td></tr>`).join('')}</tbody></table>`);
+    H.push(`<h2>5 · Layers & default weights</h2><table><thead><tr><th>On</th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody>${SC.layers.map(l=>`<tr${state.on[l.id]?'':' class="off"'}><td>${state.on[l.id]?'✓':'—'}</td><td>${e(l.label)}</td><td>${esc(l.dir)}</td><td>${l.w.toFixed(2)}</td><td>${cl(l.src)}</td><td class="mut">${e(l.why)}</td></tr>`).join('')}</tbody></table>
+      <p class="small mut">Score = Σ weight · (direction · value) over checked layers, min–max normalised 0–1 across cells; −0.08 for a high-severity skeptic risk; +0.10 per future modifier in present + future mode.</p>`);
+  }
+  H.push(`<h2 class="pb">${pt?5:6} · Sources <span class="mut small">— from evidence.jsonl only</span></h2>${SC.sources.map(s=>`<div class="src" id="src-${s.n}"><span class="num">[${s.n}]</span> <b>${e(s.title)}</b> <span class="mut small">${esc(srcMeta(s))}</span><div class="quote small">“${e(s.quote)}”</div>${ln(s.url)}</div>`).join('')}
+    <h3>Could not verify (dropped by the fact-checker)</h3>${SC.rejected.map(r=>`<div class="src"><b>${e(r.claim)}</b> <span class="mut small">unsupported</span><div class="small mut">${e(r.reason)}</div>${ln(r.url)}</div>`).join('')}`);
+  const tr=traceRows(),tot=tr.reduce((a,r)=>[a[0]+r.n,a[1]+r.t,a[2]+r.s],[0,0,0]),rej=TR.filter(x=>x.type==='reject');
+  H.push(`<h2>${pt?6:7} · Trace summary</h2><table><thead><tr><th>Role</th><th>Model</th><th>Calls</th><th>Tokens</th><th>Seconds</th></tr></thead><tbody>${tr.map(r=>`<tr><td>${e(r.role)}</td><td>${e(r.model)}</td><td>${r.n}</td><td>${r.t.toLocaleString('en')}</td><td>${r.s.toFixed(1)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td></td><td><b>${tot[0]}</b></td><td><b>${tot[1].toLocaleString('en')}</b></td><td><b>${tot[2].toFixed(1)}</b></td></tr></tbody></table>`
+    +(rej.length?`<p class="small"><b>Fact-checker rejections:</b></p><ul class="small">${rej.map(x=>`<li>${e(x.text)} — <span class="mut">${e(x.why)}</span></li>`).join('')}</ul>`:''));
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Risalite report — ${e(C.q)}</title><style>${REPORT_CSS}</style></head><body><div class="toolbar no-print"><button onclick="print()">Print / Save as PDF</button></div><main>${H.join('\n')}</main></body></html>`;
+}
+
+const CSV_COLS=['n','evidence_id','title','url','method','tier','confidence','status','quote','retrieved_at','published_at'];
+const sourceRows=()=>[
+  ...SC.sources.map(s=>({n:s.n,evidence_id:'e'+s.n,title:plain(s.title),url:s.url,method:s.method,tier:s.tier,confidence:s.conf,status:s.status,quote:plain(s.quote)})),
+  ...SC.rejected.map((r,i)=>({n:'',evidence_id:'x'+(i+1),title:plain(r.claim),url:r.url,method:'web',status:'unsupported',quote:''}))];
+const csvCell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+const sourcesCSV=()=>[CSV_COLS.join(','),...sourceRows().map(r=>CSV_COLS.map(k=>csvCell(r[k])).join(','))].join('\n')+'\n';
+const tex=s=>String(s??'').replace(/[\\{}&%$#_~^]/g,c=>({'\\':'\\textbackslash{}','~':'\\textasciitilde{}','^':'\\textasciicircum{}'}[c]||'\\'+c));
+const texUrl=u=>String(u).replace(/[{}\\ ]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
+function sourcesBib(){
+  const today=new Date().toISOString().slice(0,10),key=n=>`risalite-${runId()}-e${n}`.replace(/[^A-Za-z0-9_-]/g,'-');
+  return `% Risalite sources (verified + partial; unsupported claims omitted)\n% Question: ${plain(C.q)}\n\n`+SC.sources.map(s=>`@misc{${key(s.n)},
+  title = {${tex(plain(s.title))}},
+  howpublished = {\\url{${texUrl(s.url)}}},
+  url = {${texUrl(s.url)}},
+  urldate = {${today}},
+  note = {${tex(`Method: ${s.method}; tier: ${s.tier}; confidence: ${s.conf}; status: ${s.status}.`)} Quote: \`\`${tex(plain(s.quote))}''}
+}`).join('\n\n')+'\n';
+}
+
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function xmsg(t){$('#x-msg').textContent=t;clearTimeout(xmsg.t);xmsg.t=setTimeout(()=>$('#x-msg').textContent='',4000)}
+$$('#d-export [data-x]').forEach(b=>b.onclick=()=>{
+  const base=`risalite-${runId()}-${stamp()}`,x=b.dataset.x;
+  if(x==='md'){download(base+'-report.md',reportMarkdown(),'text/markdown;charset=utf-8');xmsg('Report downloaded (.md)')}
+  else if(x==='html'){download(base+'-report.html',reportHTML(),'text/html;charset=utf-8');xmsg('Report downloaded (.html) — open it and use Print to save a PDF')}
+  else if(x==='pdf'){const w=window.open('','_blank');if(!w){xmsg('Pop-up blocked — use “Report .html” and print from there');return}
+    w.document.open();w.document.write(reportHTML());w.document.close();w.focus();setTimeout(()=>w.print(),300)}
+  else if(x==='csv'){download(base+'-sources.csv','\ufeff'+sourcesCSV(),'text/csv;charset=utf-8');xmsg('Sources downloaded (.csv)')}
+  else if(x==='bib'){download(base+'-sources.bib',sourcesBib(),'application/x-bibtex;charset=utf-8');xmsg('Sources downloaded (.bib)')}
+  else if(x==='link'){const u=shareURL(),inp=$('#x-link');inp.value=u;inp.classList.remove('hidden');inp.select();
+    (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>xmsg('Share link copied'),()=>xmsg('Copy the link above (Ctrl+C)'))}
+});
+if(location.hash.length>1)restoreFromHash();
 </script>
 </body>
 </html>
