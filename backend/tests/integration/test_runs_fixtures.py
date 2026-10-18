@@ -387,22 +387,84 @@ def test_point_result_report_matches_approved_hypotheses(client):
     )
 
 
-def test_gap_run_discloses_fixture_notice(client):
+def test_gap_run_uses_neukoelln_fixture_and_exports_report(client):
     run = start_run(client, "Where are Kitas missing in Neukölln?")
     assert run["shape"] == "gap"
     assert run["status"] == "awaiting_approval"
-    assert run["plan"]["note"] == (
-        "Demo fixtures only cover the Kreuzberg coffee question — results for this question/area "
-        "will show that example, not a computed answer."
-    )
+    assert run["plan"]["area"]["area_id"] == "ortsteil:0801"
+    assert len(run["plan"]["sub_questions"]) == 5
+    assert "note" not in run["plan"]
     headers = auth(run)
-    approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+    approved = client.post(
+        f"/runs/{run['run_id']}/approve",
+        headers=headers,
+        json={
+            "area_id": "ortsteil:0801",
+            "subquestions": [sub["id"] for sub in run["plan"]["sub_questions"]],
+        },
+    )
     assert approved.status_code == 200
 
     result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
 
     assert result.status_code == 200
-    assert result.json()["fixture_notice"] == run["plan"]["note"]
+    body = result.json()
+    expected_ids = {
+        "08100101",
+        "08100102",
+        "08100103",
+        "08100104",
+        "08100105",
+        "08100206",
+        "08100207",
+        "08100208",
+        "08100209",
+        "08100310",
+        "08100311",
+        "08100312",
+        "08100313",
+        "08100314",
+        "08100415",
+        "08100416",
+        "08100417",
+        "08100418",
+        "08100419",
+        "08100520",
+        "08100521",
+    }
+    assert body["fixture_notice"] is None
+    assert body["cells"]["area"]["area_id"] == "ortsteil:0801"
+    assert {cell["id"] for cell in body["cells"]["cells"]} == expected_ids
+    assert {
+        feature["properties"]["id"] for feature in body["cells_geojson"]["features"]
+    } == expected_ids
+    assert {entry["evidence_id"] for entry in body["evidence"]} == {
+        *(f"e{index}" for index in range(1, 10))
+    }
+    assert len(body["findings"]) == 2
+
+    export = client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers)
+    assert export.status_code == 200
+    assert run["question"] in export.text
+    assert "Weichselplatz" in export.text
+
+
+def test_gap_run_changed_to_kreuzberg_discloses_neukoelln_fixture(client):
+    run = start_run(client, "Where are Kitas missing in Neukölln?")
+    headers = auth(run)
+    url = f"/runs/{run['run_id']}/approve"
+
+    changed = client.post(url, headers=headers, json={"area_id": "ortsteil:0202"})
+    assert changed.status_code == 200
+    notice = changed.json()["plan"]["note"]
+    assert "Neukölln" in notice
+
+    approved = client.post(url, headers=headers, json={"area_id": "ortsteil:0202"})
+    assert approved.status_code == 200
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+
+    assert result.status_code == 200
+    assert result.json()["fixture_notice"] == notice
 
 
 def test_fixture_exports_require_auth_and_unknown_formats_are_not_found(client):
@@ -423,24 +485,27 @@ def test_fixture_exports_require_auth_and_unknown_formats_are_not_found(client):
 
 
 @pytest.mark.parametrize(
-    ("question", "shape"),
+    ("question", "shape", "notice"),
     [
-        ("Where are Kitas missing in Neukölln?", "gap"),
-        ("Where should a coffee place open in Neukölln?", "location"),
+        ("Where are Kitas missing in Neukölln?", "gap", None),
+        ("Where should a coffee place open in Neukölln?", "location", FIXTURE_NOTICE),
     ],
 )
-def test_fixture_notice_is_in_markdown_and_html_exports(client, question, shape):
+def test_fixture_notice_is_in_markdown_and_html_exports(client, question, shape, notice):
     run, headers = finish_run(client, question)
     assert run["shape"] == shape
 
     result = client.get(f"/runs/{run['run_id']}/result", headers=headers).json()
-    assert result["fixture_notice"] == FIXTURE_NOTICE
+    assert result["fixture_notice"] == notice
 
     for fmt in ("report.md", "report.html"):
         response = client.get(f"/runs/{run['run_id']}/export/{fmt}", headers=headers)
 
         assert response.status_code == 200
-        assert FIXTURE_NOTICE in response.text
+        if notice:
+            assert notice in response.text
+        else:
+            assert "Demo fixture, not a computed answer" not in response.text
 
 
 def test_fixture_markdown_export_lists_approved_subquestions(client):
