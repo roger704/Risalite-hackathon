@@ -255,7 +255,194 @@ class AreaObservation(Record):
             raise ValidationError("Age interval must have a positive width")
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation
+def _optional_text(name: str, value: Any) -> None:
+    if value is not None:
+        _text(name, value)
+
+
+def _point(geometry: Any) -> None:
+    if not isinstance(geometry, dict) or geometry.get("type") != "Point":
+        raise ValidationError("Point records require a GeoJSON Point geometry")
+    coordinates = geometry.get("coordinates")
+    if (
+        not isinstance(coordinates, (list, tuple))
+        or len(coordinates) != 2
+        or any(
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)
+            for value in coordinates
+        )
+    ):
+        raise ValidationError("Point coordinates must be two finite numbers")
+    longitude, latitude = coordinates
+    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        raise ValidationError("Point coordinates must be WGS84 longitude/latitude")
+
+
+def _optional_count(name: str, value: Any) -> None:
+    if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+        raise ValidationError(f"{name} must be a nonnegative integer or null")
+
+
+@dataclass(frozen=True, kw_only=True)
+class Place(Record):
+    """A mapped point of interest. ``geometry`` is a representative WGS84 point;
+    ``source_geometry_type`` records the original element/geometry kind."""
+
+    geometry: dict[str, Any]
+    source_geometry_type: str
+    original_category: str
+    category_mapping_version: str
+    canonical_category: str | None = None
+    name: str | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="place", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in ("source_geometry_type", "original_category", "category_mapping_version"):
+            _text(name, getattr(self, name))
+        for name in ("canonical_category", "name", "area_code"):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class Business(Record):
+    """A registered business. Employee bounds are an inclusive interval, not a headcount."""
+
+    geometry: dict[str, Any]
+    industry_code: str
+    industry_code_system: str
+    category_mapping_version: str
+    industry_description: str | None = None
+    canonical_category: str | None = None
+    employees_label: str | None = None
+    employees_min: int | None = None
+    employees_max: int | None = None
+    business_age_label: str | None = None
+    area_code: str | None = None
+    hierarchy: str | None = None
+    boundary_edition: str | None = None
+    record_type: str = field(default="business", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in ("industry_code", "industry_code_system", "category_mapping_version"):
+            _text(name, getattr(self, name))
+        for name in (
+            "industry_description",
+            "canonical_category",
+            "employees_label",
+            "business_age_label",
+            "area_code",
+            "hierarchy",
+            "boundary_edition",
+        ):
+            _optional_text(name, getattr(self, name))
+        _optional_count("employees_min", self.employees_min)
+        _optional_count("employees_max", self.employees_max)
+        if (
+            self.employees_min is not None
+            and self.employees_max is not None
+            and self.employees_max < self.employees_min
+        ):
+            raise ValidationError("employees_max cannot be below employees_min")
+
+
+@dataclass(frozen=True, kw_only=True)
+class TransitStop(Record):
+    """A GTFS stop. ``location_type`` follows GTFS: 0 stop/platform, 1 station,
+    2 entrance/exit, 3 generic node, 4 boarding area."""
+
+    geometry: dict[str, Any]
+    stop_id: str
+    name: str
+    location_type: int
+    parent_station: str | None = None
+    wheelchair_boarding: int | None = None
+    area_code: str | None = None
+    record_type: str = field(default="transit_stop", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("stop_id", self.stop_id)
+        _text("name", self.name)
+        if type(self.location_type) is not int or self.location_type not in range(5):
+            raise ValidationError("location_type must be a GTFS location type 0-4")
+        _optional_text("parent_station", self.parent_station)
+        if self.wheelchair_boarding is not None and (
+            type(self.wheelchair_boarding) is not int or self.wheelchair_boarding not in range(3)
+        ):
+            raise ValidationError("wheelchair_boarding must be 0, 1, 2 or null")
+        _optional_text("area_code", self.area_code)
+
+
+@dataclass(frozen=True, kw_only=True)
+class StopService(Record):
+    """Scheduled departures at one stop or parent station in an explicit local window.
+
+    Measures service supply, not passengers or footfall. Times are GTFS service times
+    in ``timezone`` and may exceed 24:00:00.
+    """
+
+    stop_id: str
+    service_date: str
+    window_start: str
+    window_end: str
+    timezone: str
+    departures: int
+    trip_count: int
+    route_count: int
+    route_types: tuple[int, ...] = ()
+    area_code: str | None = None
+    record_type: str = field(default="stop_service", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("stop_id", self.stop_id)
+        _text("timezone", self.timezone)
+        try:
+            date.fromisoformat(self.service_date)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("service_date must be an ISO calendar date") from exc
+        for name in ("window_start", "window_end"):
+            if not isinstance(getattr(self, name), str) or not re.fullmatch(
+                r"\d{2,3}:[0-5]\d:[0-5]\d", getattr(self, name)
+            ):
+                raise ValidationError(f"{name} must be a GTFS HH:MM:SS time")
+        to_seconds = lambda text: sum(  # noqa: E731
+            int(part) * factor for part, factor in zip(text.split(":"), (3600, 60, 1))
+        )
+        if to_seconds(self.window_end) <= to_seconds(self.window_start):
+            raise ValidationError("window_end must be after window_start")
+        for name in ("departures", "trip_count", "route_count"):
+            value = getattr(self, name)
+            if value is None:
+                raise ValidationError(f"{name} is required")
+            _optional_count(name, value)
+        object.__setattr__(self, "route_types", tuple(self.route_types))
+        if any(type(value) is not int for value in self.route_types):
+            raise ValidationError("route_types must be integers")
+        _optional_text("area_code", self.area_code)
+
+
+NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
+RECORD_TYPES: dict[str, type] = {
+    "area": Area,
+    "area_observation": AreaObservation,
+    "place": Place,
+    "business": Business,
+    "transit_stop": TransitStop,
+    "stop_service": StopService,
+}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -352,10 +539,12 @@ def record_to_dict(record: NormalizedRecord) -> dict[str, Any]:
 def record_from_dict(data: Mapping[str, Any]) -> NormalizedRecord:
     values = dict(data)
     record_type = values.pop("record_type", None)
-    record_class = {"area": Area, "area_observation": AreaObservation}.get(record_type)
+    record_class = RECORD_TYPES.get(record_type)
     if record_class is None:
         raise ValidationError(f"Unsupported record_type: {record_type}")
     values["quality_flags"] = tuple(values.get("quality_flags", ()))
+    if "route_types" in values:
+        values["route_types"] = tuple(values["route_types"])
     try:
         return record_class(**values)
     except TypeError as exc:

@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from shapely.geometry import shape
 
-from app.domain import Area, NormalizedRecord, record_from_dict, record_to_dict
+from app.domain import NormalizedRecord, record_from_dict, record_to_dict
 
 
 def write_records(records: tuple[NormalizedRecord, ...], target: Path) -> None:
@@ -17,12 +17,12 @@ def write_records(records: tuple[NormalizedRecord, ...], target: Path) -> None:
         {
             "record_id": item.record_id,
             "record_type": item.record_type,
-            "area_code": item.area_code,
+            "area_code": getattr(item, "area_code", None),
             "record_json": json.dumps(record_to_dict(item), sort_keys=True, ensure_ascii=False),
         }
         for item in records
     ]
-    if records and all(isinstance(item, Area) for item in records):
+    if records and all(hasattr(item, "geometry") for item in records):
         frame = gpd.GeoDataFrame(
             rows, geometry=[shape(item.geometry) for item in records], crs="EPSG:4326"
         )
