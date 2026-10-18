@@ -263,12 +263,13 @@ uv run location-data records berlin_centers --snapshot "$CENTERS_SNAPSHOT_ID" --
 
 The nearby API is
 `GET /api/v1/datasets/berlin_centers/nearby?snapshot_id=...&lon=...&lat=...&radius_m=...`.
-It returns centers within a straight-line radius (metres), distances computed in
-EPSG:25833, and membership only when the candidate is covered by a published
-Zentrumsbereich polygon. Point records have no boundary and are not treated as
-membership areas. The response labels the result as planning context, not footfall,
-revenue, or suitability, and explicitly distinguishes straight-line distance from
-walking distance or time.
+It returns centers within a straight-line radius (metres). Distances are computed in
+EPSG:25833 to the published polygon area (zero when the candidate is inside it) or
+to the published center point. Membership is determined only when the candidate is
+covered by a published Zentrumsbereich polygon. Point records have no boundary and
+are not treated as membership areas. The response labels the result as planning
+context, not footfall, revenue, or suitability, and explicitly distinguishes
+straight-line distance from walking distance or time.
 
 StEP Zentren 2040 is a planning designation, not a measurement of customer traffic,
 sales, rents, vacancy, or shop counts. Only two Zentrumsbereich polygons have

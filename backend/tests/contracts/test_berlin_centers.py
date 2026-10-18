@@ -16,6 +16,7 @@ from shapely.geometry import shape
 from app.connectors.berlin_centers import BerlinCentersConnector
 from app.domain import (
     Area,
+    ConfigError,
     DatasetConfig,
     FetchRequest,
     IncompatibleSnapshotError,
@@ -520,7 +521,7 @@ def test_center_relationships_cover_inside_distance_radius_and_sort():
     inside = center_relationships([by_id["Z40F1"]], point.x, point.y, 100)
     assert inside[0]["relation"] == "inside_boundary"
     assert inside[0]["distance_m"] == 0.0
-    assert inside[0]["distance_basis"] == "nearest_published_boundary"
+    assert inside[0]["distance_basis"] == "nearest_point_of_published_area"
 
     origin = _TO_METRIC.transform(13.4, 52.5)
     east_500 = _TO_WGS84.transform(origin[0] + 500, origin[1])
@@ -568,3 +569,14 @@ def test_retail_center_rejects_invalid_wgs84_coordinates_and_boolean_levels():
         replace(point, geometry={"type": "Point", "coordinates": [13.4, True]})
     with pytest.raises(ValidationError, match="hierarchy_level"):
         replace(point, hierarchy_level=True)
+
+
+def test_rejects_local_file_asset_without_wfs_layer():
+    config = configuration()
+    bundle = make_bundle([FIXTURES / "zh-page-0000.json"])
+    local_asset = replace(bundle.assets[0], resource_url=config.resource_url)
+    with pytest.raises(
+        ConfigError,
+        match="berlin_centers does not support --file local imports",
+    ):
+        BerlinCentersConnector().normalize(replace(bundle, assets=(local_asset,)), config)

@@ -11,7 +11,7 @@ from app.geo.centers import center_relationships
 _BERLIN_BBOX = (13.0, 52.3, 13.9, 52.8)
 _METHOD = {
     "crs": "EPSG:25833",
-    "distance": "straight-line metres to nearest published boundary or published center point; not walking distance or time",
+    "distance": "straight-line metres in EPSG:25833 to the published polygon area (0 when the candidate is inside it) or to the published center point; not walking distance or time",
     "membership": "point-in-polygon only for published Zentrumsbereich polygons; point features have no boundary, so membership is not determined",
 }
 _CONTEXT_NOTICE = (

@@ -141,6 +141,11 @@ class BerlinCentersConnector(FileConnector):
                     urlsplit(asset.resource_url).query, keep_blank_values=True
                 )
             )
+            if "TYPENAMES" not in values:
+                raise ConfigError(
+                    "berlin_centers does not support --file local imports; "
+                    "it must be ingested from the two WFS layers"
+                )
             typename = values.get("TYPENAMES")
             matches = [key for key, layer in layers.items() if layer["typename"] == typename]
             if len(matches) != 1:

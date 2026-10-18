@@ -33,7 +33,7 @@ def center_relationships(
             raise ValueError(f"Invalid retail-center geometry: {center.record_id}")
         if geometry.geom_type in {"Polygon", "MultiPolygon"}:
             relation = "inside_boundary" if geometry.covers(candidate) else "outside_boundary"
-            distance_basis = "nearest_published_boundary"
+            distance_basis = "nearest_point_of_published_area"
         elif geometry.geom_type == "Point":
             relation = "point_only_no_boundary"
             distance_basis = "published_center_point"

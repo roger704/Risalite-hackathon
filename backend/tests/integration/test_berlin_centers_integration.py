@@ -11,7 +11,7 @@ from app.api.main import create_app
 from app.application.service import DataService
 from app.connectors.berlin_centers import BerlinCentersConnector
 from app.connectors.lor import LORConnector
-from app.domain import SchemaError
+from app.domain import ConfigError, NotFoundError, SchemaError
 from app.infrastructure.http import HTTPFetcher
 
 BACKEND = Path(__file__).parents[2]
@@ -132,6 +132,11 @@ async def test_ingests_centers_checks_parent_and_serves_records_and_nearby(tmp_p
         assert result["context_notice"]
         assert result["attribution"]
         assert result["license"] == "dl-de-zero-2.0"
+        assert result["method"]["distance"] == (
+            "straight-line metres in EPSG:25833 to the published polygon area "
+            "(0 when the candidate is inside it) or to the published center point; "
+            "not walking distance or time"
+        )
         assert all("distance_m" in item for item in result["centers"])
 
         for params in (
@@ -163,3 +168,20 @@ async def test_failed_refresh_keeps_previous_snapshot_latest_and_readable(tmp_pa
     page = service.records("berlin_centers", centers.snapshot_id, limit=100)
     assert page["count"] == 5
     assert page["records"][0]["record_type"] == "retail_center"
+
+
+async def test_local_file_import_is_rejected_without_publishing_snapshot(tmp_path):
+    service, parent_path, client, _ = setup_service(tmp_path)
+    async with client:
+        parent = await service.ingest("berlin_lor", local_file=parent_path)
+        with pytest.raises(
+            ConfigError,
+            match="berlin_centers does not support --file local imports",
+        ):
+            await service.ingest(
+                "berlin_centers",
+                local_file=FIXTURES / "zh-page-0000.json",
+                parent_snapshot_id=parent.snapshot_id,
+            )
+    with pytest.raises(NotFoundError):
+        service.catalog.get("berlin_centers")
