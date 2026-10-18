@@ -721,7 +721,9 @@ def _result_payload(run: dict) -> dict:
             "plan": run["plan"],
             "fixture_notice": fixture_notice,
             "cells_geojson": (
-                _read_json(_shape_fixture(shape, "cells_geojson")) if shape != "point" else None
+                _read_json("cells.geojson")
+                if shape == "point"
+                else _read_json(_shape_fixture(shape, "cells_geojson"))
             ),
             "candidates": candidates,
             "metrics": _read_json(_shape_fixture(shape, "metrics"))

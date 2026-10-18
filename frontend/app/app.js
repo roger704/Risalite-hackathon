@@ -98,7 +98,11 @@ function glassSelect(select) {
     else if (event.key === 'Escape' || event.key === 'Tab') close();
   };
   document.addEventListener('mousedown', event => { if (menu && !menu.contains(event.target) && event.target !== button) close(); });
-  window.addEventListener('scroll', close, true); window.addEventListener('resize', close);
+  window.addEventListener('scroll', event => {
+    if (menu && event.target instanceof Node && menu.contains(event.target)) return;
+    close();
+  }, true);
+  window.addEventListener('resize', close);
   select.gsSync = () => {
     selected = select.selectedIndex;
     button.textContent = `${ROLE_ICO[select.value] || '👤'} ${select.options[selected]?.textContent.trim() || '—'}`;
@@ -230,6 +234,7 @@ function finishTyping() {
 }
 function typeSeq(question, profile) {
   stopTyping(); clearHint();
+  if (!profile) $('#op').value = '';
   typingExample = { question, profile };
   const steps = [[$('#q'), question], ...(profile ? [[$('#op'), profile]] : [])];
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -875,7 +880,7 @@ function setup3D() {
   map.addLayer({ id: 'cells-hl', type: 'line', source: 'cells', paint: { 'line-color': '#dc2626', 'line-width': ['case', hl, 4, hov, 2.5, 0] } });
   if (M3.bsrc) map.addLayer({ id: 'focus-poi', type: 'circle', source: M3.bsrc, 'source-layer': 'poi', filter: poiFilter3D(), minzoom: 13, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.2, 17, 5], 'circle-color': '#b45309', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
   if (M3.bsrc) map.addLayer({
-    id: 'focus-transit', type: 'circle', source: M3.bsrc, 'source-layer': 'transportation',
+    id: 'focus-transit', type: 'circle', source: M3.bsrc, 'source-layer': 'poi',
     filter: ['all', ['==', ['get', 'class'], 'railway'], ['in', ['get', 'subclass'], ['literal', ['subway', 'station', 'halt']]]],
     minzoom: 11, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'circle-color': '#2563eb', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.2 }
   });
@@ -1160,14 +1165,16 @@ async function restoreShareHash(hash) {
   $('#q').value = question; setRole($('#role'), params.get('role') || ''); $('#op').value = params.get('op') || '';
   $('#clar').classList.add('hidden'); err('#ask-err', ''); show('s-ask');
   try {
-    RUN = await post('/research', { question, role: $('#role').value || null, profile: $('#op').value || null });
+    const research = await post('/research', { question, role: $('#role').value || null, profile: $('#op').value || null });
     if (gen !== GEN) return;
+    RUN = research;
     acceptRun(RUN);
     if (RUN.status === 'needs_clarification') {
       const areaName = AREA_NAMES[params.get('area')];
       if (!areaName) throw new Error('The shared area needs clarification but its name is not available.');
-      RUN = await post(`/runs/${encodeURIComponent(RUN.run_id)}/clarify`, { answer: areaName });
+      const clarified = await post(`/runs/${encodeURIComponent(RUN.run_id)}/clarify`, { answer: areaName });
       if (gen !== GEN) return;
+      RUN = clarified;
       acceptRun(RUN);
     }
     const areaId = params.get('area');
@@ -1196,6 +1203,7 @@ async function restoreShareHash(hash) {
     for (let attempt = 0; attempt < 90; attempt++) {
       if (gen !== GEN) return;
       const result = await getJSON(`/runs/${encodeURIComponent(RUN.run_id)}/result`);
+      if (gen !== GEN) return;
       if (result.status === 'done') {
         APPROVAL = collectApproval(); R = result;
         RESTORE_DASH = { on: params.get('on'), mode: params.get('mode') };
@@ -1203,6 +1211,7 @@ async function restoreShareHash(hash) {
       }
       if (result.status === 'failed') throw new Error(result.error || 'The shared run failed.');
       await new Promise(resolve => setTimeout(resolve, 400));
+      if (gen !== GEN) return;
     }
     throw new Error('The shared result is taking too long to finish.');
   } catch (error) {

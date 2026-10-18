@@ -355,7 +355,9 @@ def test_point_result_does_not_include_area_findings(client):
     result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
 
     assert result.status_code == 200
-    assert result.json()["findings"] == []
+    body = result.json()
+    assert body["findings"] == []
+    assert body["cells_geojson"] is not None
 
 
 def test_point_result_report_matches_approved_hypotheses(client):
