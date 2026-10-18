@@ -234,12 +234,8 @@ class AreaSummaryService:
                 if key in self._cache:
                     self._cache.move_to_end(key)
                     return self._cache[key]
-            try:
-                value = builder(self.data._snapshot_path(manifest))
-            except BaseException:
-                with self._lock:
-                    self._building.pop(key, None)
-                raise
+            # On failure the key's lock is kept so queued waiters and new callers share it.
+            value = builder(self.data._snapshot_path(manifest))
             with self._lock:
                 self._cache[key] = value
                 while len(self._cache) > self._cache_size:

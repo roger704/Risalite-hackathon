@@ -545,3 +545,48 @@ def test_concurrent_cold_requests_build_one_index(tmp_path):
         thread.join()
     assert len(builds) == 1
     assert len({id(value) for value in results}) == 1
+
+
+def test_failed_index_build_keeps_single_flight(tmp_path):
+    import threading
+    import time
+
+    from app.application.area_summary import AreaSummaryService
+
+    service, ids = make_service(tmp_path)
+    summaries = AreaSummaryService(service)
+    manifest = service.catalog.get("osm_pois", ids["osm_pois"])
+    active, overlaps, calls = [0], [], []
+    guard = threading.Lock()
+
+    def builder(path):
+        with guard:
+            calls.append(path)
+            active[0] += 1
+            overlaps.append(active[0])
+            first = len(calls) == 1
+        time.sleep(0.05)
+        with guard:
+            active[0] -= 1
+        if first:
+            raise RuntimeError("first build fails")
+        return object()
+
+    def call():
+        try:
+            summaries._cached(manifest, builder)
+        except RuntimeError:
+            pass
+
+    first = threading.Thread(target=call)
+    first.start()
+    time.sleep(0.01)
+    waiter = threading.Thread(target=call)
+    waiter.start()
+    first.join()
+    late = threading.Thread(target=call)
+    late.start()
+    waiter.join()
+    late.join()
+    assert max(overlaps) == 1
+    assert len(calls) == 2
