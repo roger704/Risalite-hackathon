@@ -1,0 +1,138 @@
+{
+  "dataset_id": "berlin_bicycle_counts",
+  "provider": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (SenMVKU), Abt. VI Verkehrsmanagement",
+  "adapter": "bicycle_counts",
+  "landing_url": "https://daten.berlin.de/datensaetze/radzahldaten-in-berlin",
+  "resource_url": "https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx",
+  "allowed_hosts": [
+    "www.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin, Radzähldaten (Dauerzählstellen), Datenlizenz Deutschland – Zero – 2.0; aggregated to daily and time-window summaries (data changed).",
+  "redistribution_status": "allowed",
+  "access_validation": "validated",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2026-06-25",
+  "reference_period": "2012-01-01/2025-12-31",
+  "max_download_bytes": 30000000,
+  "timeout_seconds": 120,
+  "parser_options": {
+    "reviewed_sha256": "2c6e86af0f2d3b2d899ff4b03793a8a02ead03bc6fefd34232f00da8f59d89b5",
+    "max_unpacked_bytes": 400000000,
+    "timezone": "Europe/Berlin",
+    "legend_fills": {
+      "B2": {
+        "type": "rgb",
+        "value": "FFFFC000"
+      },
+      "B3": {
+        "type": "rgb",
+        "value": "FFFFEB9C"
+      },
+      "B4": {
+        "type": "theme",
+        "value": 5,
+        "tint": 0.4
+      }
+    },
+    "dst_gap_fill": {
+      "type": "theme",
+      "value": 7,
+      "tint": 0.6
+    },
+    "station_aliases": {
+      "17-SZ-BRE-O": {
+        "canonical": "17-SK-BRE-O",
+        "years": "all"
+      },
+      "17-SZ-BRE-W": {
+        "canonical": "17-SK-BRE-W",
+        "years": "all"
+      },
+      "02-MI-AL-W": {
+        "canonical": "01-MI-AL-W",
+        "years": [
+          2021,
+          2022
+        ]
+      },
+      "02-PA-SE-N": {
+        "canonical": "11-PA-SE-N",
+        "years": [
+          2022
+        ]
+      },
+      "03-SP-NO-O": {
+        "canonical": "16-SP-NO-O",
+        "years": [
+          2023
+        ]
+      },
+      "03-SP-NO-W": {
+        "canonical": "16-SP-NO-W",
+        "years": [
+          2023
+        ]
+      }
+    },
+    "windows": [
+      {
+        "window_id": "weekday_07_10",
+        "label": "Weekdays 07:00–10:00",
+        "days": "mon_fri",
+        "start_hour": 7,
+        "end_hour": 10
+      },
+      {
+        "window_id": "weekday_16_19",
+        "label": "Weekdays 16:00–19:00",
+        "days": "mon_fri",
+        "start_hour": 16,
+        "end_hour": 19
+      },
+      {
+        "window_id": "saturday_10_18",
+        "label": "Saturday 10:00–18:00",
+        "days": "sat",
+        "start_hour": 10,
+        "end_hour": 18
+      },
+      {
+        "window_id": "all_hours",
+        "label": "All hours",
+        "days": "all",
+        "start_hour": 0,
+        "end_hour": 24
+      }
+    ],
+    "min_window_coverage": 0.8,
+    "years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "refresh_after_days": 365,
+    "limitations": [
+      "Counts are bicycles passing automatic permanent counters (Dauerzählstellen) at 35 fixed locations; they measure cycling only at those cross-sections, not pedestrian footfall, café customers, or revenue, and must not be projected onto unobserved streets.",
+      "Hourly raw data 2012–2025 as published 2026-06-25 (annual edition; published once a year after the counting year).",
+      "Source legend: orange = no (0) or implausible data (excluded), yellow = no data (missing), blue = reconstructed (included, status estimated). Theme 7 marks the non-existent spring DST hour (excluded); two other marked rows (2020-10-26 04:00 and 2021-10-31 02:00) are treated as missing and their values are not used.",
+      "Timestamps are Europe/Berlin local hour labels; the repeated autumn DST hour has only one row and its handling is undocumented.",
+      "Directional counters (N/S/E/W) count one direction; bidirectional totals need both directions.",
+      "Counts can be affected by construction, detours, network changes, public-transport replacement services and wrong-way cycling (provider notes).",
+      "No public-holiday calendar is applied to weekday windows.",
+      "Counter area_code is not joined to LOR in this dataset."
+    ]
+  }
+}

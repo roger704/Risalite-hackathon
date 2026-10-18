@@ -126,6 +126,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
+| `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
 | `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
@@ -137,6 +138,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
+| `berlin_bicycle_counts` | [Berlin bicycle-counts page](https://daten.berlin.de/datensaetze/radzahldaten-in-berlin), [hourly workbook](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsplanung/radverkehr/weitere-radinfrastruktur/zaehlstellen-und-fahrradbarometer/gesamtdatei-stundenwerte.xlsx) | Reviewed edition `2026-06-25`; hourly values from 35 fixed bicycle counters are normalized to daily totals and configured time-window means. Counts measure bicycle traffic only at those counters, not pedestrian footfall, customers, or revenue, and are not projected onto unobserved streets. Attribution: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin; [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0). |
 
 All 542 population codes matched the reviewed LOR code set, and each complete age-band breakdown matched its area total. The population code directory states December 2021. Matching codes establishes identifier compatibility; it does not certify that polygon boundaries were unchanged between source editions. The manifest pins the actual LOR snapshot used by each population import.
 
@@ -401,9 +403,100 @@ In a provider download, each WFS page is stored as a separate raw asset, copied 
 
 The provider includes a changing `timeStamp` in every response, so a fresh provider download changes the raw hashes and does not hit the snapshot cache. This is deliberate: raw bytes and their hashes are stored exactly as received. Reimporting the same local files does reuse the cache.
 
-`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. Area datasets use `record_type: "area"` and their hierarchy/area mappings. The Berlin development-plan dataset uses `record_type: "development_plan"` and a separate plan normalizer with per-layer status, property, and count validation. Road traffic datasets use `record_type: "road_traffic_segment"` and road-specific field and volume mappings. Population-density blocks use `record_type: "population_block"`, a separate block normalizer and largest-overlap LOR Planungsraum assignment. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, and `record_type` (`area`, `development_plan`, `road_traffic_segment`, or `population_block`). Area options include `field_map`, `attribute_fields`, `hierarchy`, optional `geometry_types`, and optional `parent_dataset` and `geometry_difference_threshold`; development-plan layers use per-layer status, property, and count validation; road options use road-specific field and volume mappings; population-block options use `field_map`, `age_fields`, `hierarchy`, suppression and assignment thresholds. The adapter retains page assets and validates next links against the reviewed query, apart from `COUNT`/`STARTINDEX`. Additional gdi.berlin layers need a compatible record-type normalizer as well as configuration.
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. Area datasets use `record_type: "area"` and their hierarchy/area mappings. The Berlin development-plan dataset uses `record_type: "development_plan"` and a separate plan normalizer with per-layer status, property, and count validation. Road traffic datasets use `record_type: "road_traffic_segment"` and road-specific field and volume mappings. Population-density blocks use `record_type: "population_block"`, a separate block normalizer and largest-overlap LOR Planungsraum assignment. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, and `record_type` (`area`, `development_plan`, `facility`, `road_traffic_segment`, or `population_block`). Area options include `field_map`, `attribute_fields`, `hierarchy`, optional `geometry_types`, and optional `parent_dataset` and `geometry_difference_threshold`; development-plan layers use per-layer status, property, and count validation; road options use road-specific field and volume mappings; population-block options use `field_map`, `age_fields`, `hierarchy`, suppression and assignment thresholds. The adapter retains page assets and validates next links against the reviewed query, apart from `COUNT`/`STARTINDEX`. Additional gdi.berlin layers need a compatible record-type normalizer as well as configuration. Facility sources (`app/connectors/berlin_wfs_facility.py`) additionally set `facility_type`, `record_id_prefix`, a reviewed `category_mapping` with `category_mapping_version`, `field_map.name`/`field_map.category`, and optionally `field_map.capacity` with `capacity_definition` and `capacity_reference_date`, `edition_metadata_url`, `district_field`, `max_unassigned_ratio` and `max_district_mismatch_ratio`; other point layers such as schools need only configuration.
 
 Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
+
+## Official Kita registry (`berlin_kitas`, `berlin_wfs`)
+
+`berlin_kitas` emits one `Facility` record per publicly funded day-care facility (`record_id = kita:<e_nr>`, `provider_facility_id = e_nr`, WGS84 Point). `e_art` is kept as `original_category` and mapped to `canonical_category` (`kita`, `parent_initiative_kita`, `parent_child_group`, `forest_kindergarten`; unknown labels stay `null` with a `category_unmapped` flag). Address, phone, website, pedagogy and provider fields go in `attributes`; blank values are omitted, never filled. `capacity` is `e_platz` ("Erlaubte Platzzahl", `capacity_definition = permitted_places`, `capacity_reference_date = 2025-12-31`) and stays `null` when blank. `vacancies` is always `null`. The import is pinned to a `berlin_lor` snapshot; the manifest coverage `area_join` reports the EPSG:25833 point-in-Planungsraum join (assigned/unassigned, areas with and without facilities, `e_bez_nr` district mismatches). The import fails if more than 1% of facilities fall outside every area or disagree with their district. Each provider download also stores the CKAN metadata record (`edition_metadata_url`) and fails if its `revision` date differs from the reviewed `source_edition`; because a local `--file` has no such record, local Kita imports are rejected with an explicit error.
+
+```sh
+uv run location-data ingest berlin_kitas --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run location-data records berlin_kitas --snapshot "$KITA_SNAPSHOT_ID" --limit 5
+```
+
+Read endpoints for the childcare view (the frontend can show both datasets side by side, each with its own snapshot, date, coverage and attribution in `sources`):
+
+- `GET /api/v1/childcare/facilities?snapshot_id=<kita snapshot>`: GeoJSON FeatureCollection with the pinned-LOR `area_code` per facility.
+- `GET /api/v1/childcare/areas?snapshot_id=<kita snapshot>&population_snapshot_id=<optional population snapshot>`: per Planungsraum `facility_count`, `facilities_with_capacity`, `facilities_without_capacity`, `permitted_places_known_sum`, and `children_under_6` (the population `0–6` age band with its own `value_status` and reference period). Population and Kita snapshots must pin the same `berlin_lor` snapshot; the join parameters (parent dataset, hierarchy) are read from the Kita manifest, not the current config.
+
+Facility counts and permitted places are not available places, vacancies, or proof of a childcare shortage. The registry has no per-record date, excludes private facilities and Kindertagespflege, and children attend across area borders. Kita-Navigator is not used as a bulk vacancy source: no supported bulk access or reuse terms are established.
+
+Opt-in live check (5 features): `RUN_LIVE_TESTS=1 uv run pytest -m live tests/live/test_berlin_kitas_live.py`.
+
+## Berlin Mietspiegel 2026 address-level Wohnlagen
+
+The `berlin_mietspiegel_wohnlagen` dataset imports the provider's WFS address points and the official `einfach`, `mittel`, or `gut` classification. Pin a compatible LOR snapshot for the point-in-polygon coverage check:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-snapshot_id-printed-by-the-LOR-import'
+uv run location-data ingest berlin_mietspiegel_wohnlagen --lor-snapshot "$LOR_SNAPSHOT_ID"
+WOHNLAGE_SNAPSHOT_ID='replace-with-wohnlage-snapshot_id'
+uv run location-data records berlin_mietspiegel_wohnlagen --snapshot "$WOHNLAGE_SNAPSHOT_ID" --limit 10
+```
+
+The `ResidentialLocationClass` record includes `address_key`, street and house-number labels, district and planning-area labels, the source Ost/West marker, a WGS84 point, `wohnlage_class`, `class_status`, edition, validity, and source attributes. `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage` requires `snapshot_id` and exactly one of:
+
+- `address_key=00001004A`
+- `street_code=00001&house_number=4&house_number_suffix=A`
+- `address_snapshot_id=<id>&address_id=<id>` (for an address snapshot published by the address connector)
+
+The API reports `matched`, `matched_unclassified`, `not_found`, `not_joinable`, or `ambiguous`. `not_found` may include suffix variants as candidates, but does not select one. A street-name/postcode disagreement yields an `ambiguous` candidate with a null selected class. The address-snapshot mode requires the address dataset and snapshot to be available in this backend.
+
+When adding a frontend flow, use the address search result's `address_id` and `address_snapshot_id` to request this endpoint; do not reconstruct its provider key from display text. For example:
+
+```js
+const response = await fetch(
+  `/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage?${new URLSearchParams({
+    snapshot_id: wohnlageSnapshotId,
+    address_snapshot_id: addressSnapshotId,
+    address_id: addressId,
+  })}`,
+);
+const result = await response.json();
+
+if (result.join_status === "matched") {
+  showWohnlage({
+    class: result.wohnlage_class,
+    edition: result.edition,
+    valid: `${result.valid_from}–${result.valid_to}`,
+    source: result.source_links,
+    limitations: result.limitations,
+  });
+} else {
+  showWohnlageUnresolved(result.join_status, result.candidates);
+}
+```
+
+Display the edition, validity, source link, limitations, and unresolved status. Do not label this classification as income, purchasing power, commercial suitability, pedestrian footfall, shop rent, or a rent amount. It describes residential surroundings under the Mietspiegel 2026, not whether an individual dwelling is within scope. The official Straßenverzeichnis is authoritative for address assignment; do not infer the class from generalized map colors. The source's Ost/West field is a former east/west rent-table marker, not a current district.
+
+## Berlin bicycle counters (`berlin_bicycle_counts`)
+
+Import the reviewed annual workbook with:
+
+```sh
+uv run location-data ingest berlin_bicycle_counts
+```
+
+The `mobility_observation` records preserve counter location and direction, explicit
+Europe/Berlin local intervals, value status, and interval coverage. Daily totals are
+published only when every expected hour is usable; window means require at least 80%
+usable coverage. Missing or implausible hours are never filled with zero. The
+`/api/v1/datasets/{dataset_id}/layers/counters` endpoint returns pinned counter
+points for a selected window and year. These are permanent point counters, not a
+citywide cycling estimate, pedestrian-footfall measure, customer count, or revenue
+proxy. No LOR join is made; `area_code` remains null.
+
+The source labels timestamps in `Europe/Berlin`; the nonexistent spring DST hour is
+excluded, while the repeated autumn hour is flagged because the source's handling is
+undocumented. Two other theme-7 markings occur outside the spring gap: a blank row
+at `2020-10-26 04:00` and the repeated hour at `2021-10-31 02:00`. Their values are
+discarded and counted as missing, with an `unlegended_source_marking` quality flag.
+Directional counters report only their stated direction. The source publishes
+annual workbook editions and notes that construction, detours, network changes,
+replacement transport, and wrong-way cycling can affect counts.
 
 ### Berlin development plans (`berlin_planning`)
 
