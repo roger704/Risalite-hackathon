@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
 from pyproj import Transformer
@@ -29,7 +30,6 @@ from app.domain import (
     manifest_to_dict,
     record_from_dict,
 )
-from app.infrastructure.storage import read_record_page
 
 SUMMARY_SCHEMA_VERSION = "1.0"
 CALCULATION_VERSION = "area_summary_v1"
@@ -170,6 +170,10 @@ class AreaSummaryService:
         self._lock = threading.Lock()
         self._building: dict[tuple[str, str], threading.Lock] = {}
         self._mappings: dict[tuple[str, str], tuple[str | None, frozenset[str] | None]] = {}
+        self._area_tables: OrderedDict[tuple[str, str], Any] = OrderedDict()
+        self._area_table_lock = threading.Lock()
+        self._area_records_cache: OrderedDict[tuple[str, str, str], tuple] = OrderedDict()
+        self._area_row_indices: OrderedDict[tuple[str, str], dict[str, list[int]]] = OrderedDict()
 
     # Snapshot resolution -------------------------------------------------------------
 
@@ -265,14 +269,58 @@ class AreaSummaryService:
         return mapping
 
     def _area_records(self, manifest, area_code: str):
-        path = self.data._snapshot_path(manifest)
-        records, offset = [], 0
-        while True:
-            total, page = read_record_page(path, area_code=area_code, offset=offset, limit=1000)
-            records.extend(page)
-            offset += len(page)
-            if offset >= total or not page:
-                return records
+        key = (manifest.dataset_id, manifest.snapshot_id, area_code)
+        with self._area_table_lock:
+            cached = self._area_records_cache.get(key)
+            if cached is not None:
+                self._area_records_cache.move_to_end(key)
+                return list(cached)
+
+        table_key = key[:2]
+        with self._area_table_lock:
+            table = self._area_tables.get(table_key)
+            if table is not None:
+                self._area_tables.move_to_end(table_key)
+        if table is None:
+            table = pq.read_table(
+                self.data._snapshot_path(manifest), columns=["area_code", "record_json"]
+            )
+            with self._area_table_lock:
+                table = self._area_tables.setdefault(table_key, table)
+                self._area_tables.move_to_end(table_key)
+                while len(self._area_tables) > 8:
+                    self._area_tables.popitem(last=False)
+
+        with self._area_table_lock:
+            row_index = self._area_row_indices.get(table_key)
+            if row_index is not None:
+                self._area_row_indices.move_to_end(table_key)
+        if row_index is None:
+            row_index = {}
+            for index, code in enumerate(table.column("area_code").to_pylist()):
+                if code is not None:
+                    row_index.setdefault(str(code), []).append(index)
+            with self._area_table_lock:
+                row_index = self._area_row_indices.setdefault(table_key, row_index)
+                self._area_row_indices.move_to_end(table_key)
+                while len(self._area_row_indices) > 8:
+                    self._area_row_indices.popitem(last=False)
+
+        matches = table.take(pa.array(row_index.get(area_code, []), type=pa.int64()))
+        records = tuple(
+            sorted(
+                (
+                    record_from_dict(json.loads(value))
+                    for value in matches.column("record_json").to_pylist()
+                ),
+                key=lambda record: record.record_id,
+            )
+        )
+        with self._area_table_lock:
+            self._area_records_cache[key] = records
+            while len(self._area_records_cache) > 32:
+                self._area_records_cache.popitem(last=False)
+        return list(records)
 
     @staticmethod
     def _decode_all(path: Path):

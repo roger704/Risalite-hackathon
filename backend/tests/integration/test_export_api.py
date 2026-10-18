@@ -24,6 +24,48 @@ def test_create_app_keeps_fourth_positional_argument_as_runs_dir(tmp_path):
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize("explicit_runs_dir", [False, True])
+def test_completed_live_run_exports_from_configured_runs_dir(
+    tmp_path, monkeypatch, explicit_runs_dir
+):
+    configured_dir = tmp_path / "configured-runs"
+    explicit_dir = tmp_path / "explicit-runs"
+    monkeypatch.setenv("RISALITE_RUNS", "live")
+    monkeypatch.setenv("RISALITE_RUNS_DIR", str(configured_dir))
+    monkeypatch.setenv("RISALITE_AREA_DATA", "fixtures")
+    monkeypatch.setenv("RISALITE_RESEARCH_FAKE", "1")
+    app = create_app(runs_dir=explicit_dir) if explicit_runs_dir else create_app()
+    expected_dir = explicit_dir if explicit_runs_dir else configured_dir
+
+    with TestClient(app) as test_client:
+        created = test_client.post(
+            "/research",
+            json={"question": "Where is it smart to open a coffee place in Kreuzberg?"},
+        ).json()
+        authorization = {"Authorization": f"Bearer {created['run_token']}"}
+        approved = test_client.post(
+            f"/runs/{created['run_id']}/approve",
+            json={"wave2": False},
+            headers=authorization,
+        )
+        assert approved.status_code == 200
+        events = test_client.get(f"/runs/{created['run_id']}/events", headers=authorization)
+        assert "data:" in events.text
+        result = test_client.get(f"/runs/{created['run_id']}/result", headers=authorization)
+        assert result.status_code == 200
+        assert result.json()["status"] == "done"
+
+        export_path = f"/api/v1/runs/{created['run_id']}/export/sources.csv"
+        assert test_client.get(export_path).status_code == 404
+        assert (
+            test_client.get(export_path, headers={"Authorization": "Bearer invalid"}).status_code
+            == 404
+        )
+        assert test_client.get(export_path, headers=authorization).status_code == 200
+
+    assert (expected_dir / created["run_id"] / "run.json").is_file()
+
+
 @pytest.mark.parametrize(
     "fmt,media,disposition",
     [

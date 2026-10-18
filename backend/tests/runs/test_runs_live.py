@@ -1,4 +1,5 @@
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -261,6 +262,62 @@ def test_researcher_failure_is_contained(make_client):
     client.post(f"/runs/{created['run_id']}/approve", json={"wave2": False}, headers=auth)
     events = _events(client, created["run_id"], auth)
     assert any(e["type"] == "tool_error" for e in events)
+    assert client.get(f"/runs/{created['run_id']}/result", headers=auth).json()["status"] == "done"
+
+
+def test_max_active_runs_limits_creation(make_client, monkeypatch):
+    monkeypatch.setenv("RISALITE_MAX_ACTIVE_RUNS", "1")
+    client = make_client()
+
+    first = client.post("/research", json={"question": "Café in Britz?"})
+    second = client.post("/research", json={"question": "Café in Neukölln?"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_approval_respects_max_executing_runs(make_client, monkeypatch):
+    monkeypatch.setenv("RISALITE_MAX_ACTIVE_RUNS", "2")
+    client = make_client()
+    first = client.post("/research", json={"question": "Café in Britz?"}).json()
+    second = client.post("/research", json={"question": "Café in Britz?"}).json()
+    run_service = runs_live.service()
+    run_service.max_active_runs = 1
+    run_service.runs[first["run_id"]]["status"] = "running"
+
+    response = client.post(
+        f"/runs/{second['run_id']}/approve",
+        json={"wave2": False},
+        headers={"Authorization": f"Bearer {second['run_token']}"},
+    )
+
+    assert response.status_code == 429
+
+
+def test_berlin_reference_timeout_emits_error_and_continues(make_client, monkeypatch):
+    client = make_client()
+    port = runs_live.service().deps.port
+    original_reference = port.berlin_reference
+
+    def slow_reference(template):
+        time.sleep(0.1)
+        return original_reference(template)
+
+    port.berlin_reference = slow_reference
+    monkeypatch.setenv("RISALITE_BERLIN_REF_TIMEOUT_S", "0.01")
+    created = client.post("/research", json={"question": "Café in Britz?"}).json()
+    auth = {"Authorization": f"Bearer {created['run_token']}"}
+    client.post(f"/runs/{created['run_id']}/approve", json={"wave2": False}, headers=auth)
+    events = _events(client, created["run_id"], auth)
+
+    timeout = next(event for event in events if event["type"] == "tool_error")
+    assert timeout["detail"]["stage"] == "berlin_reference"
+    status = next(
+        event
+        for event in events
+        if event["type"] == "status" and event["detail"].get("stage") == "berlin_reference"
+    )
+    assert status["detail"]["score_berlin"] is None
     assert client.get(f"/runs/{created['run_id']}/result", headers=auth).json()["status"] == "done"
 
 

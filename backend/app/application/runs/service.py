@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import os
 import secrets
 import time
 from pathlib import Path
@@ -43,20 +44,42 @@ def token_hash(token: str) -> str:
 
 
 class RunService:
-    def __init__(self, deps: Deps, runs_dir: Path):
+    def __init__(self, deps: Deps, runs_dir: Path, max_active_runs: int | None = None):
         self.deps = deps
         self.runs_dir = Path(runs_dir)
         self.runs: dict[str, dict[str, Any]] = {}
         self.logs: dict[str, EventLog] = {}
         self.tasks: dict[str, asyncio.Task] = {}
+        if max_active_runs is None:
+            try:
+                max_active_runs = int(os.environ.get("RISALITE_MAX_ACTIVE_RUNS", "2"))
+            except ValueError:
+                max_active_runs = 2
+        self.max_active_runs = max(0, max_active_runs)
 
     # access ---------------------------------------------------------------------------
-    def get(self, run_id: str, authorization: str | None) -> dict[str, Any]:
-        run = self.runs.get(run_id)
+    def _authorized_run(
+        self, run: dict[str, Any] | None, authorization: str | None
+    ) -> dict[str, Any]:
         token = authorization.removeprefix("Bearer ") if authorization else ""
-        if not run or not secrets.compare_digest(run["token_hash"], token_hash(token)):
+        stored_hash = run.get("token_hash") if isinstance(run, dict) else None
+        if not isinstance(stored_hash, str) or not secrets.compare_digest(
+            stored_hash, token_hash(token)
+        ):
             raise RunError(404, "Run not found")
         return run
+
+    def get(self, run_id: str, authorization: str | None) -> dict[str, Any]:
+        return self._authorized_run(self.runs.get(run_id), authorization)
+
+    def authorize_export(self, run_id: str, authorization: str | None) -> dict[str, Any]:
+        run = self.runs.get(run_id)
+        if run is None:
+            try:
+                run = json.loads((self.runs_dir / run_id / "run.json").read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                run = None
+        return self._authorized_run(run, authorization)
 
     def log(self, run_id: str) -> EventLog:
         return self.logs[run_id]
@@ -93,12 +116,20 @@ class RunService:
             self.runs.pop(oldest["run_id"])
             self.logs.pop(oldest["run_id"], None)
 
+    def _active_run_count(self) -> int:
+        return sum(run["status"] not in TERMINAL for run in self.runs.values())
+
+    def _executing_run_count(self) -> int:
+        return sum(run["status"] in {"approved", "running"} for run in self.runs.values())
+
     # create / clarify -----------------------------------------------------------------
     async def create(self, question: str, role: str | None, profile: str | None, template_hint: str | None) -> dict[str, Any]:
         question = question.strip()
         if not question:
             raise RunError(422, "question is required")
         self._evict()
+        if self._active_run_count() >= self.max_active_runs:
+            raise RunError(429, "Maximum active research runs reached")
         classification = classify(question, template_hint)
         if classification["shape"] == "point" and self.deps.t1 is None:
             raise RunError(501, "T1 point/address research is not available: app.application.t1 is not installed")
@@ -251,6 +282,8 @@ class RunService:
     def approve(self, run: dict[str, Any], body: dict[str, Any], provided: set[str]) -> dict[str, Any]:
         if run["status"] != "awaiting_approval":
             raise RunError(409, "Run is not awaiting approval")
+        if self._executing_run_count() >= self.max_active_runs:
+            raise RunError(429, "Maximum active research runs reached")
         plan = run["plan"] or {}
         subs = body.get("subquestions")
         if subs is not None:

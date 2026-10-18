@@ -215,6 +215,44 @@ async def test_fake_skeptic_and_writer(tmp_path, fake_cfg):
     assert "write" in emit.types()
 
 
+async def test_t1_hypotheses_are_ranked_in_fake_and_model_reports(tmp_path, fake_cfg):
+    result = {
+        "space": {"address": "Kreuzberg"},
+        "candidates": {
+            "hypotheses": [
+                {"id": "h1", "name": "Café am Platz", "score_present": 0.91},
+                {"id": "h2", "name": "Café am Park", "score_present": 0.82},
+            ]
+        },
+    }
+    ledger = EvidenceLedger(tmp_path)
+    fake_report = await write_report("q", result, [], ledger, Recorder(), fake_cfg)
+
+    assert "## Top locations" in fake_report
+    assert "### 1. Café am Platz (h1)" in fake_report
+    assert "### 2. Café am Park (h2)" in fake_report
+
+    model = ScriptedModel(
+        script=[
+            json.dumps(
+                {
+                    "summary": [],
+                    "cells": [
+                        {"cell_id": "h1", "name": "Café am Platz"},
+                        {"cell_id": "h2", "name": "Café am Park"},
+                    ],
+                    "unknowns": [],
+                }
+            )
+        ]
+    )
+    model_report = await write_report("q", result, [], ledger, Recorder(), cfg_with(model, None))
+
+    assert "## Top locations" in model_report
+    assert "### 1. Café am Platz (h1)" in model_report
+    assert "### 2. Café am Park (h2)" in model_report
+
+
 async def test_writer_strips_unknown_ids_and_uncited_sentences(tmp_path):
     ledger = EvidenceLedger(tmp_path)
     ledger.add_web_evidence(web_evidence("https://www.berlin.de/a", snippet=PASSAGE))

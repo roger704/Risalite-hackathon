@@ -67,6 +67,23 @@ def normalize_evidence(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return normalized
 
 
+def _latest_evidence_revisions(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: list[dict[str, Any]] = []
+    positions: dict[str, int] = {}
+    for entry in entries:
+        evidence_id = entry.get("evidence_id") or entry.get("id")
+        if evidence_id is None:
+            latest.append(entry)
+            continue
+        key = str(evidence_id)
+        if key in positions:
+            latest[positions[key]] = entry
+        else:
+            positions[key] = len(latest)
+            latest.append(entry)
+    return latest
+
+
 def load_run(run_dir: Path) -> RunBundle:
     """Load one immutable run directory and normalize its evidence ledger."""
     run_dir = Path(run_dir)
@@ -84,6 +101,8 @@ def load_run(run_dir: Path) -> RunBundle:
     candidates = _read_json(candidates_path) if candidates_path.is_file() else None
     geojson_path = run_dir / "cells.geojson"
     geojson = _read_json(geojson_path) if geojson_path.is_file() else None
-    evidence = normalize_evidence(_read_jsonl(run_dir / "evidence.jsonl"))
+    evidence = normalize_evidence(
+        _latest_evidence_revisions(_read_jsonl(run_dir / "evidence.jsonl"))
+    )
     trace = _read_jsonl(run_dir / "trace.jsonl")
     return RunBundle(run, cells, geojson, candidates, evidence, trace)
