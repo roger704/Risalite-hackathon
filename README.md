@@ -121,7 +121,7 @@ The project is being developed in parallel. Status checked on **18 October 2026*
 5. Extend the existing global run cap and concurrency limit with per-visitor controls and monetary budgets.
 6. Record a complete live run for the demo video.
 
-The [scaling blueprint](SCALING_BLUEPRINT.md) describes the planned shared job queue, persistent sessions and events, worker machines, shared artifacts, and global budgets. It is a future implementation plan; the public deployment still runs one investigation at a time.
+The [scaling blueprint](SCALING_BLUEPRINT.md) describes the planned shared job queue, persistent sessions and events, worker machines, shared artifacts, and global budgets. It is a future implementation plan; current concurrency runs inside one API process.
 
 ### Then: broader location intelligence
 

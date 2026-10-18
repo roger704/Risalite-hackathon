@@ -1,6 +1,6 @@
 # Scaling SpotWise across machines
 
-**Status: planned, not implemented.** Saved on 18 October 2026. The public review deployment still uses one API process, one active investigation and a persistent cap of 20 admitted investigations. This document does not provision infrastructure or raise those limits.
+**Status: planned, not implemented.** Saved on 18 October 2026. Research still runs inside one API process. While this plan was being saved, PR #72 changed the repository's service defaults to three concurrent investigations and 60 admitted investigations; these are single-process limits, not multi-machine execution. The last server configuration verified in this session was one active investigation and 20 admissions. Check effective server settings before rollout. This document does not provision infrastructure or change any limit.
 
 ## Goal
 
@@ -79,9 +79,9 @@ Delivery is not an exactly-once guarantee for external model/search requests. Le
 
 1. **Persistence first:** introduce repository/event/artifact interfaces with local adapters so the existing single-process mode stays usable. Add restart recovery for completed runs and plans.
 2. **Database and worker mode:** add PostgreSQL migrations and adapters, queued approval, a separate worker entry point, shared progress and results, and a local multi-process development setup.
-3. **Import existing state:** drain active research; back up the run directory and SQLite budget; migrate run IDs, token hashes, events, terminal results and every historical admission, including failures. Preserve the maximum of 20 admitted runs across the entire deployment. Mark interrupted work explicitly; do not silently replay it.
+3. **Import existing state:** drain active research; back up the run directory and SQLite budget; migrate run IDs, token hashes, events, terminal results and every historical admission, including failures. Preserve the effective, approved admission maximum across the entire deployment. Mark interrupted work explicitly; do not silently replay it.
 4. **Validate two workers:** exercise concurrent visitors, reconnects, job duplication, crashes and budget races with fake providers. Measure RAM and CPU with real snapshots. Use separately budgeted live checks only after offline validation.
-5. **Deploy gradually:** retain the current server as the initial HTTPS/API entry point, add private worker capacity, then add API replicas/load balancing if needed. Review estimated infrastructure costs against the approved US$5/day budget before provisioning. Increasing the 20-run cap requires a separate decision.
+5. **Deploy gradually:** retain the current server as the initial HTTPS/API entry point, add private worker capacity, then add API replicas/load balancing if needed. Review estimated infrastructure costs against the approved US$5/day budget before provisioning. Changing admission limits requires an explicit policy decision; scaling workers must not multiply or reset them.
 6. **Rollback:** stop admissions and drain workers before reverting. Preserve migrated admissions and completed results; never reset the budget or replay jobs during rollback.
 
 ## Acceptance checks
