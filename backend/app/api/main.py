@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.centers import create_centers_router
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
 
@@ -155,6 +156,7 @@ def create_app(
             cursor=cursor,
         )
 
+    application.include_router(create_centers_router(get_service))
     return application
 
 
