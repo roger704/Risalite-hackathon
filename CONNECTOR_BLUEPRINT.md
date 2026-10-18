@@ -56,6 +56,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `berlin_kitas` | Berlin WFS | `Facility` | Next | Weekly |
 | `berlin_households` | Tabular file | `AreaObservation` | Next | Monthly check for new period |
 | `berlin_addresses` | Berlin WFS | `Address` | Next | Monthly |
+| `berlin_mietspiegel_wohnlagen` | Berlin WFS | `ResidentialLocationClass` | Next | Check each Mietspiegel edition |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
 | `berlin_centers` | Berlin WFS | `RetailCenter` | Next | Monthly |
 | `berlin_population_forecast` | Tabular file | `AreaObservation` with scenario | Next | Monthly check for new edition |
@@ -233,6 +234,12 @@ Public servers apply shared-resource limits; cache broad extractions and follow 
 - Use WMS only as a display/reference layer; do not derive numeric scoring data from rendered map colors.
 
 The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_assets/stadtdaten/geoportal/aktuelles/austausch-diente-server-allgemein.pdf?ts=1691689866) show the current service URL pattern. Resolve actual endpoints through the dataset listing rather than copying obsolete FIS-Broker URLs.
+
+#### Address-level Mietspiegel Wohnlagen (`berlin_mietspiegel_wohnlagen`)
+
+The Berlin WFS source supplies address points and the 2026 official classes `einfach`, `mittel`, and `gut`. `ResidentialLocationClass` stores the source address key, address labels, WGS84 point, class status, edition, validity, and source provenance. The read endpoint is `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage`; callers provide a Wohnlagen `snapshot_id` and exactly one address key, street/house-number tuple, or address-snapshot/address-id pair. Responses distinguish `matched`, `matched_unclassified`, `not_found`, `not_joinable`, and `ambiguous`. An ambiguous candidate is not selected as a class.
+
+Address joins use the source key rule `five-digit street code + three-digit zero-padded house number + optional uppercase suffix`. The data are the official address-level classification, not a rent lookup: no rent-table values are imported, and the class must not be interpreted as income, purchasing power, commercial suitability, footfall, or shop rent. The official Mietspiegel [Wohnlagen explanation](https://mietspiegel.berlin.de/berliner-mietspiegel/erlaeuterungen-zum-mietspiegel/wohnlagen/) describes the classification. Its legally authoritative assignment is the official Straßenverzeichnis; generalized map colors are not a basis for inferring an address class. The classification is valid 2026-05-28 through 2028-05-28, and its existence for an address does not mean a particular dwelling falls within the Mietspiegel's scope. East/West is the source's former east/west rent-table marker, not a current district. Address shares are not population-weighted; edition is pinned from the service/configuration because the provider has no edition property, and raw WFS hashes can vary between downloads.
 
 ### C. LOR, Population, Households, and Forecasts
 
