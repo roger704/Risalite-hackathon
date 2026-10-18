@@ -139,6 +139,7 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .fa h4{margin:0 0 4px;font-size:12px}
 .fa ul{margin:0;padding-left:16px;font-size:12px}
 .grade td:first-child{width:24px}
+.why{margin-top:12px}.why ul{margin:8px 0 0;padding-left:18px;color:var(--mut)}.why li{margin:3px 0}
 .center{text-align:center}.grow{flex:1;min-width:0}
 .hero{text-align:center;margin:30px 0 22px}
 .hero-ico{font-size:50px;line-height:1;margin-bottom:12px;display:inline-block;animation:float 4s ease-in-out infinite}
@@ -148,7 +149,7 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .search{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:20px;padding:8px 8px 8px 18px;transition:box-shadow .3s var(--ease),border-color .3s}
 .search:focus-within{border-color:rgba(0,122,255,.5);box-shadow:0 0 0 4px rgba(0,122,255,.14)}
 .search .s-ico{font-size:20px}
-.search textarea{border:0;background:transparent!important;min-height:0;padding:8px 0;resize:none;box-shadow:none!important}
+.search textarea{flex:1;min-width:0;border:0;background:transparent!important;min-height:0;padding:8px 0;resize:none;box-shadow:none!important}
 .opts{margin-top:12px;gap:10px}
 .field{display:flex;align-items:center;gap:6px;font-size:15px}
 .field select,.field input{border-radius:999px!important;padding:7px 14px!important;font-size:13px}
@@ -204,6 +205,7 @@ input.switch{appearance:none;-webkit-appearance:none;width:40px;height:24px;bord
 input.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .3s var(--ease)}
 input.switch:checked{background:#34c759}input.switch:checked::after{transform:translateX(16px)}
 .qtitle{font-size:21px;letter-spacing:-.015em}
+@media(max-width:520px){.search{flex-wrap:wrap;padding:8px 12px}.search .s-ico{display:none}.search textarea{flex-basis:100%}.search .btn{width:100%}.opts{flex-direction:column;align-items:stretch}.opts .field{width:100%}header{padding:10px 14px;gap:8px}header button{white-space:nowrap}header .mock{font-size:10px;padding:3px 8px}}
 @media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}header .tag,.steps{display:none}}
 </style>
 </head>
@@ -531,12 +533,12 @@ function plan(){
     $('#p-area').innerHTML=`<span class="chip">🗺️ Wiener Straße 12 · Lausitzer Platz</span><span class="chip" title="Operator profile">🧑‍🍳 ${esc(C.op||'no profile · fit neutral')}</span>`;
     const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
     SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h2>💡 Business ideas to test</h2><table class="list"><tbody>${SC.H.map((h,i)=>`<tr title="${at(h.dw[2]+'; '+h.dw[1])}"><td><input type="checkbox" checked data-h="${i}"></td><td><span class="emo">${emo(h.name)}</span> ${h.name}</td></tr>`).join('')}</tbody></table>`;
+    $('#p-layers-wrap').innerHTML=`<h2>💡 Business ideas to test</h2><table class="list"><tbody>${SC.H.map((h,i)=>`<tr title="${at(h.dw[2]+'; '+h.dw[1])}"><td><input type="checkbox" checked data-h="${i}"></td><td><span class="emo">${emo(h.name)}</span> ${h.name}</td></tr>`).join('')}</tbody></table><details class="why small"><summary>💬 Why these ideas</summary><ul>${SC.H.map(h=>`<li><b>${h.name}</b> — ${h.dw[2]}; ${h.dw[1]}</li>`).join('')}</ul></details>`;
     $('#p-paid').innerHTML='';
   } else {
     $('#p-area').innerHTML=`<span class="chip" title="Bezirk ${SC.bez} · PLR granularity">🗺️ ${SC.aname} · ${SC.cells.length} areas</span>`;
     SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h2>⚖️ How we'll score</h2><table id="p-layers" class="list"><tbody>${SC.layers.map(l=>`<tr title="${at(l.why)}"><td><input type="checkbox" checked data-l="${l.id}"></td><td><span class="emo">${emo(l.label)}</span> ${l.label}</td><td class="r"><span class="dirr" title="${l.dir==='+'?'more is better':'less is better'}">${l.dir==='+'?'↑':'↓'}</span> <span class="wbar" title="weight ${l.w.toFixed(2)}"><i style="width:${Math.min(100,l.w/.3*100)}%"></i></span></td></tr>`).join('')}</tbody></table>`;
+    const mx=Math.max(...SC.layers.map(l=>l.w));$('#p-layers-wrap').innerHTML=`<h2>⚖️ How we'll score</h2><table id="p-layers" class="list"><tbody>${SC.layers.map(l=>`<tr title="${at(l.why)}"><td><input type="checkbox" checked data-l="${l.id}"></td><td><span class="emo">${emo(l.label)}</span> ${l.label}</td><td class="r"><span class="dirr" title="${l.dir==='+'?'more is better':'less is better'}">${l.dir==='+'?'↑':'↓'}</span> <span class="small mut">${l.w.toFixed(2)}</span> <span class="wbar" title="weight ${l.w.toFixed(2)}"><i style="width:${l.w/mx*100}%"></i></span></td></tr>`).join('')}</tbody></table><details class="why small"><summary>💬 Why these layers</summary><ul>${SC.layers.map(l=>`<li><b>${l.label}</b> — ${l.why}</li>`).join('')}</ul></details>`;
     $('#p-paid').innerHTML=SC.paid.length?` · <span title="Paid sources need an API key; the offline mockup makes no provider calls">🔒 ${SC.paid.map(p=>p[0]).join(', ')} skipped (no key)</span>`:'';
   }
   // keep sub-questions in sync with the layers / hypotheses they feed
@@ -711,7 +713,7 @@ function renderPoint(){
 
 function renderSources(){
   const conf={high:'b-ok',medium:'b-part',low:'b-bad'},st={verified:['b-ok','verified'],partial:['b-part','partial']};
-  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span title="${s.status} · confidence ${s.conf} · ${s.tier}">${s.status==='verified'?'✅':'🟡'}</span><span class="badge b-${s.method}">${s.method}</span></div>
+  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span title="${s.status} · confidence ${s.conf} · ${s.tier}">${s.status==='verified'?'✅':'🟡'}</span><span class="badge b-${s.method}">${s.method}</span><span class="small mut">confidence ${s.conf} · ${s.tier}</span></div>
     <div class="quote small" style="margin:3px 0">“${esc(s.quote)}”</div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></div></div>`).join('');
   $('#d-nover').innerHTML=SC.rejected.map(r=>`<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${r.claim}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${r.reason}</div><a href="${r.url}" target="_blank" rel="noopener">${r.url}</a></div></div>`).join('');
   $('#n-src').textContent=SC.sources.length;$('#n-rej').textContent=SC.rejected.length;
