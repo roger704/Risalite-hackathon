@@ -16,9 +16,37 @@
 | [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
 | [Landing page](frontend/landing/README.md) | Animated, looping landing page: what Risalite is for, the workflow and the deliverables, in 10 seconds |
 | [Backend setup guide](backend/README.md) | Working LOR and population connectors, ingestion CLI, versioned snapshots, read API |
+| [Demo script](docs/02_State/Demo_Script.md) | Rehearsal questions per template and the two-minute storyboard |
 | [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
 
-**Implementation status:** the backend currently implements the LOR and population connectors, ingestion CLI, snapshots, and read API. Everything else below is planned.
+**Implementation status:** the backend implements the LOR and population connectors, ingestion CLI, snapshots, the read API, the research dashboard over fixture-backed runs, report/source exports, and the evidence ledger + fact-checker (`backend/app/evidence/`). The live research runtime (S1) is planned.
+
+## Run it
+
+```bash
+git clone https://github.com/roger704/Risalite-hackathon.git && cd Risalite-hackathon
+cp .env.example .env            # TAVILY_API_KEY, NEBIUS_API_KEY, NEBIUS_MODEL (optional for fixtures)
+cd backend && uv sync
+uv run uvicorn app.api.main:app --reload   # dashboard + API on http://127.0.0.1:8000/
+```
+
+Check the citations of a run (report marker → ledger entry → URL resolves → quote re-matches):
+
+```bash
+cd backend && uv run python ../scripts/verify_citations.py ../runs/<id> [--threshold 0.9]
+cd backend && uv run python ../scripts/verify_citations.py ../frontend/fixtures --offline
+```
+
+`--offline` checks citation mapping and stored passages only. Online, quotes are re-fetched with Tavily `extract` when `TAVILY_API_KEY` is set, else a direct HTTP GET.
+
+### Evidence and fact-check (`backend/app/evidence/`)
+
+| Module | Role |
+|---|---|
+| `ledger.py` | Append-only `runs/<id>/evidence.jsonl`: Tavily `WebEvidence` (`ev_…`) and snapshot values (`ds_…`, value hash); status changes are new revisions |
+| `matching.py` | Shared quote matcher: verified ≥ 0.85, partial ≥ 0.60 |
+| `factcheck.py` | Re-fetch per source (Tavily extract / HTTP with per-hop SSRF checks / allow-listed WFS + Overpass re-query / snapshot re-read); writes `factcheck.json`, `findings.jsonl` verification, `fact_check` trace events, strips uncited markers from `report.md` and appends "Could not verify" |
+| `judge.py` | Score used by `scripts/verify_citations.py` |
 
 ## Input flow (Gemini-Deep-Research-style)
 
