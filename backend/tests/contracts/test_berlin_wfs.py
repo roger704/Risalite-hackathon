@@ -166,6 +166,8 @@ def test_rejects_duplicate_ids_across_pages(tmp_path):
         (None, "omitted the next link"),
         ("start", "STARTINDEX is inconsistent"),
         ("host", "URL is not allowed"),
+        ("sortby", "changed reviewed query parameters"),
+        ("filter", "changed reviewed query parameters"),
     ],
 )
 def test_fetch_rejects_missing_or_unsafe_next_links(tmp_path, link, match):
@@ -177,6 +179,12 @@ def test_fetch_rejects_missing_or_unsafe_next_links(tmp_path, link, match):
             data["links"][0]["href"] = data["links"][0]["href"].replace(
                 "STARTINDEX=2", "STARTINDEX=4"
             )
+        elif link == "sortby":
+            data["links"][0]["href"] = data["links"][0]["href"].replace(
+                "SORTBY=plr_id", "SORTBY=other"
+            )
+        elif link == "filter":
+            data["links"][0]["href"] += "&FILTER=include-all"
         else:
             data["links"][0]["href"] = data["links"][0]["href"].replace(
                 "https://gdi.berlin.de", "https://attacker.example"
@@ -196,6 +204,39 @@ def test_fetch_rejects_missing_or_unsafe_next_links(tmp_path, link, match):
 
     with pytest.raises(SchemaError, match=match):
         asyncio.run(run())
+
+
+def test_fetch_accepts_reordered_percent_encoded_next_link(tmp_path):
+    requests = []
+    reordered_link = (
+        "https://gdi.berlin.de/services/wfs/lor_2021?REQUEST=GetFeature"
+        "&SORTBY=plr_id&OUTPUTFORMAT=application%2Fjson&VERSION=2.0.0"
+        "&TYPENAMES=lor_2021%3Aa_lor_plr_2021&COUNT=2&SERVICE=WFS&STARTINDEX=2"
+    )
+
+    async def handler(request):
+        requests.append(request)
+        start = int(request.url.params["STARTINDEX"])
+        data = json.loads((FIXTURES / f"page-{start // 2:04d}.json").read_text())
+        if start == 0:
+            data["links"][0]["href"] = reordered_link
+        return httpx.Response(200, json=data, request=request)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            connector = BerlinWFSConnector(HTTPFetcher(client))
+            return await connector.fetch(
+                FetchRequest(
+                    config=configuration(),
+                    staging_dir=str(tmp_path / "staging"),
+                    snapshot_id="synthetic-fetch",
+                )
+            )
+
+    bundle = asyncio.run(run())
+    assert len(bundle.assets) == 2
+    assert len(requests) == 2
+    assert requests[1].url.params["STARTINDEX"] == "2"
 
 
 def test_fetch_enforces_page_cap(tmp_path):

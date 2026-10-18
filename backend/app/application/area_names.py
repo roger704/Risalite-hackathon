@@ -13,8 +13,8 @@ def area_names(
         for record in page["records"]:
             if record.get("record_type") == "area":
                 result[record["area_code"]] = {
-                    "name": record["name"],
                     **record.get("attributes", {}),
+                    "name": record["name"],
                 }
         cursor = page["next_cursor"]
         if cursor is None:

@@ -10,7 +10,7 @@ from app.application.area_names import area_names
 from app.application.service import DataService
 from app.connectors.berlin_wfs import BerlinWFSConnector
 from app.connectors.lor import LORConnector
-from app.domain import IncompatibleSnapshotError
+from app.domain import Area, IncompatibleSnapshotError, record_to_dict
 from app.infrastructure.http import HTTPFetcher
 
 BACKEND = Path(__file__).parents[2]
@@ -86,3 +86,29 @@ async def test_rejects_wfs_ingestion_with_mismatched_parent_codes(tmp_path):
         with pytest.raises(IncompatibleSnapshotError) as error:
             await service.ingest("berlin_lor_names", parent_snapshot_id=parent.snapshot_id)
     assert error.value.code == "SNAPSHOT_INCOMPATIBLE"
+
+
+def test_area_names_prefers_official_name_over_conflicting_attribute():
+    area = Area(
+        source_id="berlin_lor_names",
+        snapshot_id="names-snapshot",
+        source_record_id="01100101",
+        record_id="planungsraum:01100101",
+        geometry={
+            "type": "Polygon",
+            "coordinates": [[[13.4, 52.5], [13.4, 52.6], [13.5, 52.5], [13.4, 52.5]]],
+        },
+        area_code="01100101",
+        name="Official name",
+        hierarchy="planungsraum",
+        boundary_edition="2021",
+        attributes={"name": "other"},
+    )
+
+    class RecordService:
+        def records(self, dataset_id, snapshot_id, limit, cursor):
+            return {"records": [record_to_dict(area)], "next_cursor": None}
+
+    assert area_names(RecordService(), area.snapshot_id) == {
+        area.area_code: {"name": "Official name"}
+    }

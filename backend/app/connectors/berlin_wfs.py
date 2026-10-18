@@ -43,6 +43,14 @@ def _query_values(url: str) -> dict[str, list[str]]:
     return values
 
 
+def _query_params(url: str) -> list[tuple[str, str]]:
+    return sorted(
+        (key.upper(), value)
+        for key, value in parse_qsl(urlsplit(url).query, keep_blank_values=True)
+        if key.upper() not in {"COUNT", "STARTINDEX"}
+    )
+
+
 def _single_query(url: str, name: str) -> str | None:
     values = _query_values(url).get(name.lower(), [])
     if len(values) > 1:
@@ -309,6 +317,8 @@ class BerlinWFSConnector(FileConnector):
                 or link_parts.path != source_parts.path
             ):
                 raise SchemaError("WFS next link changed the reviewed resource origin or path")
+            if _query_params(href) != _query_params(config.resource_url):
+                raise SchemaError("WFS next link changed reviewed query parameters")
             if _single_query(href, "TYPENAMES") != options["typename"]:
                 raise SchemaError("WFS next link changed TYPENAMES")
             try:
