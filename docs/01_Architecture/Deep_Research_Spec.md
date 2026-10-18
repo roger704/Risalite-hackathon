@@ -268,7 +268,7 @@ Required: `residents_block_density`, `cafe_saturation`. Weights are starting val
 
 #### 5.8.3 Templates sharing the engine
 
-- `kita_gap_v1` (T3): gap = (children 0–6 × coverage target − `permitted_places_known_sum`) / children 0–6, direction +, percentile; coverage target is a template parameter (proposal 0.9, must be sourced); > 20 % of facilities without capacity in a PLR → confidence low.
+- `kita_gap_v1` (T3): gap = (children 0–6 × coverage target − `permitted_places_known_sum`) / children 0–6, direction +, percentile; coverage target is a template parameter (proposal 0.9, must be sourced); supply completeness matters: if any facility in a PLR lacks capacity, the PLR gets a gap **range** — `gap_high` from known places only and `gap_low` with each missing facility imputed at the Berlin 75th-percentile facility capacity; the PLR is ranked on the conservative `gap_low`, shows the range, and gets confidence ≤ medium; if imputed places exceed 20 % of the estimated supply, the PLR is marked `incomplete`, kept out of the top-3 and listed as an unknown with the validation step "confirm capacity with the Jugendamt".
 - T1 data dimensions: same layer functions over the address catchment (walking isochrone #45, fallback 500 m), placed by percentile against the same Berlin reference and scaled to 0–10.
 
 #### 5.8.4 Future modifiers
@@ -295,7 +295,7 @@ WGS84 stops against EPSG:25833 polygons; incompatible snapshots rejected; OSM an
 
 ## 6. T1 / T3
 
-- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): in `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → `bonus: -0.10` (gap shrinks), closures → `bonus: +0.10` (gap grows), forecast growth of children 0–6 → `bonus: +0.10`; in `coffee_v1` all future modifiers are `+0.10`. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
+- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): `future_effects` defines **direction only**; the magnitude always follows the size classes and cap of §5.8.4 (±0.03/±0.06/±0.10, sum ±0.15). In `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → negative (gap shrinks; size class from the number of places: < 50 small, 50–150 medium, > 150 large), closures → positive, forecast growth of children 0–6 → positive (size class from the forecast increase); in `coffee_v2` housing/population growth → positive, announced café openings → negative. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
 - **T1 (point, LocalLens, D6/D7)** reuses ledger, tools, events, approval and API; result is `candidates.json` (PR #19 contract):
   1. Parse space (address) and operator profile; `berlin_addresses` (#47) → coordinates → PLR.
   2. Plan: location sub-questions + 3–4 business hypotheses with *why* (operator experience × neighbourhood gaps); user approves/edits as in E3.
@@ -387,7 +387,7 @@ Per D1 the Pydantic models in `backend/app/contracts` (PR #19: `api.Plan`/`Resea
 
 ### 9.7 One score rule (D8)
 
-The scoring v2 Python implementation (S1, §5.8) is authoritative; S3 (`frontend/app/scoring.js`) re-implements only the re-weighting step on the delivered percentiles, with the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → signed bonus (per template, §6) added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers incl. a negative T3 bonus, `demoted_by` → expected scores and order) is run by both test suites.
+The scoring v2 Python implementation (S1, §5.8) is authoritative; S3 (`frontend/app/scoring.js`) re-implements only the re-weighting step on the delivered percentiles, with the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); no final area-wide rescale (`score_present` = weighted mean of percentiles, §5.8.1); future mode → `score_future = clamp01(score_present + Σ bonus)` with signed, graded, capped bonuses (§5.8.4); `rank()` as §5.5 with tiers (§5.8.6). A shared file of golden test vectors (input percentiles, weights, missing optional layer, modifiers incl. a negative T3 bonus and the ±0.15 cap, `demoted_by`, a tie → expected `score_present`, `score_future`, `tier` and order) is run by both test suites.
 
 ## 10. Models (bake-off, 2026-10-18)
 
