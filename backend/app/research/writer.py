@@ -93,7 +93,35 @@ def _score(item: dict) -> str:
     return f" — {', '.join(parts)}" if parts else ""
 
 
-def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
+def _item_allowed(
+    item: dict, result: dict, allowed: set[str], findings: Sequence[Finding]
+) -> set[str]:
+    cell_id = str(item.get("id") or item.get("cell_id") or "")
+    allowed_ids = {evidence_id for evidence_id in allowed if evidence_id.startswith("ds_")}
+    cited = {"risks": item.get("risks"), "modifiers": item.get("modifiers")}
+    allowed_ids.update(_cited_ids(cited) & allowed)
+    space = result.get("space") if isinstance(result.get("space"), dict) else {}
+    space_cell = space.get("cell_id") or space.get("plr_id")
+    for finding in findings:
+        if finding.status == "rejected" or finding.verification == "unsupported":
+            continue
+        localization = finding.localization
+        cell_finding = localization in {cell_id, f"plr:{cell_id}"}
+        hypothesis_finding = getattr(
+            finding, "hypothesis_id", None
+        ) == cell_id and localization in {"address", str(space_cell) if space_cell else None}
+        if cell_finding or hypothesis_finding:
+            allowed_ids.update(set(finding.evidence_ids) & allowed)
+    return allowed_ids
+
+
+def render(
+    report: Report,
+    result: dict,
+    allowed: set[str],
+    title: str,
+    findings: Sequence[Finding] = (),
+) -> str:
     lines = [f"# {title}", ""]
     summary = [s for s in (_sentence(x, allowed) for x in report.summary) if s]
     if summary:
@@ -108,8 +136,9 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
         section = sections.get(cell_id) or CellSection(cell_id=cell_id)
         name = item.get("name") or section.name or cell_id
         lines += [f"### {rank}. {name} ({cell_id}){_score(item)}", ""]
-        reasons = [s for s in (_sentence(x, allowed) for x in section.reasons[:4]) if s]
-        risks = [s for s in (_sentence(x, allowed) for x in section.risks) if s]
+        section_allowed = _item_allowed(item, result, allowed, findings) if findings else allowed
+        reasons = [s for s in (_sentence(x, section_allowed) for x in section.reasons[:4]) if s]
+        risks = [s for s in (_sentence(x, section_allowed) for x in section.risks) if s]
         if reasons:
             lines += ["**Why**", "", *(f"- {r}" for r in reasons), ""]
         if risks:
@@ -236,12 +265,22 @@ async def write_report(
         model = chat_model(cfg.writer_model, cfg)
         user = _writer_input(question, result, live)
         report = await structured_call(
-            model, cfg.writer_model, prompts.WRITER, user, Report, events, "write report"
+            model,
+            cfg.writer_model,
+            prompts.WRITER
+            + f"\n\nToday's date is {prompts.today()}; describe developments completed before "
+            "today in the past tense.",
+            user,
+            Report,
+            events,
+            "write report",
         )
     deterministic = report is None
     if report is None:
         report = deterministic_report(result, live)
-    stripped = strip_unknown_citations(render(report, result, allowed, title), entries)
+    stripped = strip_unknown_citations(
+        render(report, result, allowed, title, findings=live), entries
+    )
     await events(
         "write",
         why="report rendered with ledger citations",

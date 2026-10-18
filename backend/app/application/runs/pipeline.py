@@ -13,6 +13,7 @@ import dataclasses
 import inspect
 import json
 import os
+import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -309,16 +310,91 @@ def _weights(template: Any) -> dict[str, float]:
     return {layer.id: float(layer.weight) for layer in template.layers}
 
 
-def _cells_payload(cells: list[Any]) -> list[dict[str, Any]]:
-    return [{"id": c.cell_id, "name": c.name, "parent_name": c.parent_name} for c in cells]
+_STREETS_CACHE: dict[tuple[str, str], dict[str, list[str]]] = {}
+_STREETS_CACHE_LOCK = threading.Lock()
 
 
-def _cell_payload(cell: Any) -> dict[str, Any]:
+def _streets_timeout() -> float:
+    try:
+        return max(0.0, float(os.environ.get("RISALITE_STREETS_TIMEOUT_S", "30")))
+    except ValueError:
+        return 30.0
+
+
+def _read_streets(path: Path) -> dict[str, list[str]]:
+    import pyarrow.parquet as pq
+
+    streets: dict[str, list[str]] = {}
+    parquet = pq.ParquetFile(path)
+    for batch in parquet.iter_batches(columns=["record_json"], batch_size=65536):
+        for raw in batch.column("record_json").to_pylist():
+            record = json.loads(raw)
+            area_code, street_name = record.get("area_code"), record.get("street_name")
+            if area_code and street_name:
+                names = streets.setdefault(str(area_code), [])
+                if street_name not in names:
+                    names.append(street_name)
+    return streets
+
+
+async def _streets_by_plr(ctx: Context) -> dict[str, list[str]]:
+    def names_only(reason: str) -> dict[str, list[str]]:
+        ctx.log.emit(
+            "status",
+            "orchestrator",
+            {"localization": "names_only", "reason": reason},
+            why="Address streets unavailable; using names-only localization",
+        )
+        return {}
+
+    readers_factory = ctx.deps.t1_readers
+    if readers_factory is None:
+        return names_only("Address snapshot reader unavailable")
+    try:
+        readers = readers_factory()
+        manifest = readers._manifest("addresses")
+        if manifest is None:
+            return names_only("berlin_addresses snapshot is unavailable")
+        path = Path(readers.service._snapshot_path(manifest))
+        key = (str(path.resolve()), str(manifest.snapshot_id))
+        with _STREETS_CACHE_LOCK:
+            cached = _STREETS_CACHE.get(key)
+        if cached is not None:
+            return cached
+        streets = await asyncio.wait_for(
+            asyncio.to_thread(_read_streets, path), timeout=_streets_timeout()
+        )
+        with _STREETS_CACHE_LOCK:
+            _STREETS_CACHE[key] = streets
+        return streets
+    except TimeoutError:
+        return names_only(f"berlin_addresses read exceeded {_streets_timeout():g} seconds")
+    except Exception as error:
+        return names_only(f"berlin_addresses read failed: {type(error).__name__}")
+
+
+def _cells_payload(
+    cells: list[Any], streets_by_plr: dict[str, list[str]] | None = None
+) -> list[dict[str, Any]]:
+    streets_by_plr = streets_by_plr or {}
+    return [
+        {
+            "id": c.cell_id,
+            "name": c.name,
+            "parent_name": c.parent_name,
+            "streets": streets_by_plr.get(c.cell_id, []),
+        }
+        for c in cells
+    ]
+
+
+def _cell_payload(cell: Any, streets_by_plr: dict[str, list[str]] | None = None) -> dict[str, Any]:
     return {
         "id": cell.cell_id,
         "name": cell.name,
         "parent_name": cell.parent_name,
         "raw_values": dict(cell.raw_values),
+        "streets": (streets_by_plr or {}).get(cell.cell_id, []),
     }
 
 
@@ -421,7 +497,8 @@ async def run_area(ctx: Context) -> dict[str, Any]:
 
     by_id = {c.cell_id: c for c in inputs}
     area_payload = {"area_id": area_id, "name": area["name"]}
-    cells_payload = _cells_payload(inputs)
+    streets_by_plr = await _streets_by_plr(ctx)
+    cells_payload = _cells_payload(inputs, streets_by_plr)
     subs = ctx.approved_subquestions or [{"id": None, "text": ctx.run["question"]}]
     wave1 = await asyncio.gather(
         *[
@@ -454,7 +531,7 @@ async def run_area(ctx: Context) -> dict[str, Any]:
                     f"researcher:wave2:{c.cell_id}",
                     research.research_cell(
                         ctx.question,
-                        _cell_payload(c),
+                        _cell_payload(c, streets_by_plr),
                         ctx.ledger,
                         ctx.log.emitter(f"researcher:wave2:{c.cell_id}"),
                         small(cfg),
@@ -503,7 +580,7 @@ async def run_area(ctx: Context) -> dict[str, Any]:
                     f"skeptic:{c.cell_id}",
                     research.skeptic(
                         ctx.question,
-                        _cell_payload(c),
+                        _cell_payload(c, streets_by_plr),
                         [
                             Finding.model_validate(f)
                             for f in verified
@@ -606,7 +683,16 @@ def _add_risks(
                     "status": "accepted",
                 }
             severity = risk.get("severity") if risk.get("severity") in SEVERITIES else "low"
-            row.update(claim_type="risk", severity=severity, localization=localization, **tags)
+            risk_localization = row.get("localization", risk.get("localization"))
+            downgraded = risk_localization == "area"
+            if downgraded and severity == "high":
+                severity = "medium"
+            row.update(
+                claim_type="risk",
+                severity=severity,
+                localization="area" if downgraded else localization,
+                **tags,
+            )
             row.setdefault("agent", f"skeptic:{target}")
             for added in _add_findings(ctx, [row]):
                 meta[added["finding_id"]] = {"target": target, "severity": severity}
@@ -644,6 +730,13 @@ async def run_point(ctx: Context) -> dict[str, Any]:
     if not hypotheses:
         raise RunFailure("No approved hypotheses for this address")
     space = prepared.get("space", {})
+    streets_by_plr = await _streets_by_plr(ctx)
+    cell_id = space.get("cell_id") or space.get("plr_id")
+    if cell_id:
+        space = {
+            **space,
+            "streets": streets_by_plr.get(str(cell_id), []),
+        }
     waves = await asyncio.gather(
         *[
             _guard(

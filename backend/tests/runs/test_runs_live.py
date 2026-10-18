@@ -464,6 +464,104 @@ def test_approval_respects_max_executing_runs(make_client, monkeypatch):
     assert response.status_code == 429
 
 
+def test_downgraded_high_risk_is_area_scoped_and_capped():
+    from types import SimpleNamespace
+
+    from app.application.runs.pipeline import _add_risks
+
+    ctx = SimpleNamespace(findings=[])
+    risk = {
+        "severity": "high",
+        "finding": {
+            "finding_id": "f_area_risk",
+            "claim": "Area-level concern.",
+            "quote": "Concern.",
+            "evidence_ids": ["ev_area"],
+            "claim_type": "risk",
+            "localization": "area",
+            "agent": "skeptic:02010101",
+            "status": "accepted",
+        },
+    }
+
+    meta = _add_risks(ctx, [("02010101", "plr:02010101", [risk])])
+
+    assert ctx.findings[0]["localization"] == "area"
+    assert meta["f_area_risk"]["severity"] == "medium"
+
+
+async def test_address_streets_load_from_injected_snapshot_reader(tmp_path):
+    from types import SimpleNamespace
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from app.application.runs.pipeline import _cell_payload, _cells_payload, _streets_by_plr
+
+    path = tmp_path / "addresses.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "record_json": [
+                    '{"area_code":"02100101","street_name":"Wiener Straße"}',
+                    '{"area_code":"02100101","street_name":"Oranienstraße"}',
+                    '{"area_code":"02100102","street_name":"Adalbertstraße"}',
+                ]
+            }
+        ),
+        path,
+    )
+
+    class Manifest:
+        snapshot_id = "snapshot-1"
+
+    class Service:
+        def _snapshot_path(self, _manifest):
+            return path
+
+    class Readers:
+        service = Service()
+
+        def _manifest(self, role):
+            assert role == "addresses"
+            return Manifest()
+
+    class Log:
+        def __init__(self):
+            self.events = []
+
+        def emit(self, *args, **kwargs):
+            self.events.append((args, kwargs))
+
+    ctx = SimpleNamespace(
+        deps=SimpleNamespace(t1_readers=lambda: Readers()),
+        log=Log(),
+    )
+
+    streets = await _streets_by_plr(ctx)
+
+    assert streets == {
+        "02100101": ["Wiener Straße", "Oranienstraße"],
+        "02100102": ["Adalbertstraße"],
+    }
+    cell = SimpleNamespace(
+        cell_id="02100101",
+        name="Cell",
+        parent_name="Area",
+        raw_values={},
+    )
+    assert _cells_payload([cell], streets)[0]["streets"] == streets["02100101"]
+    assert _cell_payload(cell, streets)["streets"] == streets["02100101"]
+
+    missing = SimpleNamespace(
+        deps=SimpleNamespace(t1_readers=None),
+        log=Log(),
+    )
+    assert await _streets_by_plr(missing) == {}
+    assert missing.log.events[0][0][0] == "status"
+    assert missing.log.events[0][0][2]["localization"] == "names_only"
+
+
 def test_berlin_reference_timeout_emits_error_and_continues(make_client, monkeypatch):
     client = make_client()
     port = runs_live.service().deps.port

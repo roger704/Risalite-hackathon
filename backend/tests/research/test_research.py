@@ -26,6 +26,7 @@ from app.evidence.citations import citation_tokens
 from app.evidence.ledger import EvidenceLedger
 from app.research import (
     ResearchConfig,
+    prompts,
     research_area,
     research_cell,
     research_hypothesis,
@@ -64,7 +65,12 @@ class Recorder:
 
 
 def web_evidence(
-    url: str, *, query: str | None = "q", snippet: str | None = None, passage: str | None = None
+    url: str,
+    *,
+    query: str | None = "q",
+    snippet: str | None = None,
+    passage: str | None = None,
+    title: str = "Wohnungsbau am Moritzplatz",
 ) -> WebEvidence:
     kind = EvidenceKind.EXTRACTED_PAGE if passage else EvidenceKind.SEARCH_RESULT
     canonical = canonicalize_url(url)
@@ -73,7 +79,7 @@ def web_evidence(
         kind=kind,
         original_url=url,
         canonical_url=canonical,
-        title="Wohnungsbau am Moritzplatz",
+        title=title,
         query=query,
         retrieved_at=NOW,
         published_at=None,
@@ -345,6 +351,141 @@ async def test_record_finding_accepts_partial_and_drops_unstated_amount(toolkit)
     assert getattr(kit.accepted[0], "amount", None) is None
 
 
+def _localization_toolkit(tmp_path, passage, place_terms, localizations):
+    ledger, emit = EvidenceLedger(tmp_path), Recorder()
+    entry = ledger.add_web_evidence(
+        web_evidence(
+            "https://example.org/report",
+            snippet=passage,
+            title="Lokaler Bericht",
+        )
+    )
+    kit = Toolkit(
+        ledger=ledger,
+        events=Events(emit, "researcher:t1:test"),
+        cfg=ResearchConfig(fake=False),
+        connector=None,
+        role="t1",
+        localizations=localizations,
+        default_localization="area",
+        place_terms=place_terms,
+    )
+    return kit, emit, entry["evidence_id"]
+
+
+async def test_unsupported_cell_localization_downgrades_to_area(tmp_path):
+    passage = "Eine Diskussion am Kotti über neue Cafés."
+    kit, emit, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {"02010101": ["Askanischer Platz", "Wiener Straße"]},
+        ["02010101", "area"],
+    )
+
+    out = await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="02010101",
+    )
+
+    finding = kit.accepted[0]
+    assert finding.localization == "area"
+    assert finding.localization_requested == "02010101"
+    assert finding.localization_check == "downgraded"
+    assert "recorded at area level" in out and "names the place to localize it" in out
+    event = next(payload for kind, payload in emit.events if kind == "localization_downgraded")
+    assert event["detail"] == {
+        "finding_id": finding.finding_id,
+        "requested": "02010101",
+        "localization": "area",
+        "evidence_ids": [evidence_id],
+    }
+
+
+async def test_named_cell_localization_is_preserved(tmp_path):
+    passage = "Ein neues Café am Askanischer Platz eröffnet im Sommer."
+    kit, _, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {"02010101": ["Askanischer Platz"]},
+        ["02010101", "area"],
+    )
+
+    await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="02010101",
+    )
+
+    finding = kit.accepted[0]
+    assert finding.localization == "02010101"
+    assert finding.localization_check == "mentioned:Askanischer Platz"
+
+
+@pytest.mark.parametrize(
+    ("passage", "expected"),
+    [
+        ("Ein Café eröffnet am Askanischer Platz.", "02010101"),
+        ("Ein Café eröffnet am Kottbusser Tor.", "area"),
+    ],
+)
+async def test_address_localization_falls_back_to_cell_then_area(tmp_path, passage, expected):
+    kit, emit, evidence_id = _localization_toolkit(
+        tmp_path,
+        passage,
+        {
+            "address": ["Wiener Straße"],
+            "02010101": ["Askanischer Platz"],
+        },
+        ["address", "02010101", "area"],
+    )
+
+    await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[evidence_id],
+        claim_type="fact",
+        localization="address",
+    )
+
+    finding = kit.accepted[0]
+    assert finding.localization == expected
+    if expected == "area":
+        assert finding.localization_requested == "address"
+        assert "localization_downgraded" in emit.types()
+
+
+@pytest.mark.parametrize(
+    ("year", "expected_type"),
+    [(2025, "fact"), (2026, "future"), (2027, "future")],
+)
+async def test_past_completion_year_is_recorded_as_fact(toolkit, monkeypatch, year, expected_type):
+    monkeypatch.setattr(prompts, "today", lambda: "2026-10-18")
+    kit, _, evidence_id = toolkit
+    passage = "The building is complete."
+    entry = kit.ledger.add_web_evidence(
+        web_evidence("https://example.org/completed", snippet=passage, title="Report")
+    )
+
+    out = await kit.record_finding(
+        claim=passage,
+        quote=passage,
+        evidence_ids=[entry["evidence_id"] or evidence_id],
+        claim_type="future",
+        completion_year=year,
+    )
+
+    finding = kit.accepted[0]
+    assert finding.claim_type == expected_type
+    assert finding.completion_year == year
+    if year < 2026:
+        assert "completion year 2025 is before today; recorded as fact" in out
+
+
 @pytest.mark.parametrize(
     ("quote", "ids", "reason"),
     [
@@ -412,6 +553,50 @@ async def test_agent_records_finding_through_tools(tmp_path):
     assert ledger.get(findings[0].evidence_ids[0])["method"] == "tavily-extract"
     assert (connector.searches, connector.extracts) == (1, 1)
     assert {"search", "extract", "model_call", "finding_accepted"} <= set(emit.types())
+
+
+async def test_agents_pass_place_terms_and_brief_cell_streets(tmp_path, monkeypatch):
+    from app.research import agents
+
+    calls = []
+
+    async def capture(**kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(agents, "_research", capture)
+    cfg = ResearchConfig(fake=False)
+    ledger, emit = EvidenceLedger(tmp_path), Recorder()
+    streets = [f"Street {i}" for i in range(20)]
+    cell = {"id": "02010101", "name": "Graefekiez Nord", "streets": streets}
+
+    await agents.research_area("q", AREA, [cell], ledger, emit, cfg)
+    await agents.research_cell("q", cell, ledger, emit, cfg)
+    await agents.research_hypothesis(
+        "q",
+        {
+            "address": "Wiener Straße 12, 10999 Berlin",
+            "cell_id": "02010101",
+            "cell_name": "Graefekiez Nord",
+            "streets": streets,
+        },
+        {"id": "h_1"},
+        ledger,
+        emit,
+        cfg,
+    )
+    await agents.skeptic("q", cell, [], ledger, emit, cfg)
+
+    assert calls[0]["place_terms"]["02010101"][:2] == [
+        "Graefekiez Nord",
+        "Graefekiez",
+    ]
+    assert "Street 14" in calls[0]["place_terms"]["02010101"]
+    assert calls[1]["place_terms"]["02010101"][-1] == "Street 19"
+    assert calls[2]["place_terms"]["address"] == ["Wiener Straße"]
+    assert calls[2]["place_terms"]["02010101"][0] == "Graefekiez Nord"
+    assert calls[3]["place_terms"]["02010101"][0] == "Graefekiez Nord"
+    assert agents._cell_brief(cell)["streets"] == streets[:15]
 
 
 async def test_budget_exhaustion_stops_agent(tmp_path):

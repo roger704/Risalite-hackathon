@@ -15,6 +15,7 @@ from app.evidence.ledger import EvidenceLedger
 from app.research import fake, prompts
 from app.research.config import Emit, ResearchConfig
 from app.research.events import Events
+from app.research.locality import address_terms, cell_terms
 from app.research.models import chat_model, structured_call
 from app.research.runner import run_agent
 from app.research.toolkit import Role, Toolkit
@@ -55,6 +56,7 @@ async def _research(
     task: str,
     localizations: Sequence[str],
     default_localization: str,
+    place_terms: dict[str, Sequence[str]] | None = None,
     claim_types: Sequence[str] | None = None,
     finding_extra: dict[str, Any] | None = None,
 ) -> list[Finding]:
@@ -68,6 +70,7 @@ async def _research(
             role=role,
             localizations=localizations,
             default_localization=default_localization,
+            place_terms=place_terms,
             claim_types=claim_types,
             finding_extra=finding_extra,
         )
@@ -78,7 +81,10 @@ async def _research(
 
 
 def _cell_brief(cell: dict) -> dict:
-    return {k: cell.get(k) for k in ("id", "name", "parent_name") if cell.get(k) is not None}
+    brief = {k: cell.get(k) for k in ("id", "name", "parent_name") if cell.get(k) is not None}
+    if cell.get("streets"):
+        brief["streets"] = list(cell["streets"][:15])
+    return brief
 
 
 async def research_area(
@@ -112,6 +118,11 @@ async def research_area(
         task=task,
         localizations=[*(str(c["id"]) for c in cells if c.get("id")), "area"],
         default_localization="area",
+        place_terms={
+            str(c["id"]): cell_terms(c.get("name"), c.get("streets") or [])
+            for c in cells
+            if c.get("id")
+        },
         finding_extra=extra,
     )
 
@@ -148,6 +159,7 @@ async def research_cell(
         task=task,
         localizations=[cell_id, "area"],
         default_localization=cell_id,
+        place_terms={cell_id: cell_terms(cell.get("name"), cell.get("streets") or [])},
     )
 
 
@@ -182,6 +194,14 @@ async def research_hypothesis(
         task=task,
         localizations=localizations,
         default_localization=default,
+        place_terms={
+            **({"address": address_terms(space.get("address"))}),
+            **(
+                {str(cell_id): cell_terms(space.get("cell_name"), space.get("streets") or [])}
+                if cell_id
+                else {}
+            ),
+        },
         finding_extra={"hypothesis_id": hid},
     )
 
@@ -280,6 +300,7 @@ async def skeptic(
             task=task,
             localizations=[cell_id, "area"],
             default_localization=cell_id,
+            place_terms={cell_id: cell_terms(cell.get("name"), cell.get("streets") or [])},
             claim_types=["risk"],
         )
     risks = [f for f in recorded if f.status == "accepted"]

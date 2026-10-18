@@ -6,8 +6,9 @@ import json
 import re
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -23,8 +24,10 @@ from app.domain.research import (
 )
 from app.evidence.ledger import EvidenceLedger, entry_text, entry_url
 from app.evidence.matching import classify_ratio, quote_ratio
+from app.research import prompts
 from app.research.config import ResearchConfig
 from app.research.events import Events, clean_error
+from app.research.locality import mentioned
 
 BUDGET_MESSAGE = "BUDGET_EXHAUSTED: stop searching and return your findings"
 TOOL_NAMES = ("web_search", "extract_page", "record_finding")
@@ -166,6 +169,7 @@ class Toolkit:
         role: Role,
         localizations: Iterable[str],
         default_localization: str,
+        place_terms: Mapping[str, Sequence[str]] | None = None,
         claim_types: Iterable[str] | None = None,
         finding_extra: dict[str, Any] | None = None,
     ):
@@ -176,6 +180,7 @@ class Toolkit:
         self.role = role
         self.localizations = set(localizations)
         self.default_localization = default_localization
+        self.place_terms = {key: tuple(terms) for key, terms in (place_terms or {}).items()}
         self.claim_types = set(claim_types or ClaimType.__args__)  # type: ignore[attr-defined]
         self.finding_extra = dict(finding_extra or {})
         self.findings: list[Finding] = []
@@ -382,6 +387,23 @@ class Toolkit:
             return "area"
         return self.default_localization
 
+    def _source_text(self, evidence_ids: Iterable[str]) -> str:
+        parts = []
+        for evidence_id in evidence_ids:
+            entry = self.ledger.get(evidence_id)
+            if entry is None:
+                continue
+            parts.extend(
+                value
+                for value in (
+                    entry_text(entry),
+                    entry.get("title"),
+                    entry_url(entry),
+                )
+                if isinstance(value, str) and value
+            )
+        return "\n".join(parts)
+
     async def _reject(self, payload: dict[str, Any], reason: str, why: str) -> str:
         finding = Finding(
             finding_id=new_finding_id(),
@@ -452,13 +474,56 @@ class Toolkit:
                 fields.pop("amount")
             elif fields.get("unit") not in FUTURE_UNITS:
                 notes.append("amount kept without unit")
+        if claim_type == "future" and type(fields.get("completion_year")) is int:
+            completion_year = fields["completion_year"]
+            if completion_year < date.fromisoformat(prompts.today()).year:
+                claim_type = "fact"
+                notes.append(f"completion year {completion_year} is before today; recorded as fact")
+
+        loc = self._localize(localization)
+        localization_note = ""
+        downgrade: tuple[str, str, str] | None = None
+        source_text = self._source_text(match.matched)
+        terms = self.place_terms.get(loc, ())
+        if loc != "area" and terms:
+            term = mentioned(source_text, terms)
+            if term is not None:
+                fields["localization_check"] = f"mentioned:{term}"
+            else:
+                requested = loc
+                label = terms[0]
+                new_loc = "area"
+                if loc == "address":
+                    cell_id = next(
+                        (
+                            key
+                            for key in self.place_terms
+                            if key not in {"address", "area"}
+                            and key in self.place_terms
+                            and key in self.localizations
+                            and mentioned(source_text, self.place_terms[key]) is not None
+                        ),
+                        None,
+                    )
+                    if cell_id is not None:
+                        new_loc = cell_id
+                loc = new_loc if new_loc in self.localizations else self.default_localization
+                fields["localization_requested"] = requested
+                fields["localization_check"] = "downgraded"
+                downgrade = (requested, loc, label)
+                localization_note = (
+                    f" Note: recorded at {loc} level because the cited source does not name "
+                    f"{label} or one of its streets. Cite a source that names the place to "
+                    "localize it."
+                )
+
         finding = Finding(
             finding_id=new_finding_id(),
             claim=claim,
             quote=quote,
             evidence_ids=list(match.matched),
             claim_type=claim_type,
-            localization=self._localize(localization),
+            localization=loc,
             agent=self.events.agent,
             status="accepted",
             match=match.best,
@@ -480,9 +545,21 @@ class Toolkit:
                 "match": match.best,
             },
         )
+        if downgrade is not None:
+            requested, new_loc, label = downgrade
+            await self.events(
+                "localization_downgraded",
+                why=f"Source does not name {label}; recorded as {new_loc}",
+                detail={
+                    "finding_id": finding.finding_id,
+                    "requested": requested,
+                    "localization": new_loc,
+                    "evidence_ids": finding.evidence_ids,
+                },
+            )
         self._ok()
         suffix = f" ({'; '.join(notes)})" if notes else ""
-        return json.dumps({"finding_id": finding.finding_id}) + suffix
+        return json.dumps({"finding_id": finding.finding_id}) + suffix + localization_note
 
     def tools(self) -> list[BaseTool]:
         args = ARGS[self.role]
