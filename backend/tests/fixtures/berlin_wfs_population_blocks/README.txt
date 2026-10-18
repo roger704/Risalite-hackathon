@@ -1,0 +1,1 @@
+Synthetic WFS fixture with the reviewed ua_einwohnerdichte_2023 property schema. All IDs, attributes, and geometries are invented for contract tests; geometries are placed around the synthetic LOR polygons in tests/fixtures/lor/areas.geojson. The three pages exercise reordered percent-encoded paging links and page_size=3. No real resident data.

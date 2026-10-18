@@ -189,9 +189,10 @@ class DataService:
                 if parent and config.adapter == "population":
                     coverage.update(self._validate_parent(config, batch.records, parent))
                 elif parent:
-                    coverage.update(
-                        connector.check_parent(config, batch.records, self._load_records(parent))
-                    )
+                    parent_records = self._load_records(parent)
+                    if hasattr(connector, "assign_parent"):
+                        batch = connector.assign_parent(config, batch, parent_records)
+                    coverage.update(connector.check_parent(config, batch.records, parent_records))
                 if not (parent and config.adapter == "population"):
                     geometries = [
                         item.geometry for item in batch.records if hasattr(item, "geometry")

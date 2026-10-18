@@ -1,0 +1,97 @@
+{
+  "dataset_id": "berlin_population_density_blocks",
+  "provider": "Amt für Statistik Berlin-Brandenburg / Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin (Umweltatlas)",
+  "adapter": "berlin_wfs",
+  "landing_url": "https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/",
+  "resource_url": "https://gdi.berlin.de/services/wfs/ua_einwohnerdichte_2023?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ua_einwohnerdichte_2023:einwohnerdichte2023&OUTPUTFORMAT=application/json&SORTBY=schluessel",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "CC-BY-3.0-DE",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+  "attribution": "Amt für Statistik Berlin-Brandenburg / Einwohnerdichte 2023 (Umweltatlas), WFS ua_einwohnerdichte_2023, CC BY 3.0 DE; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2024-11-15",
+  "reference_period": "2023-12-31",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 120.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "typename": "ua_einwohnerdichte_2023:einwohnerdichte2023",
+    "page_size": 1000,
+    "max_pages": 40,
+    "max_total_bytes": 60000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "schluessel",
+      "ew2023",
+      "flalle",
+      "ha",
+      "ew_ha_2023",
+      "alter_u6",
+      "alter_6_u10",
+      "alter_10_u18",
+      "alter_18_u65",
+      "alter_65_u70",
+      "alter_70_u75",
+      "alter75_u80",
+      "alter_80plus",
+      "typklar",
+      "etypklar"
+    ],
+    "id_field": "schluessel",
+    "id_pattern": "^\\d{16}$",
+    "expected_count_range": [
+      25000,
+      28000
+    ],
+    "record_type": "population_block",
+    "field_map": {
+      "block_id": "schluessel",
+      "residents": "ew2023",
+      "area_ha": "ha",
+      "density_per_ha": "ew_ha_2023",
+      "land_use_type": "typklar",
+      "land_use_type_en": "etypklar"
+    },
+    "age_fields": {
+      "0-6": "alter_u6",
+      "6-10": "alter_6_u10",
+      "10-18": "alter_10_u18",
+      "18-65": "alter_18_u65",
+      "65-70": "alter_65_u70",
+      "70-75": "alter_70_u75",
+      "75-80": "alter75_u80",
+      "80+": "alter_80plus"
+    },
+    "attribute_fields": [],
+    "hierarchy": "planungsraum",
+    "suppression_max_residents": 2,
+    "ambiguous_share_threshold": 0.5,
+    "partial_share_threshold": 0.99,
+    "max_unassigned_share": 0.01,
+    "limitations": [
+      "Measures melderechtlich registrierte Einwohner (main residence) on 31.12.2023 per ISU5 block or block part (Blockkarte 1:5000, Raumbezug Umweltatlas 2022). It does not measure daytime population, workers, visitors, tourists or secondary residences.",
+      "Counts are published only above 2: a published 0 means 0-2 residents. Such blocks are stored with residents and density missing (status suppressed), never as 0. Per the source documentation age-band cells follow the same >2 rule, so an age-band 0 can mean 0-2.",
+      "Density is residents per hectare of the whole block area as published (ew_ha_2023), including non-residential parts of the block; it is not a net residential density.",
+      "Umweltatlas product with its own reference date and spatial basis; totals differ from the official half-yearly LOR population (berlin_population). Do not mix or substitute the two.",
+      "Each block is assigned whole to the LOR Planungsraum with the largest overlap (EPSG:25833); block and LOR geometries are not reconciled, partial and ambiguous overlaps are flagged.",
+      "Source access, CRS, paging and field mapping checked 2026-10-18. The companion layer einwohnerdichte2023_entw (change 2022-2023) is not ingested."
+    ]
+  }
+}

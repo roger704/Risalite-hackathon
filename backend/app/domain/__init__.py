@@ -10,6 +10,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    POPULATION_BLOCK_AGE_BANDS,
     PUBLIC_REDISTRIBUTION_STATUSES,
     RECORD_TYPES,
     SCHEMA_VERSION,
@@ -21,6 +22,7 @@ from .models import (
     NormalizedBatch,
     NormalizedRecord,
     Place,
+    PopulationBlock,
     QualityReport,
     RawAsset,
     RawBundle,
@@ -44,6 +46,8 @@ __all__ = [
     "AreaObservation",
     "Business",
     "Place",
+    "POPULATION_BLOCK_AGE_BANDS",
+    "PopulationBlock",
     "RECORD_TYPES",
     "StopService",
     "TransitStop",

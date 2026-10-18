@@ -22,6 +22,19 @@ from shapely.geometry import mapping, shape
 from shapely.ops import transform
 
 from app.connectors.base import FileConnector
+from app.connectors.berlin_wfs_population_blocks import (
+    assign_parent as assign_population_block_parent,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    check_parent as check_population_block_parent,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    normalize_population_blocks,
+    validate_population_blocks,
+)
+from app.connectors.berlin_wfs_population_blocks import (
+    validate_options as validate_population_block_options,
+)
 from app.domain import (
     Area,
     ConfigError,
@@ -29,6 +42,7 @@ from app.domain import (
     FetchRequest,
     IncompatibleSnapshotError,
     NormalizedBatch,
+    PopulationBlock,
     QualityReport,
     RawBundle,
     SchemaError,
@@ -228,14 +242,17 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
-    if options["record_type"] != "area":
+    if options["record_type"] not in {"area", "population_block"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
     field_map = options["field_map"]
-    if not isinstance(field_map, dict) or any(
-        not isinstance(field_map.get(key), str) or not field_map[key]
-        for key in ("area_code", "name")
-    ):
-        raise SchemaError("WFS field_map must map area_code and name to properties")
+    if options["record_type"] == "area":
+        if not isinstance(field_map, dict) or any(
+            not isinstance(field_map.get(key), str) or not field_map[key]
+            for key in ("area_code", "name")
+        ):
+            raise SchemaError("WFS field_map must map area_code and name to properties")
+    else:
+        validate_population_block_options(options)
     attributes = options["attribute_fields"]
     if not isinstance(attributes, list) or any(not isinstance(value, str) for value in attributes):
         raise SchemaError("WFS attribute_fields must be a list of property names")
@@ -381,6 +398,9 @@ class BerlinWFSConnector(FileConnector):
         if count_range is not None and not count_range[0] <= matched <= count_range[1]:
             raise SchemaError(f"WFS expected feature count in {count_range}, received {matched}")
 
+        if options["record_type"] == "population_block":
+            return normalize_population_blocks(features, raw, config, options)
+
         source_bounds = _bbox(options, "source_bbox")
         allowed_bounds = _bbox(options, "allowed_bbox", [13.0, 52.3, 13.9, 52.8])
         geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
@@ -479,6 +499,8 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def validate(self, batch: NormalizedBatch) -> QualityReport:
+        if batch.records and all(isinstance(record, PopulationBlock) for record in batch.records):
+            return validate_population_blocks(batch)
         errors = []
         if not batch.records:
             errors.append("WFS snapshot is empty")
@@ -519,6 +541,8 @@ class BerlinWFSConnector(FileConnector):
 
     def check_parent(self, config: DatasetConfig, records: tuple, parent_records: tuple) -> dict:
         options = _options(config)
+        if options["record_type"] == "population_block":
+            return check_population_block_parent(config, records, parent_records)
         invalid_records = sum(
             not isinstance(record, Area) for record in (*records, *parent_records)
         )
@@ -601,3 +625,10 @@ class BerlinWFSConnector(FileConnector):
                 "geometry differences are reported, not reconciled."
             ],
         }
+
+    def assign_parent(
+        self, config: DatasetConfig, batch: NormalizedBatch, parent_records: tuple
+    ) -> NormalizedBatch:
+        if _options(config)["record_type"] == "population_block":
+            return assign_population_block_parent(config, batch, parent_records)
+        return batch
