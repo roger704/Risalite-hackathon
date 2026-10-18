@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 from pyproj import Transformer
-from shapely.geometry import box
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
 from app.connectors.zensus import ZensusGridConnector
@@ -338,6 +338,33 @@ def half_cell_catchment(first, second):
     return unary_union([first, half])
 
 
+def outside_edge_strip(polygon, width):
+    vertices = list(polygon.exterior.coords)[:-1]
+    edges = list(zip(vertices, vertices[1:] + vertices[:1]))
+    start, end = max(edges, key=lambda edge: (edge[0][0] + edge[1][0]) / 2)
+    midpoint_x = (start[0] + end[0]) / 2
+    midpoint_y = (start[1] + end[1]) / 2
+    normal_x = end[1] - start[1]
+    normal_y = start[0] - end[0]
+    normal_length = (normal_x**2 + normal_y**2) ** 0.5
+    normal_x /= normal_length
+    normal_y /= normal_length
+    centroid = polygon.centroid
+    if (midpoint_x - centroid.x) * normal_x + (midpoint_y - centroid.y) * normal_y < 0:
+        normal_x = -normal_x
+        normal_y = -normal_y
+    offset_x = normal_x * width
+    offset_y = normal_y * width
+    return Polygon(
+        [
+            start,
+            end,
+            (end[0] + offset_x, end[1] + offset_y),
+            (start[0] + offset_x, start[1] + offset_y),
+        ]
+    )
+
+
 def test_aggregate_grid_whole_cells_estimate_coverage_and_null_values():
     values = [10, 20, 30, None, 40, 50, 60, 70, 80]
     cells = []
@@ -423,6 +450,74 @@ def test_aggregate_grid_marks_absent_cell_gaps_incomplete():
         "residents or be withheld, so no upper bound is given" == warning
         for warning in result["warnings"]
     )
+
+
+def test_aggregate_grid_marks_adjacent_cells_covering_square_complete():
+    first = grid_observation(GridCell(100, 3270900, 4548500), 10)
+    second = grid_observation(GridCell(100, 3270900, 4548600), 20)
+    first_polygon = cell_polygon(parse_grid_id(first.grid_id), "EPSG:25833")
+    second_polygon = cell_polygon(parse_grid_id(second.grid_id), "EPSG:25833")
+    shared_edge = first_polygon.boundary.intersection(second_polygon.boundary)
+    midpoint = shared_edge.interpolate(0.5, normalized=True)
+    catchment = box(
+        midpoint.x - 20,
+        midpoint.y - 20,
+        midpoint.x + 20,
+        midpoint.y + 20,
+    )
+
+    result = aggregate_grid([first, second], catchment)
+
+    assert result["bounds"]["upper"] == 30
+    assert result["bounds"]["complete"] is True
+    assert result["whole_cells"]["complete"] is True
+    assert result["coverage"]["uncovered_area_m2"] == 0
+
+
+def test_aggregate_grid_marks_circle_inside_valued_cell_block_complete():
+    records = [
+        grid_observation(
+            GridCell(100, 3270900 + 100 * row, 4548500 + 100 * column),
+            1,
+        )
+        for row in range(5)
+        for column in range(5)
+    ]
+    block = unary_union(
+        [cell_polygon(parse_grid_id(record.grid_id), "EPSG:25833") for record in records]
+    )
+    catchment = Point(block.centroid.x, block.centroid.y).buffer(100, quad_segs=64)
+
+    result = aggregate_grid(records, catchment)
+
+    assert result["bounds"]["upper"] == result["whole_cells"]["intersecting_sum"]
+    assert result["bounds"]["complete"] is True
+    assert result["coverage"]["uncovered_area_m2"] == 0
+
+
+def test_aggregate_grid_does_not_tolerate_a_half_square_meter_gap():
+    records = [
+        grid_observation(
+            GridCell(100, 3270900 + 100 * row, 4548500 + 100 * column),
+            1,
+        )
+        for row in range(8)
+        for column in range(8)
+    ]
+    block = unary_union(
+        [cell_polygon(parse_grid_id(record.grid_id), "EPSG:25833") for record in records]
+    )
+    outer_cell = cell_polygon(parse_grid_id(records[7].grid_id), "EPSG:25833")
+    catchment = unary_union([block, outside_edge_strip(outer_cell, 0.005)])
+    gap_area = catchment.difference(block).area
+    result = aggregate_grid(records, catchment)
+
+    assert gap_area == pytest.approx(0.5, abs=0.001)
+    assert gap_area < catchment.area * 1e-6
+    assert result["bounds"]["upper"] is None
+    assert result["bounds"]["complete"] is False
+    assert result["whole_cells"]["complete"] is False
+    assert result["coverage"]["uncovered_area_m2"] == pytest.approx(0.5, abs=0.001)
 
 
 def test_aggregate_grid_rejects_mixed_data_or_periods():

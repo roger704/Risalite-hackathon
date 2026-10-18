@@ -7,7 +7,7 @@ from typing import Iterable
 from pyproj import Transformer
 from shapely.geometry import Point, box
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import transform
+from shapely.ops import transform, unary_union
 
 from app.domain import GridObservation
 from app.geo.inspire_grid import cell_polygon, parse_grid_id
@@ -17,6 +17,9 @@ DEFINITION = (
     "Zensus 2022 census population at the 2022-05-15 reference date "
     "(CKM-perturbed); not current population and not Einwohnerregister residents"
 )
+
+# Adjacent cells share identical reprojected corners (same EPSG:3035 inputs), so only floating-point noise remains.
+UNCOVERED_AREA_TOLERANCE_M2 = 1e-3
 
 
 def circle_catchment(lon: float, lat: float, radius_m: float):
@@ -80,6 +83,7 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
     intersecting_sum: int | float = 0
     centroid_in_sum: int | float = 0
     area_weighted_sum = 0.0
+    valued_polygons: list[BaseGeometry] = []
     published_area = 0.0
     valueless_area = 0.0
 
@@ -101,6 +105,7 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             without_value_by_status[str(status)] += 1
             valueless_area += intersection.area
             continue
+        valued_polygons.append(polygon)
         published_area += intersection.area
         intersecting_sum += record.value
         if is_within:
@@ -111,7 +116,9 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
 
     catchment_area = catchment.area
     share_of_catchment = published_area / catchment_area
-    complete = without_value == 0 and published_area >= catchment_area * (1 - 1e-6)
+    uncovered = catchment.difference(unary_union(valued_polygons)) if valued_polygons else catchment
+    uncovered_area = uncovered.area
+    complete = without_value == 0 and uncovered_area <= UNCOVERED_AREA_TOLERANCE_M2
     warnings = [
         "Values are perturbed by the cell-key method (CKM); sums need not match official totals.",
         "Cells absent from the file have no published value; absence is not zero.",
@@ -173,6 +180,7 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             "published_cell_area_in_catchment_m2": round(published_area, 1),
             "share_of_catchment": round(share_of_catchment, 4),
             "valueless_cell_area_in_catchment_m2": round(valueless_area, 1),
+            "uncovered_area_m2": round(uncovered_area, 3),
             "meaning": (
                 "share of the catchment covered by cells with published values; valueless "
                 "cell area is reported separately"
