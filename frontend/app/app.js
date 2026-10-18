@@ -163,7 +163,7 @@ function evRow(ev, t) {
 }
 
 /* ---------- 4 · result ---------- */
-async function loadResult() {
+async function loadResult(g = GEN) {
   try {
     if (MOCK) {
       const point = RUN.classification?.shape === 'point';
@@ -177,8 +177,8 @@ async function loadResult() {
       R = await getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/result`);
       if (R.cells && !R.cells_geojson) R.cells_geojson = await getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/cells.geojson`).catch(() => null);
     }
-  } catch (e) { return err('#live-err', 'Could not load result: ' + e.message); }
-  dash();
+  } catch (e) { if (g === GEN) err('#live-err', 'Could not load result: ' + e.message); return; }
+  if (g === GEN) dash();
 }
 
 function dash() {
