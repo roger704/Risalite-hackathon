@@ -1,0 +1,98 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 6,
+  "numberReturned": 3,
+  "timeStamp": "2026-10-18T00:00:00Z",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "1001",
+      "properties": {
+        "adressid": "1001",
+        "hnr": 12,
+        "hnr_zusatz": null,
+        "str_name": "Wiener Straße",
+        "str_nr": "04786",
+        "plz": "10999",
+        "bez_name": "Friedrichshain-Kreuzberg",
+        "bez_nr": "02",
+        "ort_name": "Kreuzberg",
+        "ort_nr": "0201",
+        "plr_name": "Synthetic Alpha",
+        "plr_nr": "01100101",
+        "blk": "011001",
+        "qualitaet": "Qualitaet A",
+        "typ": "Adresse",
+        "adr_datum": "2026-03-13",
+        "str_datum": "2026-03-12",
+        "hko_id": "H1001"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388000, 5819800]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "1002",
+      "properties": {
+        "adressid": "1002",
+        "hnr": 12,
+        "hnr_zusatz": "A",
+        "str_name": "Wiener Straße",
+        "str_nr": "04786",
+        "plz": "10999",
+        "bez_name": "Friedrichshain-Kreuzberg",
+        "bez_nr": "02",
+        "ort_name": "Kreuzberg",
+        "ort_nr": "0201",
+        "plr_name": "Synthetic Alpha",
+        "plr_nr": "01100101",
+        "blk": "011001",
+        "qualitaet": "Qualitaet A",
+        "typ": "Adresse",
+        "adr_datum": "2026-03-10",
+        "str_datum": "2026-03-12",
+        "hko_id": "H1002"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388010, 5819810]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "1003",
+      "properties": {
+        "adressid": "1003",
+        "hnr": 10,
+        "hnr_zusatz": null,
+        "str_name": "Lindenstraße",
+        "str_nr": "00210",
+        "plz": "10969",
+        "bez_name": "Friedrichshain-Kreuzberg",
+        "bez_nr": "02",
+        "ort_name": "Kreuzberg",
+        "ort_nr": "0201",
+        "plr_name": "Synthetic Alpha",
+        "plr_nr": "01100101",
+        "blk": "011001",
+        "qualitaet": "Qualitaet B",
+        "typ": "Adresse",
+        "adr_datum": "2026-02-10",
+        "str_datum": "2026-02-01",
+        "hko_id": "H1003"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388020, 5819820]
+      }
+    }
+  ]
+}
