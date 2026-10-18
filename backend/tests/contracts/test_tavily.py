@@ -591,3 +591,74 @@ async def test_provider_error_message_never_exposes_api_key():
         await connector.search(ResearchSearch("query"))
     assert "secret-key" not in str(exc.value)
     await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_cache_is_per_url_so_subsets_and_overlaps_reuse_results():
+    sent = []
+
+    async def handler(request):
+        payload = json.loads(request.content)
+        sent.append(payload["urls"])
+        return response(
+            {
+                "request_id": f"req-{len(sent)}",
+                "results": [{"url": url, "raw_content": f"page {url}"} for url in payload["urls"]],
+                "usage": {"credits": 1},
+            }
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 3, 0, 0)
+    connector = TavilyClient(config(), budget, client=http, resolver=public_resolver)
+    a, b, c = (f"https://example.com/{name}" for name in "abc")
+    await connector.extract(ResearchExtract((a, b)))
+    subset = await connector.extract(ResearchExtract((b, f"{a}?utm_source=x")))
+    overlap = await connector.extract(ResearchExtract((a, c)))
+    assert sent == [[a, b], [c]]
+    assert budget.extract_urls_used == 3
+    assert subset.cached is True
+    assert subset.credits is None
+    assert subset.request_ids == ("req-1",)
+    assert [item.passage for item in subset.evidence] == [f"page {b}", f"page {a}"]
+    assert overlap.cached is False
+    assert overlap.credits == 1
+    assert overlap.request_ids == ("req-1", "req-2")
+    assert [item.extraction_status for item in overlap.evidence] == [ExtractionStatus.OK] * 2
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_cache_key_includes_query_and_skips_missing_urls():
+    sent = []
+
+    async def handler(request):
+        payload = json.loads(request.content)
+        sent.append((payload.get("query"), payload["urls"]))
+        return response(
+            {
+                "results": [{"url": "https://example.com/a", "raw_content": "page"}],
+                "failed_results": [{"url": "https://example.com/b", "error": "blocked"}],
+            }
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 10, 0, 0)
+    connector = TavilyClient(config(), budget, client=http, resolver=public_resolver)
+    urls = tuple(f"https://example.com/{name}" for name in "abc")
+    first = await connector.extract(ResearchExtract(urls))
+    second = await connector.extract(ResearchExtract(urls))
+    with_query = await connector.extract(ResearchExtract(urls[:1], query="kita"))
+    assert [item["reason"] for item in first.failures] == [
+        "blocked",
+        "missing_from_provider_response",
+    ]
+    assert second.failures == first.failures
+    assert sent == [
+        (None, list(urls)),
+        (None, ["https://example.com/c"]),
+        ("kita", ["https://example.com/a"]),
+    ]
+    assert with_query.status == "complete"
+    assert budget.extract_urls_used == 5
+    await http.aclose()
