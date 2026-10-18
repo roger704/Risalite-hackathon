@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Risalite synthetic fixture">
+  <node id="1" lat="52.52000" lon="13.40500">
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Synthetic Café"/>
+    <tag k="opening_hours" v="Mo-Fr 08:00-18:00"/>
+    <tag k="wheelchair" v="yes"/>
+    <tag k="website" v="https://example.org/cafe"/>
+    <tag k="brand" v="Demo Beans"/>
+    <tag k="phone" v="+49 30 5550100"/>
+    <tag k="addr:street" v="Example Street"/>
+  </node>
+  <node id="2" lat="52.52100" lon="13.40600">
+    <tag k="amenity" v="restaurant"/>
+    <tag k="cuisine" v="coffee_shop"/>
+  </node>
+  <node id="3" lat="52.52200" lon="13.40700">
+    <tag k="shop" v="coffee"/>
+  </node>
+  <node id="4" lat="52.52300" lon="13.40800">
+    <tag k="shop" v="bakery"/>
+  </node>
+  <node id="5" lat="52.52400" lon="13.40900">
+    <tag k="amenity" v="cafe;bar"/>
+  </node>
+  <node id="6" lat="52.52500" lon="13.41000">
+    <tag k="amenity" v="bench"/>
+  </node>
+  <node id="10" lat="52.52600" lon="13.41100">
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Node ten coffee"/>
+  </node>
+  <node id="100" lat="52.52000" lon="13.40000"/>
+  <node id="101" lat="52.52000" lon="13.40100"/>
+  <node id="102" lat="52.52100" lon="13.40100"/>
+  <node id="103" lat="52.52100" lon="13.40000"/>
+  <node id="200" lat="52.53000" lon="13.41000"/>
+  <node id="201" lat="52.53100" lon="13.41100"/>
+  <node id="300" lat="52.53200" lon="13.40000"/>
+  <node id="301" lat="52.53200" lon="13.40100"/>
+  <node id="302" lat="52.53300" lon="13.40100"/>
+  <node id="303" lat="52.53300" lon="13.40000"/>
+  <node id="400" lat="52.53400" lon="13.40200"/>
+  <node id="401" lat="52.53400" lon="13.40300"/>
+  <node id="402" lat="52.53500" lon="13.40300"/>
+  <way id="10">
+    <nd ref="100"/>
+    <nd ref="101"/>
+    <nd ref="102"/>
+    <nd ref="103"/>
+    <nd ref="100"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Way ten coffee"/>
+  </way>
+  <way id="30">
+    <nd ref="200"/>
+    <nd ref="201"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Line coffee"/>
+  </way>
+  <way id="51">
+    <nd ref="300"/>
+    <nd ref="301"/>
+    <nd ref="302"/>
+    <nd ref="303"/>
+    <nd ref="300"/>
+  </way>
+  <way id="61">
+    <nd ref="400"/>
+    <nd ref="401"/>
+    <nd ref="402"/>
+  </way>
+  <relation id="50">
+    <member type="way" ref="51" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Relation coffee"/>
+  </relation>
+  <relation id="60">
+    <member type="way" ref="61" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Broken relation coffee"/>
+  </relation>
+  <relation id="70">
+    <member type="way" ref="9999" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Unlocatable relation coffee"/>
+  </relation>
+  <relation id="80">
+    <member type="way" ref="30" role=""/>
+    <tag k="type" v="site"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Site relation coffee"/>
+  </relation>
+</osm>

@@ -15,6 +15,7 @@ dependencies = [
   "pyarrow>=18,<24",
   "py7zr>=0.22,<2",
   "openpyxl>=3.1,<4",
+  "osmium>=4,<5",
 ]
 
 [dependency-groups]

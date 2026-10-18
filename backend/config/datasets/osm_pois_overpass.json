@@ -1,0 +1,30 @@
+{
+  "dataset_id": "osm_pois_overpass",
+  "provider": "OpenStreetMap contributors (Overpass API)",
+  "adapter": "osm",
+  "enabled": true,
+  "landing_url": "https://dev.overpass-api.de/overpass-doc/en/",
+  "resource_url": "https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%5Bmaxsize%3A10000000%5D%5Bbbox%3A52.520%2C13.390%2C52.540%2C13.420%5D%3B%28nwr%5B%22amenity%22%3D%22cafe%22%5D%3Bnwr%5B%22cuisine%22%3D%22coffee_shop%22%5D%3Bnwr%5B%22shop%22%3D%22coffee%22%5D%3B%29%3Bout%20tags%20center%3B",
+  "allowed_hosts": ["overpass-api.de"],
+  "license_id": "ODbL-1.0",
+  "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "attribution": "© OpenStreetMap contributors, ODbL 1.0, https://www.openstreetmap.org/copyright.",
+  "redistribution_status": "allowed_with_attribution",
+  "boundary_edition": "not_applicable",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 40,
+  "access_validation": "unvalidated",
+  "parser_options": {
+    "format": "overpass_json",
+    "category_mapping": "osm_v1",
+    "category_mapping_sha256": "0f97d176f5bd414c5ef7fb350ec99616c15f60f01530fd4ac48a8bba8af99208",
+    "allowed_bbox": [13.39, 52.52, 13.42, 52.54],
+    "min_expected_counts": {"coffee_shop": 1},
+    "max_unlocatable_ratio": 0.01,
+    "limitations": [
+      "Overpass was unreachable or returned HTTP 500 during checking on 2026-10-18.",
+      "This is a small bounded refresh, not a citywide extraction.",
+      "Way and relation positions are Overpass-supplied centers."
+    ]
+  }
+}
