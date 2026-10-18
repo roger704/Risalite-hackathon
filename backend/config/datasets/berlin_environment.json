@@ -1,0 +1,611 @@
+{
+  "dataset_id": "berlin_environment",
+  "provider": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas Berlin)",
+  "adapter": "berlin_environment",
+  "landing_url": "https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21",
+  "resource_url": "https://gdi.berlin.de/services/wfs/ua_umweltgerechtigkeit2023?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&OUTPUTFORMAT=application/json&SORTBY=plr_id",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "DL-DE-ZERO-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin: Umweltgerechtigkeit 2023/2024 (WFS ua_umweltgerechtigkeit2023), Datenlizenz Deutschland – Zero – 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2023/2024",
+  "reference_period": "2023/2024",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 15000000,
+  "timeout_seconds": 120,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "hierarchy": "planungsraum",
+    "page_size": 200,
+    "max_pages": 10,
+    "max_total_bytes": 15000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_count": 542,
+    "geometry_difference_threshold": 0.01,
+    "limitations": [
+      "Planungsraum-level ordinal classes from the Umweltgerechtigkeitsatlas 2023/2024 (SenMVKU 2025); historical/modelled neighbourhood indicators, not live data, not address-level measurements, not individual health predictions or exposure of a specific premises.",
+      "Classes are relative to the Berlin distribution (quartiles for noise and air, equal intervals for thermal), not legal limit values; ranks are ordinal — do not average, sum or treat them as interval measurements.",
+      "Reference periods differ per indicator: noise 2022 (Strategische Lärmkarten), air 2023 (annual means), thermal 2022 (Klimamodell), green 2020 (Versorgungsanalyse), social MSS 2023, population density 31.12.2023, residential location Mietspiegel 2024.",
+      "Noise/air/thermal/green are model- or interpolation-based estimates; social disadvantage is a register-based index (PLRs with < 300 residents excluded, shown as missing); \"Gebiete ohne Zuordnung\" (null) stays missing.",
+      "Green-space provision measures availability of public green per resident only, not green quality or private gardens.",
+      "Population class: official legend says \"Einwohnerdichte in EW/km²\", method text says residents count; class label kept verbatim.",
+      "simple_residential_location_hint null means \"not flagged or unknown\"; it is not asserted as \"not flagged\".",
+      "The official maps mask \"weitgehend unbewohnte Flächen\"; the WFS polygons are full PLRs without this mask.",
+      "Environmental indicators are context only and are not part of any opportunity score; any later scoring transformation must be documented separately.",
+      "Source access, license (DL-DE-Zero-2.0), layer schema, class values and cross-layer consistency checked 2026-10-18."
+    ],
+    "layers": [
+      {
+        "typename": "ua_umweltgerechtigkeit2023:a_laerm2023",
+        "title_de": "Lärmbelastung",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "noise_burden",
+            "source_field": "kategorie",
+            "title_de": "Lärmbelastung",
+            "title_en": "Noise burden",
+            "description_en": "Relative planungsraum class for resident-weighted mean façade noise from total traffic.",
+            "does_not_measure_en": "It is not a legal noise limit, a current address-level measurement, or the exposure of a specific premises.",
+            "reference_period": "2022",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_more_burden",
+            "data_basis_en": "Strategic noise maps 2022; modelled façade levels for road, above-ground U-Bahn, tram, rail/S-Bahn and air traffic, averaged by residents and classified into quartiles.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "a_laerm2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=a_laerm2023",
+            "classes": [
+              {
+                "class_code": "gering",
+                "label": "gering",
+                "rank": 1,
+                "color": "#E1C2EF"
+              },
+              {
+                "class_code": "mittel",
+                "label": "mittel",
+                "rank": 2,
+                "color": "#B075D0"
+              },
+              {
+                "class_code": "hoch",
+                "label": "hoch",
+                "rank": 3,
+                "color": "#5E348F"
+              }
+            ],
+            "missing_markers": {
+              "null": {
+                "label": "Gebiete ohne Zuordnung",
+                "color": "#C0C0C0",
+                "flag": "source_null:Gebiete ohne Zuordnung"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:b_luft2023",
+        "title_de": "Luftbelastung",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "air_pollution_burden",
+            "source_field": "kategorie",
+            "title_de": "Luftbelastung",
+            "title_en": "Air pollution burden",
+            "description_en": "Relative planungsraum class for annual mean NO2, PM2.5 and PM10 concentrations.",
+            "does_not_measure_en": "It is not a direct measurement at a particular address, a legal limit determination, or an individual exposure estimate.",
+            "reference_period": "2023",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_more_burden",
+            "data_basis_en": "2023 annual means for NO2 (>40 sites), PM2.5 and PM10 (12 sites), interpolated using land-use regression to a 50 m grid; pollutant quartile classes use the worst of the three pollutants.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "b_luft2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=b_luft2023",
+            "classes": [
+              {
+                "class_code": "gering",
+                "label": "gering",
+                "rank": 1,
+                "color": "#CFDCF1"
+              },
+              {
+                "class_code": "mittel",
+                "label": "mittel",
+                "rank": 2,
+                "color": "#819CC5"
+              },
+              {
+                "class_code": "hoch",
+                "label": "hoch",
+                "rank": 3,
+                "color": "#3A5278"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:c_gruen2023",
+        "title_de": "Grünflächenversorgung",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "green_space_provision",
+            "source_field": "kategorie",
+            "title_de": "Grünflächenversorgung",
+            "title_en": "Green-space provision",
+            "description_en": "Relative planungsraum class for public green-space availability per resident.",
+            "does_not_measure_en": "It does not measure green-space quality, private gardens, or a current address's access or walkability.",
+            "reference_period": "2020",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_worse_provision",
+            "data_basis_en": "Public green-space provision analysis 2020 (Umweltatlas 06.05), compared with German Association of Cities guide values: 6 m² per resident within 500 m for areas ≥0.5 ha and 7 m² within 1,500 m for areas ≥10 ha; population-weighted to planungsräume.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "c_gruen2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=c_gruen2023",
+            "classes": [
+              {
+                "class_code": "gut",
+                "label": "gut",
+                "rank": 1,
+                "color": "#7A801C"
+              },
+              {
+                "class_code": "mittel",
+                "label": "mittel",
+                "rank": 2,
+                "color": "#BBC225"
+              },
+              {
+                "class_code": "schlecht",
+                "label": "schlecht",
+                "rank": 3,
+                "color": "#ECF1A2"
+              }
+            ],
+            "missing_markers": {
+              "null": {
+                "label": "Gebiete ohne Zuordnung",
+                "color": "#C0C0C0",
+                "flag": "source_null:Gebiete ohne Zuordnung"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:d_bioklima2023",
+        "title_de": "Thermische Belastung",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "thermal_burden",
+            "source_field": "kategorie",
+            "title_de": "Thermische Belastung",
+            "title_en": "Thermal burden",
+            "description_en": "Relative planungsraum class for combined daytime heat and nighttime warmth burden.",
+            "does_not_measure_en": "It is not a current weather observation, a legal limit, or a personal heat-exposure prediction.",
+            "reference_period": "2022",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_more_burden",
+            "data_basis_en": "Berlin climate model 2022: PET at 14:00 and air temperature at 04:00 at 2 m, combined by block and area-weighted to planungsräume, then divided into three equal intervals.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "d_bioklima2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=d_bioklima2023",
+            "classes": [
+              {
+                "class_code": "gering",
+                "label": "gering",
+                "rank": 1,
+                "color": "#FFE8D7"
+              },
+              {
+                "class_code": "mittel",
+                "label": "mittel",
+                "rank": 2,
+                "color": "#FE9876"
+              },
+              {
+                "class_code": "hoch",
+                "label": "hoch",
+                "rank": 3,
+                "color": "#DC420E"
+              }
+            ],
+            "missing_markers": {
+              "null": {
+                "label": "Gebiete ohne Zuordnung",
+                "color": "#FFFFFF",
+                "flag": "source_null:Gebiete ohne Zuordnung"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:e_sozial2023",
+        "title_de": "Soziale Benachteiligung",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "social_disadvantage",
+            "source_field": "kategorie",
+            "title_de": "Soziale Benachteiligung",
+            "title_en": "Social disadvantage",
+            "description_en": "The planungsraum's merged social-status-index class from Monitoring Soziale Stadtentwicklung.",
+            "does_not_measure_en": "It is an area-level index, not an individual socioeconomic classification; excluded areas are missing rather than assigned a class.",
+            "reference_period": "2023",
+            "value_status": "observed",
+            "rank_direction": "higher_is_more_disadvantage",
+            "data_basis_en": "Monitoring Soziale Stadtentwicklung 2023 status index; low and very low categories are merged, and planungsräume with fewer than 300 residents are excluded from the index.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "e_sozial2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=e_sozial2023",
+            "classes": [
+              {
+                "class_code": "high_status",
+                "label": "hoher Status-Index",
+                "rank": 1,
+                "color": "#FFEA97"
+              },
+              {
+                "class_code": "medium_status",
+                "label": "mittlerer Status-Index",
+                "rank": 2,
+                "color": "#FFB62F"
+              },
+              {
+                "class_code": "low_or_very_low_status",
+                "label": "niedriger/sehr niedriger Status-Index",
+                "rank": 3,
+                "color": "#F07200"
+              }
+            ],
+            "missing_markers": {
+              "-": {
+                "label": "-",
+                "color": "#C0C0C0",
+                "flag": "source_marker:-"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:f_mehrfach4_2023",
+        "title_de": "Mehrfachbelastung Umwelt",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie",
+          "bioklima",
+          "gruenvers",
+          "laerm",
+          "luft"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "multiple_burden_environment",
+            "source_field": "kategorie",
+            "title_de": "Mehrfachbelastung Umwelt",
+            "title_en": "Multiple environmental burden",
+            "description_en": "Count class for the number of the four environmental indicators assigned to their worst class.",
+            "does_not_measure_en": "It is not a summed exposure score or a measure of severity within any individual class.",
+            "reference_period": "2023/2024",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_more_burden",
+            "data_basis_en": "Official combined map counting noise, air, thermal and green-space indicators that fall in their respective worst class.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "f_mehrfach4_2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=f_mehrfach4_2023",
+            "classes": [
+              {
+                "class_code": "0",
+                "label": "keine starke Belastung",
+                "rank": 1,
+                "color": "#EEF0BE"
+              },
+              {
+                "class_code": "1",
+                "label": "einfach",
+                "rank": 2,
+                "color": "#FCEF7A"
+              },
+              {
+                "class_code": "2",
+                "label": "zweifach",
+                "rank": 3,
+                "color": "#F5A85B"
+              },
+              {
+                "class_code": "3",
+                "label": "dreifach",
+                "rank": 4,
+                "color": "#E16646"
+              },
+              {
+                "class_code": "4",
+                "label": "vierfach",
+                "rank": 5,
+                "color": "#A6183B"
+              }
+            ]
+          }
+        ],
+        "validation": {
+          "components": {
+            "bioklima": "thermal_burden",
+            "gruenvers": "green_space_provision",
+            "laerm": "noise_burden",
+            "luft": "air_pollution_burden"
+          },
+          "worst_labels": {
+            "bioklima": "hoch",
+            "gruenvers": "schlecht",
+            "laerm": "hoch",
+            "luft": "hoch"
+          },
+          "count_field": "kategorie",
+          "count_labels": {
+            "0": "keine starke Belastung",
+            "1": "einfach",
+            "2": "zweifach",
+            "3": "dreifach",
+            "4": "vierfach"
+          }
+        }
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:g_mehrfach5_2023",
+        "title_de": "Mehrfachbelastung Umwelt und Soziales",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie",
+          "bioklima",
+          "gruenvers",
+          "laerm",
+          "luft",
+          "status_ind"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "multiple_burden_environment_social",
+            "source_field": "kategorie",
+            "title_de": "Mehrfachbelastung Umwelt und Soziales",
+            "title_en": "Multiple environmental and social burden",
+            "description_en": "Count class for the number of the five environmental and social indicators assigned to their worst class.",
+            "does_not_measure_en": "It is not a summed exposure score or a measure of severity within any individual class.",
+            "reference_period": "2023/2024",
+            "value_status": "estimated",
+            "rank_direction": "higher_is_more_burden",
+            "data_basis_en": "Official combined map counting noise, air, thermal, green-space and social-status indicators that fall in their respective worst class.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "g_mehrfach5_2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=g_mehrfach5_2023",
+            "classes": [
+              {
+                "class_code": "0",
+                "label": "keine starke Belastung",
+                "rank": 1,
+                "color": "#EEF0BE"
+              },
+              {
+                "class_code": "1",
+                "label": "einfach",
+                "rank": 2,
+                "color": "#FCEF7A"
+              },
+              {
+                "class_code": "2",
+                "label": "zweifach",
+                "rank": 3,
+                "color": "#F5A85B"
+              },
+              {
+                "class_code": "3",
+                "label": "dreifach",
+                "rank": 4,
+                "color": "#E16646"
+              },
+              {
+                "class_code": "4",
+                "label": "vierfach",
+                "rank": 5,
+                "color": "#A6183B"
+              },
+              {
+                "class_code": "5",
+                "label": "fünffach",
+                "rank": 6,
+                "color": "#380812"
+              }
+            ]
+          }
+        ],
+        "validation": {
+          "components": {
+            "bioklima": "thermal_burden",
+            "gruenvers": "green_space_provision",
+            "laerm": "noise_burden",
+            "luft": "air_pollution_burden",
+            "status_ind": "social_disadvantage"
+          },
+          "worst_labels": {
+            "bioklima": "hoch",
+            "gruenvers": "schlecht",
+            "laerm": "hoch",
+            "luft": "hoch",
+            "status_ind": "niedriger/sehr niedriger Status-Index"
+          },
+          "count_field": "kategorie",
+          "count_labels": {
+            "0": "keine starke Belastung",
+            "1": "einfach",
+            "2": "zweifach",
+            "3": "dreifach",
+            "4": "vierfach",
+            "5": "fünffach"
+          }
+        }
+      },
+      {
+        "typename": "ua_umweltgerechtigkeit2023:z_gesamt_umwelt2023",
+        "title_de": "Umweltgerechtigkeitskarte",
+        "expected_properties": [
+          "plr_id",
+          "plr_name",
+          "kategorie",
+          "bioklima",
+          "gruenvers",
+          "laerm",
+          "luft",
+          "status_ind",
+          "einwohner",
+          "wol_l_l"
+        ],
+        "indicators": [
+          {
+            "indicator_code": "population_density_class",
+            "source_field": "einwohner",
+            "title_de": "Einwohnerdichte",
+            "title_en": "Population density class",
+            "description_en": "The official planungsraum class for population density, retained verbatim from the published legend.",
+            "does_not_measure_en": "The source method describes resident counts while the legend says residents per square kilometre; the class is not a precise population count.",
+            "reference_period": "2023-12-31",
+            "value_status": "observed",
+            "rank_direction": "higher_is_denser",
+            "data_basis_en": "Resident population as of 31 December 2023; the official legend says Einwohnerdichte in EW/km², while the method text says number of residents.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "z_gesamt_umwelt2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=z_gesamt_umwelt2023",
+            "classes": [
+              {
+                "class_code": "under_10000",
+                "label": "unter 10.000",
+                "rank": 1,
+                "color": null
+              },
+              {
+                "class_code": "10000_to_under_20000",
+                "label": "10.000 bis unter 20.000",
+                "rank": 2,
+                "color": null
+              },
+              {
+                "class_code": "20000_and_more",
+                "label": "20.000 und mehr",
+                "rank": 3,
+                "color": null
+              }
+            ]
+          },
+          {
+            "indicator_code": "simple_residential_location_hint",
+            "source_field": "wol_l_l",
+            "title_de": "Einfache Wohnlage mit hoher Lärm- und/oder Luftbelastung",
+            "title_en": "Simple residential location with high noise and/or air burden",
+            "description_en": "A published flag for planungsräume where simple residential location exceeds 66% and noise and/or air burden is high.",
+            "does_not_measure_en": "A null source value means not flagged or unknown; it does not assert that the area is not flagged.",
+            "reference_period": "2024",
+            "value_status": "estimated",
+            "rank_direction": "flag",
+            "data_basis_en": "Mietspiegel 2024 simple residential location combined with the published high-noise and/or high-air-burden indicators.",
+            "method_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/methode/",
+            "data_basis_url": "https://www.berlin.de/umweltatlas/mensch/umweltgerechtigkeit/2024/datengrundlage/",
+            "wms_layer": "z_gesamt_umwelt2023",
+            "legend_graphic_url": "https://gdi.berlin.de/services/wms/ua_umweltgerechtigkeit2023?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image%2Fpng&layer=z_gesamt_umwelt2023",
+            "classes": [
+              {
+                "class_code": "flagged",
+                "label": "Anteil der Adressen mit einfacher Wohnlage größer 66% und hoher Lärm- und/oder hoher Luftbelastung",
+                "rank": 1,
+                "color": null
+              }
+            ],
+            "missing_markers": {
+              "null": {
+                "label": "not flagged or unknown",
+                "color": null,
+                "flag": "source_null:not_flagged_or_unknown"
+              }
+            }
+          }
+        ],
+        "validation": {
+          "components": {
+            "bioklima": "thermal_burden",
+            "gruenvers": "green_space_provision",
+            "laerm": "noise_burden",
+            "luft": "air_pollution_burden",
+            "status_ind": "social_disadvantage"
+          },
+          "worst_labels": {
+            "bioklima": "hoch",
+            "gruenvers": "schlecht",
+            "laerm": "hoch",
+            "luft": "hoch",
+            "status_ind": "niedriger/sehr niedriger Status-Index"
+          },
+          "count_field": "kategorie",
+          "count_labels": {
+            "0": "keine starke Belastung",
+            "1": "einfach",
+            "2": "zweifach",
+            "3": "dreifach",
+            "4": "vierfach",
+            "5": "fünffach"
+          },
+          "matches_layer": "ua_umweltgerechtigkeit2023:g_mehrfach5_2023"
+        }
+      }
+    ]
+  }
+}

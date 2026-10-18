@@ -17,6 +17,13 @@ def client():
         yield test_client
 
 
+def test_create_app_keeps_fourth_positional_argument_as_runs_dir(tmp_path):
+    app = create_app(None, tmp_path / "data", tmp_path / "config", RUNS)
+    with TestClient(app) as test_client:
+        response = test_client.get("/api/v1/runs/demo-coffee/export/report.md")
+    assert response.status_code == 200
+
+
 @pytest.mark.parametrize(
     "fmt,media,disposition",
     [

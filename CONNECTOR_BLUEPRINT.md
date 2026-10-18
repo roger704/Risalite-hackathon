@@ -263,7 +263,7 @@ The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_ass
 - Import `agency`, `stops`, `routes`, `trips`, and `stop_times`; apply `calendar` and/or `calendar_dates` as required by the feed. Retain service validity and timezone.
 - Check foreign keys and distinguish stations, platforms, and entrances. Deduplicate candidate-area service counts by documented trip/station rules.
 - Evaluate an explicit service date and time window, honoring exceptions and times after `24:00:00`. Handle frequency-based service if present; label estimates where schedules are not exact.
-- Compute straight-line stop distance first and label it accordingly. Walking times require a separately validated pedestrian network/routing method.
+- Compute straight-line stop distance first and label it accordingly. Walking times require a separately validated pedestrian network/routing method; see §I.
 - Scheduled departures measure service supply, not passenger footfall. Do not infer wheelchair access from a missing accessibility field.
 - Keep GTFS-RT optional. Its failures do not invalidate the static feed or a ranking based on scheduled accessibility.
 
@@ -296,6 +296,14 @@ Confirm endpoint and account capabilities against the [Nebius API documentation]
 - **Census/social/environmental data:** Preserve grid or area resolution, reference year, suppression, and observed/modelled status. Do not allocate a large-area value to each address as an address-level measurement.
 - **Mobility/weather:** Preserve station or segment coverage, units, and intervals. A station nearby does not automatically measure conditions at a candidate premises.
 - **Reference documents:** Store URL plus page/section locator and extraction status. Manually curated excerpts are acceptable for the hackathon when automated extraction is unreliable, with the method disclosed.
+
+### I. Walking Routing Extension (Valhalla)
+
+Valhalla is a self-hosted routing-service adapter, not a dataset-registry entry. A reviewed routing config pins the Valhalla image/version, Geofabrik Berlin OSM graph source and edition, pedestrian profile, coverage, request limits, licenses, assumptions, and limitations. Walking route and reachable-area contracts preserve snapped locations, graph/profile provenance, and distinct `network_walking_estimate` / `network_walking_isochrone_estimate` measures; unreachable and invalid-snap results remain explicit rather than being turned into network distances.
+
+The SQLite routing cache is keyed by route/area kind, graph version, profile hash, rounded WGS84 coordinates, and requested contours. A graph rebuild or profile change therefore produces a separate cache namespace. The graph carries ODbL attribution/share-alike obligations; the Valhalla engine is MIT-licensed.
+
+For spatial metrics (§4.2), straight-line distance in EPSG:25833 remains the default proximity metric and is always reported alongside walking route estimates; the two are labelled separately. LOR observations are never reallocated to isochrones as measured counts. For VBB (§E), walking access to stops can use this routing method instead of straight-line buffers; scheduled service still comes from GTFS. Walking-plus-transit multimodal routing is out of scope.
 
 ## 7. API and Agent Tool Boundary
 

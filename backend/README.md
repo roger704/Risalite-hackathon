@@ -119,16 +119,18 @@ Pin snapshots with `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_
 
 ## Validated sources and meaning
 
-Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic and contain no research findings.
+Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic except for the reviewed Berlin environmental WFS feature subsets, which preserve their source geometries and contain no research findings.
 
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `berlin_addresses` | [Official Berlin address WFS](https://daten.berlin.de/datensaetze/adressen-berlin-wfs-634ab8ba), layer `adressen_berlin:adressen_berlin` | 402,756 official address-point features (source `numberMatched` checked 18 October 2026), 18 properties, source CRS EPSG:25833, paged at 10,000 features. Licensed [Datenlizenz Deutschland – Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attributed to Amt für Statistik Berlin-Brandenburg and Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. |
+| `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
+| `berlin_population_forecast` | [Official forecast page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/), pinned [small-area workbook](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/kleinraeumige_ergebnistabellen_bevoelkerungsprognose_2024-2040-_1_.xlsx?ts=1780323150) and [scenario overview](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/uebersichtstabellen_grafiken_bevoelkerungsprognose-2024-2040-_1_.xlsx?ts=1780323147) | Source edition `2024-2040`, base date 31 December 2024, scenarios middle/upper/lower. The middle variant covers Berlin, 12 districts, and 58 Prognoseräume with total and single-year ages; upper/lower are Berlin-wide rounded thousands for 2025, 2030, and 2040 only. No explicit reuse terms were found; redistribution remains `unknown`. |
 | `zensus_grid` | [Official Zensus 2022 page](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/_inhalt.html), [pinned population-grid ZIP](https://www.destatis.de/static/DE/zensus/gitterdaten/Zensus2022_Bevoelkerungszahl.zip) | 100 m census population cells, publication Version 2 (30 September 2024), reference date **15 May 2022**. INSPIRE IDs encode cell corners in EPSG:3035; stored cell polygons are WGS84. Licensed [dl-de/by-2-0](https://www.govdata.de/dl-de/by-2-0), with attribution to the Statistische Ämter des Bundes und der Länder. |
 | `berlin_households` | [Official household tables page](https://www.statistik-berlin-brandenburg.de/a-i-17-j/), [2025 workbook](https://download.statistik-berlin-brandenburg.de/1c12fbe76a5c983f/bef7fc5b1b3a/SB_A01-17-00_2025j01_BE.xlsx), worksheets `T1.1`, `T1.2`, `T2.2`, `T3`, `T4` | Reference date **31 December 2025**, source edition `2025j01`: household counts, residents in households, household-size and household-type breakdowns, single-person age groups, and child-household counts across 542 Planungsräume. A derived share reports households with children as a percentage of all households. `T4!I` is the source-published single-parent share among households with children. |
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
@@ -194,6 +196,72 @@ Age intervals have an inclusive lower and **exclusive upper** bound: `[0, 6)`, `
 The connector distinguishes numeric zero from suppressed, missing, and not-applicable values. The official legend's `–` means no quantity and becomes zero; `•` becomes a null suppressed value; `…` and `/` become null missing values; `x` becomes null not applicable. Original markers remain in quality flags. Unrecognized annotations fail validation instead of becoming zero. Explicit CSV settings are supported for reviewed alternative configurations, but the default official import uses XLSX.
 
 HTML returned instead of data, changed headers, invalid identifiers, duplicate observations, overlapping age-band mappings, incomplete area coverage, and inconsistent age totals prevent publication. The general [connector blueprint](../CONNECTOR_BLUEPRINT.md) describes later connectors and the wider architecture; it is not a list of already implemented capabilities.
+
+## Berlin population forecast (`berlin_population_forecast`)
+
+Import a compatible LOR snapshot first, then import the forecast pinned to that parent:
+
+```sh
+uv run location-data ingest berlin_lor
+uv run location-data ingest berlin_population_forecast --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+The committed config has `redistribution_status: "unknown"`, so ingestion is refused by the publication gate until reuse terms are confirmed and that field is changed; until then, use a reviewed local `--config-dir` copy for evaluation.
+
+The connector retains fractional forecasts at their published precision. Small-area values exist only for the middle variant at Berlin, district, and Prognoseraum levels; upper and lower variants are Berlin-wide values rounded to thousands. The finest published geography is the Prognoseraum, and the LOR prefix check does not assign any forecast to Planungsräume. Records at 31 December 2024 are observed base stock; later periods are forecasts. Total and age records are alternative views, not additive quantities. The landing page and workbooks did not state reuse terms, so the committed redistribution status remains `unknown` pending confirmation.
+
+The API exposes expected change between the observed base and a selected target year:
+
+```sh
+curl --fail --get http://127.0.0.1:8000/api/v1/population-forecast/expected-change \
+  --data-urlencode "snapshot_id=$FORECAST_SNAPSHOT_ID" \
+  --data-urlencode 'area_code=0210' \
+  --data-urlencode 'hierarchy=prognoseraum' \
+  --data-urlencode 'target_year=2040' \
+  --data-urlencode 'scenario=middle'
+```
+
+## Berlin environmental indicators (`berlin_environment`)
+
+Import the reviewed Berlin Planungsraum environment indicators after the canonical LOR boundaries. The import pins the active LOR snapshot by default; use `--lor-snapshot` to select one explicitly:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_environment --lor-snapshot "$LOR_SNAPSHOT_ID"
+ENVIRONMENT_SNAPSHOT_ID='replace-with-environment-snapshot_id'
+uv run location-data records berlin_environment --snapshot "$ENVIRONMENT_SNAPSHOT_ID" --area-code 01100101
+```
+
+`berlin_environment` emits 542 `Area` records with geometry from `a_laerm2023` and 4,878 `AreaIndicatorClass` records (542 for each of nine indicators). Classes are ordinal labels, not numeric measurements; indicator records have no geometry and join by exact `area_code`. Missing source values remain null with their source markers in `quality_flags`. A local `--file` import is unsupported because each snapshot requires all eight coordinated WFS layers; it fails with a schema error rather than publishing partial data.
+
+| Indicator | Reference period | Rank direction |
+|---|---|---|
+| `noise_burden` | 2022 | Higher rank means more burden |
+| `air_pollution_burden` | 2023 | Higher rank means more burden |
+| `green_space_provision` | 2020 | Higher rank means worse provision |
+| `thermal_burden` | 2022 | Higher rank means more burden |
+| `social_disadvantage` | 2023 | Higher rank means more disadvantage |
+| `multiple_burden_environment` | 2023/2024 | Higher rank means more worst-class indicators |
+| `multiple_burden_environment_social` | 2023/2024 | Higher rank means more worst-class indicators |
+| `population_density_class` | 31 December 2023 | Higher rank means denser |
+| `simple_residential_location_hint` | 2024 | Flag only; null means not flagged or unknown |
+
+The classes are relative to Berlin and use different methods and reference periods; they are not legal limits, address-level measurements, individual health predictions, or measures of exposure at a particular premises. Noise, air, thermal and green-space classes are model/interpolation based; social index areas below 300 residents are excluded and remain missing. Green-space classes measure public provision per resident, not quality or private gardens. The official population legend says “Einwohnerdichte in EW/km²” while the method describes resident counts. The official maps also mask largely uninhabited areas, while the WFS contains full Planungsraum polygons. Do not average or sum ordinal ranks. These indicators are contextual data and are not used in any opportunity score; any future scoring transformation requires separate documentation.
+
+The config-driven legend and indicator details are available without contacting the provider:
+
+```sh
+curl --fail http://127.0.0.1:8000/api/v1/datasets/berlin_environment/legend
+```
+
+The response includes the configured class colors, missing markers, method/data-basis citations, limitations, active snapshot ID and whether its config matches. `latest_snapshot_id` is null when no snapshot is active or the active snapshot was normalized with a different config.
+
+The live contract check is bounded to one feature request per layer and is opt-in:
+
+```sh
+RUN_LIVE_TESTS=1 uv run pytest tests/live/test_berlin_environment_live.py -m live
+```
 
 ## Zensus 2022 population grid
 
@@ -329,7 +397,7 @@ Categories come from the versioned mapping [`config/categories/ihk_v1.json`](con
 
 ## Adding a connector
 
-Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
+Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `AreaIndicatorClass` (ordinal area-indicator classes), `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
 
 Register an adapter name in `app/connectors/registry.py`; modules load lazily, so a planned adapter that has no module yet fails with `Adapter is not implemented`. A dataset that must be pinned to another snapshot sets `parser_options.parent_dataset`, and its connector implements `check_parent(config, records, parent_records) -> dict`. The returned dict is merged into the manifest coverage. Use `--lor-snapshot` to pin an explicit parent.
 
@@ -408,6 +476,42 @@ uv run ruff format --check app tests
 GitHub Actions runs the same checks offline with `uv sync --locked`; tests marked `live` are excluded.
 
 The normal suite runs offline with synthetic fixtures and mocked acquisition. It exercises the implemented connectors, contracts, ingestion failures and snapshot compatibility, API queries, and CLI behavior. It does not require downloading all provider data on each test run. Full official datasets and generated local snapshots are excluded from Git.
+
+## Walking routes and reachable areas (Valhalla)
+
+Walking routes use a self-hosted Valhalla 3.9.1 service and the reviewed, pinned Geofabrik Berlin OSM extract. This is a routing service configuration, not a dataset-registry entry. Build and serve the graph locally:
+
+```sh
+backend/routing/build_valhalla_graph.sh ~/valhalla/work /path/to/berlin-261017.osm.pbf
+backend/routing/run_valhalla_service.sh ~/valhalla/work/current 8002
+```
+
+The build script verifies the PBF SHA-256 from `config/routing/valhalla_berlin_walking.json`, creates a staged graph using the pinned container image, and atomically updates `current` only after a successful build. Omit the local PBF argument to download the pinned source. The service binds to loopback by default and mounts the graph read-only at `/data`. A build needs about 1.7 GB peak RAM and 30 seconds on the checked VM; its tiles archive is about 165 MB. The graph is limited to bbox `[13.0,52.3,13.9,52.8]`; nearby places beyond the extract, including Potsdam, may not snap.
+
+Use the CLI (global options precede the subcommand) or API:
+
+```sh
+uv run location-routing --data-dir /tmp/routing status
+uv run location-routing route --from 13.4132,52.5219 --to 13.3777,52.5163
+uv run location-routing reachable-area --origin 13.4132,52.5219 --minutes 5,10,15
+
+curl --fail http://127.0.0.1:8002/status
+curl --fail --get http://127.0.0.1:8000/api/v1/routing/walking/status
+curl --fail --get http://127.0.0.1:8000/api/v1/routing/walking/route \
+  --data-urlencode 'origin=13.4132,52.5219' \
+  --data-urlencode 'destination=13.3777,52.5163'
+curl --fail --get http://127.0.0.1:8000/api/v1/routing/walking/reachable-area \
+  --data-urlencode 'origin=13.4132,52.5219' \
+  --data-urlencode 'minutes=5,10,15'
+```
+
+Responses distinguish `measure: network_walking_estimate` (or `network_walking_isochrone_estimate`) from `straight_line`, which is a separately labelled EPSG:25833 distance and never a walking-time estimate. Route outputs include snapped endpoints, snap distances, duration, network distance, a WGS84 LineString, graph/profile provenance, assumptions, quality flags, failure details, and cache status. Reachable-area outputs include ascending time contours with WGS84 Polygon/MultiPolygon geometries and areas measured in EPSG:25833. `ok`, `unreachable`, and `invalid_snap` are valid response statuses; validation and provider failures use stable error codes.
+
+By default, API/CLI routing clients enforce a 500-request budget per fixed one-hour window, and the service limits concurrent route requests to two. Results persist in `LOCATION_DATA_DIR/routing/cache.sqlite` (or `<data-dir>/routing/cache.sqlite`) under keys containing graph version, profile hash, request kind, coordinates rounded to six decimal places, and contours. Rebuilding the graph changes its version and naturally invalidates old cache keys; changing the profile changes its hash. `VALHALLA_BASE_URL` may override the configured service address only when its host passes the explicit allowlist; public demo hosts are rejected.
+
+Set `graph.manifest_path` or `VALHALLA_GRAPH_MANIFEST` to verify the serving graph's pinned source hash, edition, and tileset timestamp; without a manifest, responses are marked `graph_source_unverified`, and mismatches make status unavailable.
+
+The graph uses Geofabrik's Berlin extract (ODbL-1.0, attributed to © OpenStreetMap contributors and Geofabrik GmbH); Valhalla is MIT-licensed. ODbL share-alike conditions may apply to derived data. The pedestrian profile assumes a 5.1 km/h walking speed, no crossing/signal wait and no elevation, follows OSM access/barrier tags as of the extract date, and may include flagged ferry segments. Isochrones are generalized, denoised network approximations; small separate reachable pockets can be omitted. Temporary closures, construction, indoor passages, and step-free accessibility are not modelled. The public Valhalla demo server has a fair-use policy and is not a production backend.
 
 ## Exports
 
