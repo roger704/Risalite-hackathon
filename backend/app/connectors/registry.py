@@ -12,6 +12,7 @@ ADAPTERS: dict[str, str] = {
     "ihk": "app.connectors.ihk:IHKConnector",
     "gtfs": "app.connectors.gtfs:GTFSConnector",
     "berlin_wfs": "app.connectors.berlin_wfs:BerlinWFSConnector",
+    "berlin_alkis_parcels": "app.connectors.berlin_alkis_parcels:BerlinALKISParcelsConnector",
 }
 
 
