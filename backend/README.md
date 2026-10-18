@@ -97,7 +97,7 @@ The records response includes reference and retrieval dates, coverage, warnings,
 
 ## Validated sources and meaning
 
-Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic and contain no research findings.
+Source resources and mappings were checked on **18 October 2026**. Offline fixtures are small subsets of reviewed provider responses and contain no derived research findings.
 
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
@@ -105,6 +105,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
+| `berlin_planning` | [Berlin development-plan WFS](https://daten.berlin.de/datensaetze/bebauungsplanverfahren-in-berlin-wfs-4f574ea7), `bplan:a_bp_iv`, `bplan:b_bp_fs`, `bplan:c_bp_ak` | Separate page streams for plans in procedure, in force, and repealed; Polygon/MultiPolygon geometries originate in EPSG:25833. Statuses are mapped to a small procedure vocabulary; URLs are retained without fetching documents. A spatial match is evidence of a planning procedure, not a claim about construction or use. Attribution: Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin, [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0). |
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
@@ -235,9 +236,25 @@ In a provider download, each WFS page is stored as a separate raw asset, copied 
 
 The provider includes a changing `timeStamp` in every response, so a fresh provider download changes the raw hashes and does not hit the snapshot cache. This is deliberate: raw bytes and their hashes are stored exactly as received. Reimporting the same local files does reuse the cache.
 
-`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type` (currently `area` only), `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Once a record type has a normalizer, other gdi.berlin layers such as Kitas or schools need only configuration.
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. Area datasets use `record_type: "area"` and their hierarchy/area mappings. The Berlin development-plan dataset uses `record_type: "development_plan"` and a separate plan normalizer with per-layer status, property, and count validation. Both retain page assets and validate next links against the reviewed query, apart from `COUNT`/`STARTINDEX`.
 
 Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
+
+### Berlin development plans (`berlin_planning`)
+
+The connector pages the three WFS layers independently because the provider rejects combined `TYPENAMES` requests: `a_bp_iv` (in procedure), `b_bp_fs` (in force), and `c_bp_ak` (repealed). Procedure statuses are normalized as follows:
+
+| Published status | Normalized status |
+|---|---|
+| `Im Verfahren`, `Öffentliche Auslegung` | `in_progress` |
+| `In Kraft getreten` | `adopted` |
+| `Teilweise untergegangen`, `Teilweise außer Kraft`, `Teilweise aufgehoben` | `partially_in_force` |
+| `Außer Kraft`, `Aufgehoben` | `repealed` |
+| Unknown source value | `unmapped` (original value retained) |
+
+Read-only endpoints are `GET /api/v1/planning/plans/near`, `/api/v1/planning/plans/in-area`, and `/api/v1/planning/plans/{plan_id}`. Geometry is WGS84 GeoJSON; area and radius measurements are projected to EPSG:25833 and distances are straight-line, not walking time.
+
+A development plan intersecting or near a location is evidence of a planning procedure only. It is not a claim about building completion, future residents, rental availability, or permitted premises use. Document links are retained only when they are valid HTTP(S) URLs; availability is `not_checked`, and documents are never fetched or extracted. Any future document extraction must be a separate dataset and snapshot referencing the plan `record_id` and source URL.
 
 ## Development checks
 
