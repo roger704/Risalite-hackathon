@@ -7,3 +7,11 @@ The workflow is **Ask → review and approve the plan → research → explore r
 Set `RISALITE_RUNS=live` for real research with configured providers and imported datasets. Set `RISALITE_RUNS=fixtures` for a clearly labeled replay using synthetic fixtures. See the repository README for backend setup.
 
 The standalone prototype has been consolidated here and removed. The public research app is served at `/app/`; the marketing homepage at `/` links to it. Local API previews also serve this application at `/`, with the marketing page at `/landing/`.
+
+## Understanding Location Battle
+
+The comparison uses the same direction-aware values and weights as the ranking engine. Live normalized values already mean “higher is better,” including low competition and shorter distance; the UI must not invert them again. Legacy fixtures without `values_directional` are adjusted once by the shared scoring helper.
+
+Each bar and number shows a layer's **weighted contribution**, not a vote for the overall winner. Contributions sum to the present score; missing values are excluded and remaining weights are normalized for each location. Future mode shows its capped adjustment separately. The panel names the overall recommendation and its largest layer advantage. If required-data checks or a research-backed risk demotion put a lower numeric score first, the panel explains that rank override and links the risk finding.
+
+Regression coverage includes the reported Viktoriapark/Graefekiez Nord comparison, legacy values, changed weights, missing data, future adjustments and rank overrides in `backend/tests/scoring/test_location_battle.py`.

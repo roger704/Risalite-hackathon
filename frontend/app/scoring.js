@@ -6,14 +6,28 @@
 (function (g) {
   const EPS = 1e-9;
   const clamp01 = v => Math.max(0, Math.min(1, v));
+  function layerValue(doc, layer, cell) {
+    const value = cell.values[layer.id];
+    if (value === null || value === undefined) return null;
+    // Live scores already express desirability, including lower-is-better layers.
+    return doc.values_directional === undefined && layer.direction === '-' ? 1 - value : value;
+  }
+  function contributions(doc, cell, on, weights) {
+    const rows = doc.layers.filter(layer => on[layer.id]).map(layer => ({
+      layer, value: layerValue(doc, layer, cell), weight: Math.max(0, Number(weights[layer.id] ?? 0)),
+    }));
+    const total = rows.reduce((sum, row) => sum + (row.value === null ? 0 : row.weight), 0);
+    return rows.map(row => ({ ...row,
+      effectiveWeight: row.value !== null && total > 0 ? row.weight / total : 0,
+      contribution: row.value !== null && total > 0 ? row.value * row.weight / total : null,
+    }));
+  }
   function present(doc, cell, on, weights) {
     let total = 0, sum = 0;
     for (const layer of doc.layers) {
       const w = on[layer.id] ? Number(weights[layer.id] ?? 0) : 0;
-      let v = cell.values[layer.id];
+      const v = layerValue(doc, layer, cell);
       if (!(w > 0) || v === null || v === undefined) continue;
-      // Legacy documents (no values_directional flag) carry raw-direction values.
-      if (doc.values_directional === undefined && layer.direction === '-') v = 1 - v;
       total += w * v; sum += w;
     }
     return sum > 0 ? total / sum : null;
@@ -75,7 +89,7 @@
     return rank(entries.map(e => ({ ...e, score: e.rankScore })), doc.tie_band)
       .map(({ rankScore, ...e }) => ({ ...e, score: e.score ?? 0 }));
   }
-  const api = { scoreCells, rank };
+  const api = { scoreCells, rank, layerValue, contributions };
   g.RisaliteScoring = api;
   g.SpotWiseScoring = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

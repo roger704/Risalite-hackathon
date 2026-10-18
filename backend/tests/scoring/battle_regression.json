@@ -1,0 +1,16 @@
+{
+  "description": "Public Kreuzberg scoring inputs reproducing the reported Location Battle display error. Normalized values are already directional. No research text or credentials are included.",
+  "values_directional": true,
+  "layers": [
+    {"id": "residents_block_density", "label": "Residents per km² of populated block area", "direction": "+", "weight_default": 0.25},
+    {"id": "young_adult_share", "label": "Share of residents aged 18–45", "direction": "+", "weight_default": 0.1},
+    {"id": "footfall_proxy", "label": "Complementary POIs per km² (bakery, restaurant, fast food)", "direction": "+", "weight_default": 0.15},
+    {"id": "transit", "label": "Scheduled departures 07–10 + 16–19 (stations in or ≤ 400 m)", "direction": "+", "weight_default": 0.15},
+    {"id": "centre_proximity", "label": "Distance to the nearest StEP centre (type-weighted)", "direction": "-", "weight_default": 0.1},
+    {"id": "cafe_saturation", "label": "OSM cafés per 10,000 residents", "direction": "-", "weight_default": 0.25}
+  ],
+  "cells": [
+    {"id": "02200209", "name": "Viktoriapark", "values": {"residents_block_density": 0.868421, "young_adult_share": 0.5, "footfall_proxy": 0.552632, "transit": 0.605263, "centre_proximity": 0.552632, "cafe_saturation": 0.868421}},
+    {"id": "02200213", "name": "Graefekiez Nord", "values": {"residents_block_density": 0.973684, "young_adult_share": 0.710526, "footfall_proxy": 0.763158, "transit": 0.815789, "centre_proximity": 0.394737, "cafe_saturation": 0.131579}}
+  ]
+}

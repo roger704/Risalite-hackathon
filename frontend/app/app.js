@@ -720,7 +720,7 @@ function previewValue(r) {
   if (!previewLayer) return r.score;
   const layer = R.cells.layers.find(item => item.id === previewLayer), value = r.cell.values[previewLayer];
   if (!layer || value === null || value === undefined) return .5;
-  return layer.direction === '-' ? 1 - value : value;
+  return SpotWiseScoring.layerValue(R.cells, layer, r.cell);
 }
 function previewLabel() {
   const layer = R?.cells?.layers.find(item => item.id === previewLayer);
@@ -780,6 +780,54 @@ function animateTopCards(previous) {
     }
   });
 }
+function renderLocationBattle(doc, ranked, on, weights, mode) {
+  const [a, b] = ranked;
+  if (!a || !b) return '';
+  const left = SpotWiseScoring.contributions(doc, a.cell, on, weights);
+  const right = SpotWiseScoring.contributions(doc, b.cell, on, weights);
+  const labels = { residents_block_density: 'Resident density', young_adult_share: 'Young adult share',
+    footfall_proxy: 'Nearby food businesses', transit: 'Public transport',
+    centre_proximity: 'Retail centre access', cafe_saturation: 'Low café competition' };
+  const label = layer => labels[layer.id] || layer.label;
+  const scale = Math.max(.01, ...left.map(row => row.effectiveWeight), ...right.map(row => row.effectiveWeight));
+  const bar = (row, win) => row.contribution === null
+    ? `<span class="null">${row.value === null ? 'missing' : 'not weighted'}</span>`
+    : `<span class="battle-number">${row.contribution.toFixed(3)}</span><span class="battle-track"><span class="bar" style="width:${row.contribution / scale * 100}%;background:${win ? '#0f766e' : '#94a3b8'}"></span></span>${win ? '<b class="battle-check" aria-label="Stronger contribution">✓</b>' : ''}`;
+  const rows = left.map((row, i) => {
+    const other = right[i], both = row.contribution !== null && other.contribution !== null;
+    const aw = both && row.contribution > other.contribution + 1e-9;
+    const bw = both && other.contribution > row.contribution + 1e-9;
+    const share = Math.abs(row.effectiveWeight - other.effectiveWeight) < 1e-9
+      ? `${(row.effectiveWeight * 100).toFixed(0)}% of score`
+      : `${(row.effectiveWeight * 100).toFixed(0)}% left / ${(other.effectiveWeight * 100).toFixed(0)}% right`;
+    return `<div class="battle-side l" data-cell="${esc(a.cell.id)}" data-layer="${esc(row.layer.id)}">${bar(row, aw)}</div><div class="lab" title="${esc(row.layer.label)}">${esc(label(row.layer))}<small>${share}</small></div><div class="battle-side" data-cell="${esc(b.cell.id)}" data-layer="${esc(row.layer.id)}">${bar(other, bw)}</div>`;
+  }).join('');
+  const adjustment = entry => entry.score_present === null ? '—' : (entry.score_future - entry.score_present).toFixed(3);
+  const scoreText = entry => entry.score_present === null ? '—' : entry.score.toFixed(2);
+  const future = mode === 'future' ? `<div class="l">${adjustment(a)}</div><div class="lab">Future adjustment<small>after the bonus cap</small></div><div>${adjustment(b)}</div>` : '';
+  const gap = a.score - b.score;
+  let reason;
+  if (a.score_present === null) {
+    reason = 'No score is available. Select a layer with available data and a positive weight.';
+  } else if (b.score_present === null) {
+    reason = `${esc(b.cell.name)} has no score for the selected weighted layers, so it ranks below a scored location.`;
+  } else if (gap > 1e-9) {
+    reason = `${esc(a.cell.name)} leads by ${gap.toFixed(3)} on the selected ${mode === 'future' ? 'future' : 'weighted'} score.`;
+    const advantages = left.map((row, i) => ({ layer: row.layer,
+      delta: row.contribution === null || right[i].contribution === null ? 0 : row.contribution - right[i].contribution,
+    })).sort((x, y) => y.delta - x.delta);
+    if (advantages[0]?.delta > 1e-9) reason += ` Largest layer advantage: ${esc(label(advantages[0].layer))} (+${advantages[0].delta.toFixed(3)} compared with ${esc(b.cell.name)}).`;
+  } else if (b.cell.incomplete && !a.cell.incomplete) {
+    reason = `${esc(b.cell.name)} has missing required data, so it ranks below locations with complete required data despite its numeric score.`;
+  } else if ((b.cell.demoted_by || []).length) {
+    reason = `${esc(b.cell.name)} has a risk-based rank demotion. Its numeric score stays unchanged; the evidence changes its position. ${(b.cell.demoted_by || []).map(id => `<a href="#finding-${esc(id)}">See risk ${esc(id)}</a>`).join(' ')}`;
+  } else if (Math.abs(gap) <= 1e-9) {
+    reason = 'The scores are equal; the ranking uses location ID as a stable tie-breaker.';
+  } else {
+    reason = 'The ranking applies required-data checks and risk demotions as well as the numeric score. See the evidence on the location cards.';
+  }
+  return `<p class="battle-summary"><b>Overall recommendation: ${esc(a.cell.name)}</b><br>${reason}</p><div class="battle">${rows}${future}<div class="l"><b>${scoreText(a)}</b></div><div class="lab"><b>Overall score</b></div><div><b>${scoreText(b)}</b></div></div><p class="small mut" style="margin:10px 0 0">Bars and numbers show each layer’s contribution to the score (higher = better), using the selected weights. A checkmark marks the stronger contribution on that row. Missing values are excluded and weights are rebalanced for each location.</p>`;
+}
 function renderArea() {
   const L = R.cells.layers;
   const previous = new Map($$('#d-find .top').map(card => [card.dataset.id, card.getBoundingClientRect()]));
@@ -817,12 +865,7 @@ function renderArea() {
   if (a && b) {
     $('#battle-card').classList.remove('hidden');
     $('#battle-title').innerHTML = `Location Battle: <span style="color:var(--acc)">${esc(a.cell.name)}</span> vs ${esc(b.cell.name)}`;
-    const adj = (l, c) => { const v = c.values[l.id]; return v === null || v === undefined ? null : l.direction === '+' ? v : 1 - v; };
-    $('#d-battle').innerHTML = `<div class="battle">${L.filter(l => state.on[l.id]).map(l => {
-      const va = adj(l, a.cell), vb = adj(l, b.cell), bar = (v, win) => v === null ? '<span class="null">missing</span>' : `<span class="bar" style="width:${v * 100}px;background:${win ? '#0f766e' : '#94a3b8'}"></span>`;
-      const aw = va !== null && (vb === null || va > vb), bw = vb !== null && (va === null || vb > va);
-      return `<div class="l">${aw ? '<b>✓</b> ' : ''}${bar(va, va !== null && (vb === null || va >= vb))}</div><div class="lab">${esc(l.label)}</div><div>${bar(vb, bw)}${bw ? ' <b>✓</b>' : ''}</div>`;
-    }).join('')}<div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each checked layer direction-adjusted (longer = better).</p>`;
+    $('#d-battle').innerHTML = renderLocationBattle(R.cells, ranked, state.on, state.w, state.mode);
   }
   drawAreaMap(ranked, byId); bindCites(); syncShareHash();
 }
