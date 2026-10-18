@@ -14,10 +14,14 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.buildings import create_buildings_router
+from app.api.centers import create_centers_router
+from app.api.parcels import parcels_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
+from app.application.childcare import childcare_areas, childcare_facilities
 from app.application.mobility import station_layer
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
@@ -56,6 +60,26 @@ class RecordsResponse(BaseModel):
     records: list[NormalizedRecord | MobilityObservation]
     count: int = Field(ge=0)
     next_cursor: str | None = None
+
+
+class AddressSearchResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    schema_version: str = "1.0"
+    dataset_id: str
+    snapshot_id: str
+    retrieved_at: datetime
+    source_edition: str | None = None
+    reference_period: str | None = None
+    query: dict[str, Any]
+    results: list[dict[str, Any]]
+    total: int = Field(ge=0)
+    count: int = Field(ge=0)
+    next_cursor: str | None = None
+    ambiguous: bool
+    candidates: list[dict[str, Any]]
+    notice: str
+    warnings: list[str] = Field(default_factory=list)
+    attribution: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AreaSummaryResponse(BaseModel):
@@ -208,6 +232,8 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    application.include_router(create_buildings_router(get_service))
+
     @application.get("/api/v1/datasets", response_model=list[DatasetResponse])
     def datasets(data: Annotated[DataService, Depends(get_service)]):
         return data.list_datasets()
@@ -255,6 +281,60 @@ def create_app(
             limit=limit,
             cursor=cursor,
         )
+
+    @application.get(
+        "/api/v1/datasets/{dataset_id}/address-search",
+        response_model=AddressSearchResponse,
+    )
+    def address_search(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        q: Annotated[str, Query(min_length=1, max_length=200)],
+        postcode: Annotated[str | None, Query(pattern=r"^\d{5}$")] = None,
+        district: Annotated[str | None, Query(min_length=1)] = None,
+        limit: Annotated[int, Query(ge=1, le=50)] = 10,
+        cursor: Annotated[str | None, Query(min_length=1)] = None,
+    ):
+        unknown = set(request.query_params) - {
+            "snapshot_id",
+            "q",
+            "postcode",
+            "district",
+            "limit",
+            "cursor",
+        }
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        return data.search_addresses(
+            dataset_id,
+            snapshot_id,
+            q,
+            postcode=postcode,
+            district=district,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    application.include_router(create_centers_router(get_service))
+
+    @application.get("/api/v1/childcare/facilities")
+    def childcare_facility_points(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+    ) -> dict[str, Any]:
+        return childcare_facilities(data, snapshot_id)
+
+    @application.get("/api/v1/childcare/areas")
+    def childcare_area_counts(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+    ) -> dict[str, Any]:
+        return childcare_areas(data, snapshot_id, population_snapshot_id)
 
     @application.get("/api/v1/datasets/{dataset_id}/wohnlage")
     def wohnlage(
@@ -530,6 +610,8 @@ def create_app(
     application.include_router(planning_router(get_service))
     if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
         application.include_router(fixture_runs_router)
+
+    application.include_router(parcels_router(get_service))
 
     # Keep this last: the "/" mount catches every otherwise-unmatched route.
     mount_frontend(application)

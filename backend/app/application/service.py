@@ -72,6 +72,7 @@ class DataService:
             self.configs[config.dataset_id] = config
         self.connectors = dict(connectors) if connectors is not None else {}
         self._lazy_connectors = connectors is None
+        self._address_indexes = {}
 
     def _connector(self, adapter: str):
         if adapter not in self.connectors:
@@ -190,9 +191,10 @@ class DataService:
                 if parent and config.adapter == "population":
                     coverage.update(self._validate_parent(config, batch.records, parent))
                 elif parent:
-                    coverage.update(
-                        connector.check_parent(config, batch.records, self._load_records(parent))
-                    )
+                    parent_records = self._load_records(parent)
+                    if hasattr(connector, "assign_parent"):
+                        batch = connector.assign_parent(config, batch, parent_records)
+                    coverage.update(connector.check_parent(config, batch.records, parent_records))
                     if config.adapter == "berlin_wfs_wohnlagen":
                         coverage["lor_snapshot_id"] = parent.snapshot_id
                 if not (parent and config.adapter == "population"):
@@ -532,6 +534,149 @@ class DataService:
             "records": [record_to_dict(record) for record in page],
             "count": len(page),
             "next_cursor": next_cursor,
+            "warnings": list(manifest.quality_report.warnings),
+            "attribution": [
+                {
+                    "text": manifest.attribution,
+                    "url": manifest.landing_url,
+                    "license_id": manifest.license_id,
+                    "license_url": manifest.license_url,
+                }
+            ],
+        }
+
+    def search_addresses(
+        self,
+        dataset_id: str,
+        snapshot_id: str,
+        q: str,
+        postcode: str | None = None,
+        district: str | None = None,
+        limit: int = 10,
+        cursor: str | None = None,
+    ):
+        from app.application.address_search import AddressIndex, normalize_street, parse_query
+
+        config = self._config(dataset_id)
+        if config.adapter != "berlin_wfs_addresses":
+            raise ConnectorError(
+                "INVALID_FILTER", "Address search is only available for address datasets"
+            )
+        if not 1 <= limit <= 50:
+            raise ConnectorError("INVALID_FILTER", "limit must be between 1 and 50")
+        try:
+            parsed = parse_query(q)
+        except ValueError as exc:
+            raise ConnectorError(
+                "INVALID_FILTER", "The address query has no searchable street"
+            ) from exc
+        manifest = self.catalog.get(dataset_id, snapshot_id)
+        effective_postcode = postcode if postcode is not None else parsed.postcode
+        query_key = _hash(
+            [
+                dataset_id,
+                snapshot_id,
+                parsed.street_key,
+                parsed.house_number,
+                parsed.house_number_suffix,
+                effective_postcode,
+                normalize_street(district) if district else None,
+            ]
+        )
+        offset = 0
+        if cursor:
+            try:
+                if len(cursor) > 2048:
+                    raise ValueError("oversized cursor")
+                payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+                offset = payload["offset"]
+                if payload["query"] != query_key or type(offset) is not int or offset < 0:
+                    raise ValueError("cursor does not match query")
+            except (ValueError, KeyError, TypeError, UnicodeError) as exc:
+                raise ConnectorError(
+                    "INVALID_CURSOR", "Invalid cursor for this snapshot and query"
+                ) from exc
+        index = self._address_indexes.get(snapshot_id)
+        if index is None:
+            index = AddressIndex.from_parquet(self._snapshot_path(manifest))
+            self._address_indexes[snapshot_id] = index
+            while len(self._address_indexes) > 2:
+                self._address_indexes.pop(next(iter(self._address_indexes)))
+        else:
+            self._address_indexes.pop(snapshot_id)
+            self._address_indexes[snapshot_id] = index
+        total, page, ambiguous, candidates = index.search(
+            parsed,
+            postcode=postcode,
+            district=district,
+            offset=offset,
+            limit=limit,
+        )
+        if offset > total:
+            raise ConnectorError("INVALID_CURSOR", "Cursor is beyond the matching addresses")
+        next_offset = offset + len(page)
+        next_cursor = (
+            base64.urlsafe_b64encode(
+                json.dumps({"query": query_key, "offset": next_offset}).encode()
+            ).decode()
+            if next_offset < total
+            else None
+        )
+        outside_ids = set(manifest.coverage.get("outside_supplied_area_record_ids", ()))
+        parent_snapshot_id = (
+            manifest.parent_snapshot_ids[0] if manifest.parent_snapshot_ids else None
+        )
+        results = []
+        for record, match_type in page:
+            area_link = None
+            if record.area_code is not None and parent_snapshot_id is not None:
+                area_link = {
+                    "area_code": record.area_code,
+                    "area_name": record.area_name,
+                    "hierarchy": config.parser_options.get("hierarchy", "planungsraum"),
+                    "boundary_edition": manifest.boundary_edition,
+                    "lor_snapshot_id": parent_snapshot_id,
+                    "validated": record.record_id not in outside_ids,
+                }
+            results.append(
+                {
+                    "record": record_to_dict(record),
+                    "match_type": match_type,
+                    "point": {
+                        "lon": record.geometry["coordinates"][0],
+                        "lat": record.geometry["coordinates"][1],
+                        "crs": "EPSG:4326",
+                    },
+                    "stable_id": record.record_id,
+                    "source_record_id": record.source_record_id,
+                    "area_link": area_link,
+                }
+            )
+        return {
+            "schema_version": "1.0",
+            "dataset_id": dataset_id,
+            "snapshot_id": snapshot_id,
+            "retrieved_at": manifest.retrieved_at,
+            "source_edition": manifest.source_edition,
+            "reference_period": manifest.reference_period,
+            "query": {
+                "q": q,
+                "street_key": parsed.street_key,
+                "house_number": parsed.house_number,
+                "house_number_suffix": parsed.house_number_suffix,
+                "postcode": effective_postcode,
+                "district": district,
+            },
+            "results": results,
+            "total": total,
+            "count": len(page),
+            "next_cursor": next_cursor,
+            "ambiguous": ambiguous,
+            "candidates": candidates,
+            "notice": (
+                "An address result marks an official address point only; it never implies vacant "
+                "premises, commercial availability, rental terms, or permitted use."
+            ),
             "warnings": list(manifest.quality_report.warnings),
             "attribution": [
                 {
