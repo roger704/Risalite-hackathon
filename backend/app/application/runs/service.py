@@ -52,9 +52,9 @@ class RunService:
         self.tasks: dict[str, asyncio.Task] = {}
         if max_active_runs is None:
             try:
-                max_active_runs = int(os.environ.get("RISALITE_MAX_ACTIVE_RUNS", "2"))
+                max_active_runs = int(os.environ.get("RISALITE_MAX_ACTIVE_RUNS", "3"))
             except ValueError:
-                max_active_runs = 2
+                max_active_runs = 3
         self.max_active_runs = max(0, max_active_runs)
 
     # access ---------------------------------------------------------------------------
@@ -129,9 +129,6 @@ class RunService:
             self.runs.pop(oldest["run_id"])
             self.logs.pop(oldest["run_id"], None)
 
-    def _active_run_count(self) -> int:
-        return sum(run["status"] not in TERMINAL for run in self.runs.values())
-
     def _executing_run_count(self) -> int:
         return sum(run["status"] in {"approved", "running"} for run in self.runs.values())
 
@@ -143,8 +140,6 @@ class RunService:
         if not question:
             raise RunError(422, "question is required")
         self._evict()
-        if self._active_run_count() >= self.max_active_runs:
-            raise RunError(429, "Maximum active research runs reached")
         classification = classify(question, template_hint)
         if classification["shape"] == "point" and self.deps.t1 is None:
             raise RunError(
