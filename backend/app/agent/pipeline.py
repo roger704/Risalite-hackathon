@@ -334,8 +334,8 @@ class Orchestrator:
             sorted_cells = sorted(
                 cells.cells, key=lambda cell: cell.score_present or 0, reverse=True
             )
-            stop_research = self.research is None or run_id in self.exhausted_runs
-            if stop_research:
+            research_stopped = self.research is None or run_id in self.exhausted_runs
+            if self.research is None:
                 await writer.emit(
                     "research",
                     "Web researcher",
@@ -343,7 +343,7 @@ class Orchestrator:
                     "Web research unavailable.",
                     "TAVILY_API_KEY not provided — web research skipped",
                 )
-            if self.research:
+            if self.research and not research_stopped:
                 for cell in sorted_cells[:5]:
                     enabled_questions = [item for item in state.plan.sub_questions if item.enabled]
                     for subq in enabled_questions[:2]:
@@ -410,7 +410,7 @@ class Orchestrator:
                                     )
                                 )
                         except BudgetExceededError as exc:
-                            stop_research = True
+                            research_stopped = True
                             await writer.emit(
                                 "budget",
                                 "Web researcher",
@@ -420,7 +420,7 @@ class Orchestrator:
                                 data=budget.snapshot(),
                             )
                             break
-                    if stop_research:
+                    if research_stopped:
                         break
             cells = scorer.rescore(cells, state.plan.layers)
             sorted_cells = sorted(
@@ -434,7 +434,7 @@ class Orchestrator:
                 if entry.cell_id == leader.id and entry.method == "web"
             ]
             proposal = None
-            if top_evidence and not stop_research:
+            if top_evidence:
                 proposal = await self._model_call(
                     run_id,
                     writer,
@@ -488,8 +488,6 @@ class Orchestrator:
                             magnitude=magnitude,
                         )
                     )
-            if run_id in self.exhausted_runs:
-                stop_research = True
             cells = scorer.rescore(cells, state.plan.layers)
             await writer.emit(
                 "research",
@@ -501,22 +499,19 @@ class Orchestrator:
             leader = max(cells.cells, key=lambda cell: cell.score_present or 0)
             evidence_for_leader = [entry for entry in ledger.all() if entry.cell_id == leader.id]
             risk_result = None
-            if not stop_research:
-                risk_result = await self._model_call(
-                    run_id,
-                    writer,
-                    budget,
-                    "skeptic",
-                    "review",
-                    {
-                        "cell_id": leader.id,
-                        "evidence": [
-                            entry.model_dump(mode="json") for entry in evidence_for_leader
-                        ],
-                    },
-                    RiskOutput,
-                    stage="skeptic",
-                )
+            risk_result = await self._model_call(
+                run_id,
+                writer,
+                budget,
+                "skeptic",
+                "review",
+                {
+                    "cell_id": leader.id,
+                    "evidence": [entry.model_dump(mode="json") for entry in evidence_for_leader],
+                },
+                RiskOutput,
+                stage="skeptic",
+            )
             if risk_result is None:
                 risk_result = RiskOutput(
                     risks=[
@@ -596,20 +591,19 @@ class Orchestrator:
                     )
                     ledger = JsonlLedger(run_dir / "evidence.jsonl")
             output = None
-            if not stop_research:
-                output = await self._model_call(
-                    run_id,
-                    writer,
-                    budget,
-                    "writer",
-                    "synthesize",
-                    {
-                        "evidence": [entry.model_dump(mode="json") for entry in ledger.all()],
-                        "cells": cells.model_dump(mode="json"),
-                    },
-                    WriterOutput,
-                    stage="write",
-                )
+            output = await self._model_call(
+                run_id,
+                writer,
+                budget,
+                "writer",
+                "synthesize",
+                {
+                    "evidence": [entry.model_dump(mode="json") for entry in ledger.all()],
+                    "cells": cells.model_dump(mode="json"),
+                },
+                WriterOutput,
+                stage="write",
+            )
             markdown = self._render(cells, ledger, output)
             markdown = strip_unknown_citations(markdown, ledger.ids())
             (run_dir / "report.md").write_text(markdown, encoding="utf-8")

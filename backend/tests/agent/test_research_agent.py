@@ -87,6 +87,28 @@ def test_citation_stripping():
 
 
 @pytest.mark.asyncio
+async def test_missing_research_still_runs_model_writer(tmp_path):
+    orchestrator = Orchestrator(
+        tmp_path,
+        EventBus(),
+        MockModelClient(),
+        None,
+        FixtureCellScorer,
+        PassThroughFactChecker(),
+    )
+    state = await orchestrator.start(
+        ResearchRequest(question="Where is it smart to open a coffee place in Kreuzberg?")
+    )
+    await orchestrator.approve(state.run_id, ApproveRequest())
+    await orchestrator.execute(state.run_id)
+
+    events = orchestrator.events(state.run_id)
+    assert any(event.type == "skip" and "web research skipped" in event.why for event in events)
+    assert any(event.type == "llm" and event.role == "writer" for event in events)
+    assert orchestrator.get_state(state.run_id).status == "done"
+
+
+@pytest.mark.asyncio
 async def test_budget_exhaustion_still_completes(tmp_path):
     orchestrator = Orchestrator(
         tmp_path,
