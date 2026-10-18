@@ -1,5 +1,11 @@
 {
-  "space": {"address": "Oranienstraße, Berlin", "district": "Kreuzberg"},
+  "space": {
+    "address": "Oranienstraße, Berlin",
+    "district": "Kreuzberg",
+    "plr_id": "02000402",
+    "plr_name": "Kreuzberg Nord",
+    "size": "120 m²"
+  },
   "operator": {"concept": "independent café"},
   "hypotheses": [
     {

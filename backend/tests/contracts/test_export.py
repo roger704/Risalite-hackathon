@@ -19,6 +19,7 @@ from app.export import (
     sources_csv,
 )
 from app.export.citations import replace_citations
+from app.export.report import _trace_summary
 
 RUNS = Path(__file__).resolve().parents[1] / "fixtures" / "runs"
 
@@ -129,6 +130,16 @@ def test_html_escapes_data_links_only_http_and_renders_optional_svg():
     assert "<svg " not in render_html(without_geojson)
 
 
+def test_html_malformed_http_url_is_escaped_text_not_a_link():
+    bundle = coffee()
+    bundle.evidence[0]["url"] = "https://[bad"
+
+    html = render_html(bundle)
+
+    assert "https://[bad" in html
+    assert 'href="https://[bad"' not in html
+
+
 def test_sources_csv_has_exact_header_formula_guard_and_unsupported_blank_number():
     bundle = coffee()
     output = sources_csv(bundle)
@@ -141,6 +152,17 @@ def test_sources_csv_has_exact_header_formula_guard_and_unsupported_blank_number
     assert rows[1]["title"] == "Käse & Gemüse"
     assert rows[2]["n"] == ""
     assert rows[0]["title"].startswith("Café &")
+
+
+def test_sources_csv_guards_formulas_after_leading_whitespace():
+    bundle = coffee()
+    bundle.evidence[0]["title"] = "  =1+1"
+    bundle.evidence[0]["quote"] = "\n@x"
+
+    rows = list(csv.DictReader(io.StringIO(sources_csv(bundle))))
+
+    assert rows[0]["title"] == "'  =1+1"
+    assert rows[0]["quote"] == "'\n@x"
 
 
 def test_markdown_sources_autolink_http_and_escape_other_schemes():
@@ -197,6 +219,7 @@ def test_bibtex_omits_unsupported_entries_escapes_fields_and_sanitizes_keys():
 def test_point_markdown_sorts_final_rank_and_shows_for_against_unknowns():
     bundle = load_run(RUNS / "demo-point")
     report = render_markdown(bundle)
+    html = render_html(bundle)
     assert (
         report.index("1. First choice")
         < report.index("2. Second choice")
@@ -206,3 +229,38 @@ def test_point_markdown_sorts_final_rank_and_shows_for_against_unknowns():
     assert "**AGAINST**" in report
     assert "**UNKNOWNS**" in report
     assert "Suggested validation: Visit at closing time." in report
+    assert "- Space Address: Oranienstraße, Berlin" in report
+    assert "- Space PLR ID: 02000402" in report
+    assert "- Space PLR name: Kreuzberg Nord" in report
+    assert "- Space Size: 120 m²" in report
+    assert "- Operator Concept: independent café" in report
+    assert "<dt>Space Address</dt><dd>Oranienstraße, Berlin</dd>" in html
+    assert "<dt>Operator Concept</dt><dd>independent café</dd>" in html
+
+
+def test_trace_summary_excludes_rejection_events_from_usage_counts():
+    bundle = RunBundle(
+        run={"models": {}},
+        cells=None,
+        geojson=None,
+        candidates={"hypotheses": []},
+        evidence=[],
+        trace=[
+            {"role": "analyst", "model": "model-a", "tokens": 12, "seconds": 1.5},
+            {
+                "role": "analyst",
+                "type": "claim_reject",
+                "model": "model-b",
+                "tokens": 99,
+                "seconds": 30,
+                "text": "Rejected claim.",
+            },
+        ],
+    )
+
+    roles, rejected = _trace_summary(bundle)
+
+    assert roles == [
+        {"role": "analyst", "model": "model-a", "calls": 1, "tokens": 12, "seconds": 1.5}
+    ]
+    assert len(rejected) == 1

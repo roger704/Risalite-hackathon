@@ -58,22 +58,45 @@ def _mix_line(bundle: RunBundle, mix: Mix | None) -> str:
     return f"Mix: custom — layers: {', '.join(labels)}; mode: {mode_text}"
 
 
+def _point_meta(bundle: RunBundle) -> list[tuple[str, Any]]:
+    candidates = bundle.candidates or {}
+    fields = []
+    for section in ("space", "operator"):
+        values = candidates.get(section)
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            if value is None or value == "" or value == [] or value == {}:
+                continue
+            key_name = {"plr_id": "PLR ID", "plr_name": "PLR name"}.get(
+                str(key), str(key).replace("_", " ").title()
+            )
+            fields.append((f"{section.title()} {key_name}", value))
+    return fields
+
+
 def _trace_summary(bundle: RunBundle) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     grouped: dict[str, dict[str, Any]] = {}
     rejected = []
     for event in bundle.trace:
+        event_type = _text(event.get("type")).lower()
+        if "reject" in event_type:
+            rejected.append(event)
+            continue
+        model = event.get("model")
+        tokens = _integer(event.get("tokens"))
+        if not _text(model).strip() and tokens <= 0 and event_type not in {"llm_call", "tool_call"}:
+            continue
         role = _text(event.get("role") or "unknown")
         item = grouped.setdefault(
             role,
             {"role": role, "model": "", "calls": 0, "tokens": 0, "seconds": 0.0},
         )
         item["calls"] += 1
-        item["tokens"] += _integer(event.get("tokens"))
+        item["tokens"] += tokens
         item["seconds"] += _number(event.get("seconds"))
-        if event.get("model"):
-            item["model"] = event["model"]
-        if "reject" in _text(event.get("type")).lower():
-            rejected.append(event)
+        if _text(model).strip():
+            item["model"] = _text(model)
     models = bundle.run.get("models", {})
     for role, item in grouped.items():
         if isinstance(models, dict) and models.get(role):
@@ -284,8 +307,9 @@ def render_markdown(bundle: RunBundle, mix: Mix | None = None, share_url: str | 
         f"- Area: {_text(area.get('name')) if area else ''}",
         f"- Role: {_text(run.get('role'))}",
         f"- Created at: {_text(run.get('created_at'))}",
-        f"- {_mix_line(bundle, mix)}",
     ]
+    lines.extend(f"- {label}: {_text(value)}" for label, value in _point_meta(bundle))
+    lines.append(f"- {_mix_line(bundle, mix)}")
     if share_url:
         lines.append(f"- Share: {share_url}")
     lines.extend(["", "## 1. Approved plan", ""])
@@ -333,9 +357,14 @@ def _escape(value: Any) -> str:
 
 def _link(url: Any, label: Any | None = None) -> str:
     address = _text(url)
-    if urlsplit(address).scheme.lower() in {"http", "https"}:
+    display = address if label is None else label
+    try:
+        is_http = urlsplit(address).scheme.lower() in {"http", "https"}
+    except ValueError:
+        is_http = False
+    if is_http:
         return f'<a href="{_escape(address)}">{_escape(address if label is None else label)}</a>'
-    return _escape(address if label is None else label)
+    return _escape(display)
 
 
 def _color(value: float) -> str:
@@ -609,8 +638,9 @@ def render_html(bundle: RunBundle, mix: Mix | None = None, share_url: str | None
         ("Area", area.get("name") if area else ""),
         ("Role", run.get("role")),
         ("Created at", run.get("created_at")),
-        ("", _mix_line(bundle, mix)),
     ]
+    meta.extend(_point_meta(bundle))
+    meta.append(("", _mix_line(bundle, mix)))
     meta_html = "".join(
         f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>"
         if label
