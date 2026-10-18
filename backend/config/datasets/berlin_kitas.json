@@ -1,0 +1,118 @@
+{
+  "dataset_id": "berlin_kitas",
+  "provider": "Senatsverwaltung für Bildung, Jugend und Familie Berlin",
+  "adapter": "berlin_wfs",
+  "landing_url": "https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2",
+  "resource_url": "https://gdi.berlin.de/services/wfs/kita?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=kita:kita&OUTPUTFORMAT=application/json&SORTBY=e_nr",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Bildung, Jugend und Familie Berlin; Kindertagesstätten (WFS kita:kita, revision 2025-12-31), Datenlizenz Deutschland – Zero – Version 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2025-12-31",
+  "reference_period": "2025-12-31",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "typename": "kita:kita",
+    "page_size": 1000,
+    "max_pages": 10,
+    "max_total_bytes": 15000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "e_nr",
+      "e_name",
+      "e_bez_nr",
+      "e_bez",
+      "e_plz",
+      "e_ort",
+      "e_strasse",
+      "e_hnr",
+      "e_zusatz",
+      "e_tel",
+      "e_web",
+      "e_platz",
+      "e_art",
+      "ang_1",
+      "ang_2",
+      "t_nr",
+      "t_name",
+      "t_art",
+      "t_web"
+    ],
+    "id_field": "e_nr",
+    "id_pattern": "^\\d{8}$",
+    "expected_count_range": [
+      2500,
+      3300
+    ],
+    "record_type": "facility",
+    "record_id_prefix": "kita",
+    "facility_type": "kita",
+    "geometry_types": [
+      "Point"
+    ],
+    "field_map": {
+      "name": "e_name",
+      "category": "e_art",
+      "capacity": "e_platz"
+    },
+    "category_mapping_version": "berlin_kita_e_art_v1",
+    "category_mapping": {
+      "Kindertagesstätte": "kita",
+      "Eltern-Initiativ-Kindertagesstätte": "parent_initiative_kita",
+      "Eltern-Kind-Gruppe": "parent_child_group",
+      "Waldkindergarten": "forest_kindergarten"
+    },
+    "capacity_definition": "permitted_places",
+    "capacity_reference_date": "2025-12-31",
+    "attribute_fields": [
+      "e_bez_nr",
+      "e_bez",
+      "e_plz",
+      "e_ort",
+      "e_strasse",
+      "e_hnr",
+      "e_zusatz",
+      "e_tel",
+      "e_web",
+      "ang_1",
+      "ang_2",
+      "t_nr",
+      "t_name",
+      "t_art",
+      "t_web"
+    ],
+    "hierarchy": "planungsraum",
+    "district_field": "e_bez_nr",
+    "max_unassigned_ratio": 0.01,
+    "max_district_mismatch_ratio": 0.01,
+    "limitations": [
+      "Registry of publicly funded Berlin day-care facilities (öffentlich geförderte Kindertagesstätten, incl. parent-initiative Kitas, Eltern-Kind-Gruppen and Waldkindergärten). Privately financed facilities and Kindertagespflege (childminders) are not included.",
+      "Dataset revision 2025-12-31 (official metadata, published 2026-05-28, updated annually). The WFS response carries no per-record date; openings and closures after the revision are not reflected.",
+      "capacity is 'Erlaubte Platzzahl' (permitted places under the operating licence) as of the dataset revision. It is a licensed maximum, not occupied places, available places or vacancies. Vacancies are not provided and remain null.",
+      "Facility counts and permitted places are not proof of a childcare shortage or surplus; demand depends on age-specific care entitlement and uptake, catchment across area borders, and opening hours not measured here.",
+      "Do not use Kita-Navigator as a bulk vacancy source: no supported bulk access method or reuse terms were established.",
+      "Area counts use a point-in-polygon join to the pinned berlin_lor Planungsräume in EPSG:25833; the source itself supplies only the district number (e_bez_nr).",
+      "Source access, license, CRS, paging and field mapping checked 2026-10-18 via WFS GetCapabilities/DescribeFeatureType and the datenregister.berlin.de CKAN metadata."
+    ]
+  }
+}

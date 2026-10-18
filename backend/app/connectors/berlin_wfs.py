@@ -228,8 +228,13 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
-    if options["record_type"] != "area":
+    if options["record_type"] not in {"area", "facility"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
+    if options["record_type"] == "facility":
+        from app.connectors.berlin_wfs_facility import check_facility_options
+
+        check_facility_options(options)
+        return options
     field_map = options["field_map"]
     if not isinstance(field_map, dict) or any(
         not isinstance(field_map.get(key), str) or not field_map[key]
@@ -252,7 +257,7 @@ def _options(config: DatasetConfig) -> dict:
 class BerlinWFSConnector(FileConnector):
     """Reviewed WFS 2.0 GeoJSON paging and polygon normalization."""
 
-    adapter_version = "1.0.0"
+    adapter_version = "1.1.0"
 
     async def fetch(self, request: FetchRequest) -> RawBundle:
         config = request.config
@@ -383,6 +388,12 @@ class BerlinWFSConnector(FileConnector):
 
         source_bounds = _bbox(options, "source_bbox")
         allowed_bounds = _bbox(options, "allowed_bbox", [13.0, 52.3, 13.9, 52.8])
+        if options["record_type"] == "facility":
+            from app.connectors.berlin_wfs_facility import normalize_facilities
+
+            return normalize_facilities(
+                features, raw, config, options, source_bounds, allowed_bounds
+            )
         geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
         required_properties = set(options["expected_properties"])
         required_properties.update(
@@ -479,6 +490,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def validate(self, batch: NormalizedBatch) -> QualityReport:
+        if any(getattr(record, "record_type", None) == "facility" for record in batch.records):
+            from app.connectors.berlin_wfs_facility import validate_facilities
+
+            return validate_facilities(batch)
         errors = []
         if not batch.records:
             errors.append("WFS snapshot is empty")
@@ -519,6 +534,10 @@ class BerlinWFSConnector(FileConnector):
 
     def check_parent(self, config: DatasetConfig, records: tuple, parent_records: tuple) -> dict:
         options = _options(config)
+        if options["record_type"] == "facility":
+            from app.connectors.berlin_wfs_facility import check_facility_parent
+
+            return check_facility_parent(config, options, records, parent_records)
         invalid_records = sum(
             not isinstance(record, Area) for record in (*records, *parent_records)
         )

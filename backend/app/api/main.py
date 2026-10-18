@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.application.childcare import childcare_areas, childcare_facilities
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
 
@@ -154,6 +155,21 @@ def create_app(
             limit=limit,
             cursor=cursor,
         )
+
+    @application.get("/api/v1/childcare/facilities")
+    def childcare_facility_points(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+    ) -> dict[str, Any]:
+        return childcare_facilities(data, snapshot_id)
+
+    @application.get("/api/v1/childcare/areas")
+    def childcare_area_counts(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+    ) -> dict[str, Any]:
+        return childcare_areas(data, snapshot_id, population_snapshot_id)
 
     return application
 
