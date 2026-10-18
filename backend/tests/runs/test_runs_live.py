@@ -265,24 +265,26 @@ def test_researcher_failure_is_contained(make_client):
     assert client.get(f"/runs/{created['run_id']}/result", headers=auth).json()["status"] == "done"
 
 
-def test_max_active_runs_limits_creation(make_client, monkeypatch):
-    monkeypatch.setenv("RISALITE_MAX_ACTIVE_RUNS", "1")
+def test_unapproved_plans_do_not_count_toward_active_run_cap(make_client, monkeypatch):
+    monkeypatch.delenv("RISALITE_MAX_ACTIVE_RUNS", raising=False)
     client = make_client()
 
-    first = client.post("/research", json={"question": "Café in Britz?"})
-    second = client.post("/research", json={"question": "Café in Neukölln?"})
+    plans = [
+        client.post("/research", json={"question": "Café in Britz?"})
+        for _ in range(3)
+    ]
 
-    assert first.status_code == 200
-    assert second.status_code == 429
+    assert all(response.status_code == 200 for response in plans)
+    assert all(response.json()["status"] == "awaiting_approval" for response in plans)
+    assert runs_live.service().max_active_runs == 3
 
 
 def test_approval_respects_max_executing_runs(make_client, monkeypatch):
-    monkeypatch.setenv("RISALITE_MAX_ACTIVE_RUNS", "2")
+    monkeypatch.setenv("RISALITE_MAX_ACTIVE_RUNS", "1")
     client = make_client()
     first = client.post("/research", json={"question": "Café in Britz?"}).json()
     second = client.post("/research", json={"question": "Café in Britz?"}).json()
     run_service = runs_live.service()
-    run_service.max_active_runs = 1
     run_service.runs[first["run_id"]]["status"] = "running"
 
     response = client.post(
