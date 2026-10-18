@@ -2,6 +2,12 @@
 
 **Challenge:** Agentic Deep Research with Nebius Token Factory & Tavily
 
+## Demo video
+
+▶ **[SpotWise_demo.mp4](docs/video/SpotWise_demo.mp4)** (1:57, captions) · [version without captions](docs/video/SpotWise_demo_nocaptions.mp4) · [timing of each section](docs/video/README.md)
+
+A run of "Where is it smart to open a coffee place in Kreuzberg?" from plan and approval through the research trace to the cited dashboard, then slides on how the deep research flow works ([deep research flow spec, PR #16](https://github.com/roger704/Risalite-hackathon/pull/16)).
+
 **Risalite** (formerly PlotScout) is an agentic deep-research tool for Berlin. The user types a free question about a place or an area; the planner classifies it, proposes a research plan and sources, waits for approval, runs parallel researchers over Berlin open geodata (WFS/Overpass) and the web (Tavily), fact-checks every claim, and returns a one-page dashboard: summary, ranked findings, an interactive map, sources, and trace.
 
 **"Don't just research a location. Discover where opportunity exists."**
