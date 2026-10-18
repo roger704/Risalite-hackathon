@@ -51,11 +51,16 @@ function glassSelect(select) {
   };
   const position = () => {
     if (!menu) return;
-    const rect = button.getBoundingClientRect(), height = menu.offsetHeight;
-    const up = window.innerHeight - rect.bottom < height && rect.top > height;
-    menu.style.left = `${Math.max(8, rect.left)}px`;
+    const rect = button.getBoundingClientRect();
+    menu.style.maxHeight = '';
     menu.style.width = `${rect.width}px`;
-    menu.style.top = up ? `${rect.top - height - 4}px` : `${rect.bottom + 4}px`;
+    const height = menu.scrollHeight, below = window.innerHeight - rect.bottom - 16, above = rect.top - 16;
+    const up = height > below && above > below;
+    const menuHeight = Math.max(0, Math.min(height, up ? above : below));
+    menu.style.maxHeight = `${menuHeight}px`;
+    menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = up ? `${rect.top - menuHeight - 8}px` : `${rect.bottom + 8}px`;
+    menu.classList.toggle('up', up);
   };
   const choose = index => {
     selected = index; select.value = select.options[index].value;
@@ -1208,5 +1213,17 @@ window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1);
   if (hash && hash !== activeHash) restoreShareHash(hash);
 });
+(()=>{
+  const parts = [...$('#mf').children]; let k = 0;
+  const paint = () => parts.forEach((node, index) => {
+    node.classList.toggle('on', index <= k); node.classList.toggle('act', index === k);
+  });
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { k = parts.length; paint(); return; }
+  paint();
+  setInterval(() => {
+    if (document.hidden || $('#s-ask').classList.contains('hidden')) return;
+    k = (k + 1) % (parts.length + 3); paint();
+  }, 900);
+})();
 pulseHints();
 if (location.hash.length > 1) restoreShareHash(location.hash.slice(1));
