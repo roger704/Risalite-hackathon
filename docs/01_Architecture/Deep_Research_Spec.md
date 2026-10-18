@@ -104,7 +104,8 @@ any state → failed (error event with reason) | cancelled
 |---|---|---|
 | `POST /research` | `{question, role?, template_hint?}` | `{run_id, run_token, status}`; status is `needs_clarification` (with `clarify_question`) or `awaiting_approval` (with `plan`) |
 | `POST /runs/{id}/clarify` | `{answer}` | same as above (re-classify with the answer) |
-| `POST /runs/{id}/approve` | `{area_id?, subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; `area_id` must be one of `plan.area_candidates`; if it differs from `plan.area.area_id`: load that area, regenerate the plan and return `{status: "awaiting_approval", plan}` (a second approve is needed); 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions, `area_id` not in candidates) |
+| `POST /runs/{id}/approve` | `{area_id?, subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; `area_id` may be any Berlin unit id (from `plan.area_candidates` or from `GET /runs/{id}/areas`); if it differs from `plan.area.area_id`: load that area, regenerate the plan and return `{status: "awaiting_approval", plan}` (a second approve is needed); 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions, unknown `area_id`) |
+| `GET /runs/{id}/areas?q=` | — | `[{area_id, level, name, bezirk}]` from `AreaDataPort.search_areas`; lets the user pick a different place than the one classification extracted (e.g. Mitte instead of Wedding) |
 | `GET /runs/{id}/events` | — | SSE stream of events (§9.1); replays from `trace.jsonl`, supports `Last-Event-ID` = `seq` |
 | `GET /runs/{id}/result` | — | `{status, report_md, cells, evidence, findings, metrics}` once `done`; 202 before |
 
@@ -117,7 +118,7 @@ any state → failed (error event with reason) | cancelled
 ### 5.1 Classify, clarify, resolve area, plan
 
 - One `NebiusGateway.plan` call each for classify and plan, with Pydantic output models (`research_outputs.py`). Each output carries a `why` that is emitted as an event.
-- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan carries `area: {area_id, level, name, plr_count}` and `area_candidates: [{area_id, level, name}]` with **all** matching units (e.g. Bezirk Neukölln and Ortsteil Neukölln as separate entries). The user corrects the area by sending another candidate's `area_id` with `approve`; identities are compared by `area_id` (e.g. `bezirk:08`, `ortsteil:0801`), never by name, and a changed id regenerates the plan before research starts.
+- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan carries `area: {area_id, level, name, plr_count}` and `area_candidates: [{area_id, level, name}]` with **all** matching units (e.g. Bezirk Neukölln and Ortsteil Neukölln as separate entries). The user corrects the area by sending another `area_id` with `approve`: a sibling candidate for a same-name ambiguity, or any unit found via `GET /runs/{id}/areas?q=` if classification extracted the wrong place. The id is loaded with `AreaDataPort.load_area(area_id)`, never re-resolved by name; identities are compared by `area_id` (e.g. `bezirk:08`, `ortsteil:0801`), never by name, and a changed id regenerates the plan before research starts.
 - The plan only proposes layers for which `DataPort.available_layers` returns a snapshot. Template layer catalog for T2 coffee:
 
 | Layer id | Source (S2) | Computation per PLR | Direction | Default weight |
@@ -272,7 +273,8 @@ Web entries are `WebEvidence` from PR #6 (`evidence_id` deterministic from canon
 
 ```python
 class AreaDataPort(Protocol):
-    async def resolve_area(self, name: str) -> AreaResolution: ...          # level, PLR ids/names/Ortsteil, geometry ref
+    async def search_areas(self, query: str) -> list[AreaCandidate]: ...    # all Bezirk/Ortsteil/PLR matches: area_id, level, name, bezirk
+    async def load_area(self, area_id: str) -> AreaResolution: ...         # by stable id: level, PLR ids/names/Ortsteil, geometry ref
     async def available_layers(self, area: AreaResolution, template: str) -> list[LayerSpec]: ...
     async def layer_values(self, area: AreaResolution, layer_id: str) -> LayerResult: ...  # raw per PLR + dataset_id, snapshot_id, source_url
     async def cafe_cross_check(self, area: AreaResolution) -> dict[str, tuple[int, int]]: ...  # PLR -> (osm, ihk)
