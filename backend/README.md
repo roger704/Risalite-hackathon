@@ -250,6 +250,53 @@ The provider includes a changing `timeStamp` in every response, so a fresh provi
 
 Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
 
+## Berlin Mietspiegel 2026 address-level Wohnlagen
+
+The `berlin_mietspiegel_wohnlagen` dataset imports the provider's WFS address points and the official `einfach`, `mittel`, or `gut` classification. Pin a compatible LOR snapshot for the point-in-polygon coverage check:
+
+```sh
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_lor
+uv run location-data ingest berlin_mietspiegel_wohnlagen --lor-snapshot "$LOR_SNAPSHOT_ID"
+WOHNLAGE_SNAPSHOT_ID='replace-with-wohnlage-snapshot_id'
+uv run location-data records berlin_mietspiegel_wohnlagen --snapshot "$WOHNLAGE_SNAPSHOT_ID" --limit 10
+```
+
+The `ResidentialLocationClass` record includes `address_key`, street and house-number labels, district and planning-area labels, the source Ost/West marker, a WGS84 point, `wohnlage_class`, `class_status`, edition, validity, and source attributes. `GET /api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage` requires `snapshot_id` and exactly one of:
+
+- `address_key=00001004A`
+- `street_code=00001&house_number=4&house_number_suffix=A`
+- `address_snapshot_id=<id>&address_id=<id>` (for an address snapshot published by the address connector)
+
+The API reports `matched`, `matched_unclassified`, `not_found`, `not_joinable`, or `ambiguous`. `not_found` may include suffix variants as candidates, but does not select one. A street-name/postcode disagreement yields an `ambiguous` candidate with a null selected class. The address-snapshot mode requires the address dataset and snapshot to be available in this backend.
+
+When adding a frontend flow, use the address search result's `address_id` and `address_snapshot_id` to request this endpoint; do not reconstruct its provider key from display text. For example:
+
+```js
+const response = await fetch(
+  `/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage?${new URLSearchParams({
+    snapshot_id: wohnlageSnapshotId,
+    address_snapshot_id: addressSnapshotId,
+    address_id: addressId,
+  })}`,
+);
+const result = await response.json();
+
+if (result.join_status === "matched") {
+  showWohnlage({
+    class: result.wohnlage_class,
+    edition: result.edition,
+    valid: `${result.valid_from}–${result.valid_to}`,
+    source: result.source_links,
+    limitations: result.limitations,
+  });
+} else {
+  showWohnlageUnresolved(result.join_status, result.candidates);
+}
+```
+
+Display the edition, validity, source link, limitations, and unresolved status. Do not label this classification as income, purchasing power, commercial suitability, pedestrian footfall, shop rent, or a rent amount. It describes residential surroundings under the Mietspiegel 2026, not whether an individual dwelling is within scope. The official Straßenverzeichnis is authoritative for address assignment; do not infer the class from generalized map colors. The source's Ost/West field is a former east/west rent-table marker, not a current district.
+
 ## Development checks
 
 ```sh

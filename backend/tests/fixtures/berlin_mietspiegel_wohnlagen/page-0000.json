@@ -1,0 +1,77 @@
+{
+  "type": "FeatureCollection",
+  "totalFeatures": 5,
+  "numberMatched": 5,
+  "numberReturned": 3,
+  "timeStamp": "2026-10-18T14:51:37.871Z",
+  "links": [
+    {
+      "title": "next page",
+      "type": "application/json",
+      "rel": "next",
+      "href": "https://gdi.berlin.de/services/wfs/wohnlagenadr2026?REQUEST=GetFeature&SORTBY=schluessel&OUTPUTFORMAT=application%2Fjson&VERSION=2.0.0&TYPENAMES=wohnlagenadr2026%3Awohnlagenadr2026&COUNT=3&SERVICE=WFS&STARTINDEX=3"
+    }
+  ],
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "wohnlagenadr2026.00007005",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [378145.983, 5822775.048]
+      },
+      "properties": {
+        "schluessel": "00007005",
+        "bezname": "Spandau",
+        "plz": "13585",
+        "strasse": "Achenbachstraße",
+        "hnr": "005",
+        "wol": "einfach",
+        "stadtteil": "West",
+        "plr_name": "Ackerstraße"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "wohnlagenadr2026.00001001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [385802.007, 5816000.101]
+      },
+      "properties": {
+        "schluessel": "00001001",
+        "bezname": "Charlottenburg-Wilmersdorf",
+        "plz": "10713",
+        "strasse": "Aachener Straße",
+        "hnr": "001",
+        "wol": "mittel",
+        "stadtteil": "West",
+        "plr_name": "Brabanter Platz"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "wohnlagenadr2026.00014004",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [383235.653, 5828421.831]
+      },
+      "properties": {
+        "schluessel": "00014004",
+        "bezname": "Reinickendorf",
+        "plz": "13507",
+        "strasse": "Adelheidallee",
+        "hnr": "004",
+        "wol": "gut",
+        "stadtteil": "West",
+        "plr_name": "Alt-Tegel"
+      }
+    }
+  ]
+}

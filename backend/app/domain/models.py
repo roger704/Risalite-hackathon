@@ -442,7 +442,96 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
+@dataclass(frozen=True, kw_only=True)
+class ResidentialLocationClass(Record):
+    geometry: dict[str, Any]
+    address_key: str
+    street_code: str
+    house_number: int
+    house_number_suffix: str | None
+    house_number_label: str
+    street_name: str | None
+    postcode: str | None
+    district_name: str | None
+    planning_area_name: str | None
+    east_west_marker: str | None
+    wohnlage_class: str | None
+    class_status: str
+    source_label: str | None
+    edition: str
+    valid_from: str
+    valid_to: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="residential_location_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("address_key", self.address_key)
+        if not re.fullmatch(r"\d{8}[A-Z]{0,2}", self.address_key):
+            raise ValidationError("address_key must be an 8-digit key with optional suffix")
+        if not re.fullmatch(r"\d{5}", self.street_code):
+            raise ValidationError("street_code must contain five digits")
+        if type(self.house_number) is not int or not 0 <= self.house_number <= 999:
+            raise ValidationError("house_number must be an integer from 0 to 999")
+        _optional_text("house_number_suffix", self.house_number_suffix)
+        if self.house_number_suffix is not None and not re.fullmatch(
+            r"[A-Z]{1,2}", self.house_number_suffix
+        ):
+            raise ValidationError("house_number_suffix must be one or two uppercase letters")
+        _text("house_number_label", self.house_number_label)
+        if self.house_number_label != f"{self.house_number:03d}{self.house_number_suffix or ''}":
+            raise ValidationError("house_number_label does not match its numeric and suffix fields")
+        if self.address_key != f"{self.street_code}{self.house_number_label}":
+            raise ValidationError("address_key does not match street code and house number")
+        if self.source_record_id != self.address_key:
+            raise ValidationError("source_record_id must equal address_key")
+        if self.record_id != f"wohnlage:2026:{self.address_key}":
+            raise ValidationError("record_id must use the 2026 Wohnlage address key")
+        for name in (
+            "street_name",
+            "postcode",
+            "district_name",
+            "planning_area_name",
+            "east_west_marker",
+            "wohnlage_class",
+            "source_label",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.class_status not in {"assigned", "unassigned", "unmapped"}:
+            raise ValidationError("class_status must be assigned, unassigned or unmapped")
+        if self.class_status == "assigned":
+            if (
+                self.wohnlage_class not in {"einfach", "mittel", "gut"}
+                or self.source_label != self.wohnlage_class
+            ):
+                raise ValidationError("assigned Wohnlage records require a known class")
+        elif self.wohnlage_class is not None:
+            raise ValidationError("unassigned or unmapped records cannot have a class")
+        if self.class_status == "unassigned" and self.source_label is not None:
+            raise ValidationError("unassigned records cannot have an original class label")
+        if self.class_status == "unmapped" and (
+            self.source_label is None or self.source_label in {"einfach", "mittel", "gut"}
+        ):
+            raise ValidationError("unmapped records require an unknown original source label")
+        _text("edition", self.edition)
+        for name in ("valid_from", "valid_to"):
+            try:
+                date.fromisoformat(getattr(self, name))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        if self.valid_from > self.valid_to:
+            raise ValidationError("valid_from cannot be after valid_to")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord: TypeAlias = (
+    Area | AreaObservation | Place | Business | TransitStop | StopService | ResidentialLocationClass
+)
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
@@ -450,6 +539,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "residential_location_class": ResidentialLocationClass,
 }
 
 

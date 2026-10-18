@@ -228,6 +228,8 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
+    if options["record_type"] == "residential_location_class":
+        return options
     if options["record_type"] != "area":
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
     field_map = options["field_map"]
