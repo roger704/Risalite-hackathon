@@ -1,0 +1,152 @@
+{
+  "template_id": "t1_catalog_v1",
+  "kind": "point",
+  "category_mapping": "osm_v1",
+  "catchment": {
+    "default_radius_m": 500,
+    "isochrone_minutes": 7,
+    "min_residents_denominator": 2000,
+    "low_resident_threshold": 2000,
+    "confidence_resident_threshold": 3000,
+    "reference_min_population": 2000
+  },
+  "transit_windows": {
+    "morning": ["07:00:00", "10:00:00"],
+    "evening": ["16:00:00", "19:00:00"]
+  },
+  "dimension_weights": {
+    "Demand": 0.25,
+    "Competition gap": 0.2,
+    "Footfall/Transit": 0.15,
+    "Cost": 0.1,
+    "Operator fit": 0.1,
+    "Space fit": 0.1,
+    "Regulation / risk": 0.1
+  },
+  "risk_penalty": {"high": 3.0, "medium": 1.5, "low": 0.5, "unrated": 1.5},
+  "data_dimensions": ["Demand", "Competition gap", "Footfall/Transit"],
+  "weak_tier_cap": 6,
+  "neutral_score": 5,
+  "types": [
+    {
+      "id": "cafe",
+      "label": "Café",
+      "mapping": "osm_v1",
+      "competitors": {"osm": ["amenity=cafe"], "categories": ["coffee_shop"]},
+      "complements": {
+        "osm": ["shop=bakery", "amenity=restaurant", "amenity=fast_food", "amenity=coworking_space"],
+        "categories": ["bakery", "restaurant", "fast_food", "coworking"]
+      },
+      "demand_drivers": ["residents", "young_adult_share", "transit"],
+      "transit_windows": ["morning", "evening"],
+      "space_checks": ["seating area"],
+      "operator_checks": ["barista experience"],
+      "operator_keywords": ["cafe", "café", "coffee", "kaffee", "barista"],
+      "ihk_crosscheck": ["coffee_shop"]
+    },
+    {
+      "id": "bakery_cafe",
+      "label": "Bakery-café",
+      "mapping": "osm_v1",
+      "competitors": {"osm": ["shop=bakery", "amenity=cafe"], "categories": ["bakery", "coffee_shop"]},
+      "complements": {"osm": ["amenity=restaurant", "amenity=fast_food"], "categories": ["restaurant", "fast_food"]},
+      "demand_drivers": ["residents", "transit"],
+      "transit_windows": ["morning"],
+      "space_checks": ["oven", "ventilation"],
+      "operator_checks": ["baking experience"],
+      "operator_keywords": ["baker", "bakery", "bäckerei", "baecker", "bäcker", "baking", "backen", "pastry"],
+      "ihk_crosscheck": []
+    },
+    {
+      "id": "fast_food",
+      "label": "Imbiss / takeaway",
+      "mapping": "osm_v1",
+      "competitors": {"osm": ["amenity=fast_food"], "categories": ["fast_food"]},
+      "complements": {"osm": ["amenity=restaurant", "amenity=cafe"], "categories": ["restaurant", "coffee_shop"]},
+      "demand_drivers": ["transit", "centre_proximity"],
+      "transit_windows": ["morning", "evening"],
+      "space_checks": ["kitchen exhaust", "street frontage"],
+      "operator_checks": ["food service experience"],
+      "operator_keywords": ["imbiss", "takeaway", "fast food", "street food", "döner", "doener", "burger"],
+      "ihk_crosscheck": ["fast_food"]
+    },
+    {
+      "id": "restaurant",
+      "label": "Restaurant",
+      "mapping": "osm_v1",
+      "competitors": {"osm": ["amenity=restaurant"], "categories": ["restaurant"]},
+      "complements": {"osm": ["amenity=cafe", "amenity=fast_food"], "categories": ["coffee_shop", "fast_food"]},
+      "demand_drivers": ["residents", "centre_proximity"],
+      "transit_windows": ["evening"],
+      "space_checks": ["kitchen exhaust", "size >= ~80 m2"],
+      "operator_checks": ["kitchen experience"],
+      "operator_keywords": ["restaurant", "chef", "koch", "kitchen", "küche", "gastronomie"],
+      "ihk_crosscheck": ["restaurant"]
+    },
+    {
+      "id": "coworking",
+      "label": "Coworking",
+      "mapping": "osm_v1",
+      "competitors": {"osm": ["amenity=coworking_space", "office=coworking"], "categories": ["coworking"]},
+      "complements": {"osm": ["amenity=cafe"], "categories": ["coffee_shop"]},
+      "demand_drivers": ["young_adult_share", "transit"],
+      "transit_windows": ["morning", "evening"],
+      "space_checks": ["floor area", "fit-out budget"],
+      "operator_checks": ["community or workspace management experience"],
+      "operator_keywords": ["coworking", "co-working", "workspace", "office"],
+      "ihk_crosscheck": []
+    },
+    {
+      "id": "convenience",
+      "label": "Späti / convenience",
+      "mapping": "ext",
+      "competitors": {"osm": ["shop=convenience", "shop=kiosk"], "categories": ["convenience", "kiosk"]},
+      "complements": {"osm": ["amenity=fast_food"], "categories": ["fast_food"]},
+      "demand_drivers": ["residents", "transit"],
+      "transit_windows": ["evening"],
+      "space_checks": ["opening-hours rules (web)"],
+      "operator_checks": ["retail experience"],
+      "operator_keywords": ["späti", "spaeti", "kiosk", "convenience"],
+      "ihk_crosscheck": []
+    },
+    {
+      "id": "hairdresser",
+      "label": "Hairdresser / barber",
+      "mapping": "ext",
+      "competitors": {"osm": ["shop=hairdresser"], "categories": ["hairdresser"]},
+      "complements": {"osm": ["amenity=cafe", "shop=beauty"], "categories": ["coffee_shop", "beauty"]},
+      "demand_drivers": ["residents"],
+      "transit_windows": [],
+      "space_checks": ["water connections"],
+      "operator_checks": ["trade qualification"],
+      "operator_keywords": ["hairdresser", "friseur", "barber"],
+      "ihk_crosscheck": []
+    },
+    {
+      "id": "fitness",
+      "label": "Fitness / yoga studio",
+      "mapping": "ext",
+      "competitors": {"osm": ["leisure=fitness_centre", "sport=yoga"], "categories": ["fitness_centre", "yoga"]},
+      "complements": {"osm": ["amenity=cafe"], "categories": ["coffee_shop"]},
+      "demand_drivers": ["residents", "young_adult_share"],
+      "transit_windows": [],
+      "space_checks": ["floor area", "ceiling height"],
+      "operator_checks": ["trainer qualification"],
+      "operator_keywords": ["fitness", "yoga", "pilates", "gym"],
+      "ihk_crosscheck": []
+    },
+    {
+      "id": "bicycle",
+      "label": "Bike shop / repair",
+      "mapping": "ext",
+      "competitors": {"osm": ["shop=bicycle"], "categories": ["bicycle"]},
+      "complements": {"osm": [], "categories": []},
+      "demand_drivers": ["residents", "young_adult_share"],
+      "transit_windows": [],
+      "space_checks": ["workshop space"],
+      "operator_checks": ["bicycle mechanic experience"],
+      "operator_keywords": ["bicycle", "bike", "fahrrad", "rad"],
+      "ihk_crosscheck": []
+    }
+  ]
+}
