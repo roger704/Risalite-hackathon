@@ -76,7 +76,7 @@ async def _run_baseline(model_name: str, question: str, out_dir: Path) -> dict[s
                     text = _message_text(message)
                     if text and not message.tool_calls:
                         report = text
-                if isinstance(message, ToolMessage):
+                if isinstance(message, ToolMessage) and message.name == "tavily_search":
                     searches += 1
     seconds = time.perf_counter() - started
     out_dir.mkdir(parents=True, exist_ok=True)

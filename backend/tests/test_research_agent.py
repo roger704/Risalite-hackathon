@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from time import perf_counter
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
@@ -7,7 +8,7 @@ from langchain_core.messages import AIMessage
 from app.application.research.agent import run_research
 from app.application.research.events import EventSink
 from app.application.research.ledger import EvidenceLedger, FindingStore
-from app.application.research.tools import build_research_tools
+from app.application.research.tools import _quote_matches, build_research_tools
 from app.domain.research import (
     EvidenceKind,
     EvidencePage,
@@ -152,6 +153,25 @@ async def test_record_finding_accepts_verbatim_and_whitespace_normalized_quotes(
     assert normalized.startswith("finding_")
     assert len(findings.accepted) == 2
     assert (tmp_path / "findings.jsonl").read_text().count("\n") == 2
+
+
+def test_long_whitespaced_quote_uses_bounded_fuzzy_matching():
+    source_quote = (
+        "Kreuzberg's quiet southern storefront cluster attracts returning neighborhood customers."
+    )
+    haystack = ("Berlin retail planning background and survey context. " * 560) + source_quote
+    assert len(haystack) >= 30_000
+    re_whitespaced_quote = (
+        "Kreuzberg's quiet southern storefront cluster attracts returning neighborhood\ncustomerz."
+    )
+    started = perf_counter()
+
+    assert _quote_matches(re_whitespaced_quote, haystack)
+    assert perf_counter() - started < 0.5
+    assert not _quote_matches(
+        "An entirely fabricated claim with no matching source sentence.",
+        haystack,
+    )
 
 
 async def test_scripted_agent_run_persists_outputs_and_validates_citation(tmp_path):

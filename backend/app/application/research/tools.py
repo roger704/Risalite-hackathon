@@ -32,10 +32,21 @@ def _quote_matches(quote: str, text: str) -> bool:
     if not needle or needle in haystack:
         return bool(needle)
     length = len(needle)
-    return any(
-        difflib.SequenceMatcher(None, needle, haystack[start : start + length]).ratio() >= 0.85
-        for start in range(max(0, len(haystack) - length + 1))
-    )
+    if len(haystack) < length:
+        return False
+    window_length = length + length // 4
+    step = max(1, length // 4)
+    last_start = max(0, len(haystack) - window_length)
+    for start in range(0, last_start + 1, step):
+        matcher = difflib.SequenceMatcher(None, needle, haystack[start : start + window_length])
+        if matcher.quick_ratio() >= 0.85 and matcher.ratio() >= 0.85:
+            return True
+    if last_start % step:
+        matcher = difflib.SequenceMatcher(
+            None, needle, haystack[last_start : last_start + window_length]
+        )
+        return matcher.quick_ratio() >= 0.85 and matcher.ratio() >= 0.85
+    return False
 
 
 def build_research_tools(
