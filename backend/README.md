@@ -2,6 +2,7 @@
 
 The first implementation downloads, validates, stores, and serves Berlin LOR boundaries, official LOR names, and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, and OpenStreetMap points of interest. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
+The first implementation downloads, validates, stores, and serves Berlin LOR boundaries and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
 ## Setup
 
@@ -23,17 +24,15 @@ Reviewed source URLs, parser mappings, licenses, size limits, and editions live 
 
 ## Import the official data
 
-Import boundaries first, then official names and population:
+Import boundaries first, then population:
 
 ```sh
 uv run location-data ingest berlin_lor
-LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
-uv run location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
 uv run location-data ingest berlin_population
 uv run location-data datasets
 ```
 
-Each successful import prints a JSON manifest containing its `snapshot_id`. Names and population ingestion pin the active published LOR snapshot by default and require complete matching hierarchy, boundary-scheme, and area-code coverage. Use `--lor-snapshot` to pin the exact boundary snapshot used for either import:
+Each successful import prints a JSON manifest containing its `snapshot_id`. Population ingestion pins the active published LOR snapshot by default and requires complete matching hierarchy, boundary-scheme, and area-code coverage. To select an existing boundary snapshot explicitly, replace the example identifier with the `snapshot_id` returned by the LOR import:
 
 ```sh
 LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
@@ -44,7 +43,6 @@ Previously downloaded LOR and population files can be imported without contactin
 
 ```sh
 uv run location-data ingest berlin_lor --file /absolute/path/to/lor-source.7z
-uv run location-data ingest berlin_lor_names --file /absolute/path/to/combined-wfs-feature-collection.json --lor-snapshot "$LOR_SNAPSHOT_ID"
 uv run location-data ingest berlin_population --file /absolute/path/to/SB_A01-16-00_2026h01_BE.xlsx
 ```
 
@@ -63,6 +61,7 @@ uv run location-data ingest osm_pois_overpass
 ```
 
 The raw file is copied into the local store. Imports preserve SHA-256 hashes, source URLs, retrieval times, parser configuration hashes, quality reports, attribution, and parent snapshot IDs. Reimporting the same data with the same configuration and dependencies reuses its cached snapshot. Failed validation leaves the previously active snapshot available; diagnostic files remain in staging.
+The raw file is copied into the local store. Imports preserve SHA-256 hashes, source URLs, retrieval times, parser configuration hashes, quality reports, attribution, and parent snapshot IDs. Reimporting the same data with the same configuration and dependencies reuses its cached snapshot. Failed validation leaves the previously active snapshot available; diagnostic files remain in staging.
 
 LOR geometry is stored as WGS84 GeoParquet and population records as Parquet. SQLite tracks immutable manifests, active snapshots, and ingestion jobs. Ingestion uses local filesystem locks and targets one backend instance on macOS/Linux; this is not a distributed ingestion service.
 
@@ -76,13 +75,7 @@ uv run location-data manifest berlin_population "$POPULATION_SNAPSHOT_ID"
 uv run location-data records berlin_population --snapshot "$POPULATION_SNAPSHOT_ID" --area-code 01100101 --metric-code population_total --limit 10
 ```
 
-Every records query requires an explicit snapshot. Supported filters are `area_code` and, for population, `metric_code`. Page limits are 1–1,000. Pass the returned `next_cursor` with `--cursor` to continue the same snapshot and filters. LOR codes are strings: preserve leading zeroes. Query an official name and its source attributes with:
-
-```sh
-uv run location-data records berlin_lor_names --snapshot "$NAMES_SNAPSHOT_ID" --area-code 01100101
-```
-
-For Python callers, `app.application.area_names.area_names(service, snapshot_id)` returns a pinned lookup of area codes to names and string attributes.
+Every records query requires an explicit snapshot. Supported filters are `area_code` and, for population, `metric_code`. Page limits are 1–1,000. Pass the returned `next_cursor` with `--cursor` to continue the same snapshot and filters. LOR codes are strings: preserve leading zeroes.
 
 The API serves existing local snapshots and performs no hidden provider downloads:
 
@@ -228,19 +221,36 @@ Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `
 
 Register an adapter name in `app/connectors/registry.py`; modules load lazily, so a planned adapter that has no module yet fails with `Adapter is not implemented`. A dataset that must be pinned to another snapshot sets `parser_options.parent_dataset`, and its connector implements `check_parent(config, records, parent_records) -> dict`. The returned dict is merged into the manifest coverage. Use `--lor-snapshot` to pin an explicit parent.
 
-`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type`, `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Once a record type has a normalizer, datasets such as Berlin Kitas or schools can reuse the WFS paging and CRS checks through configuration rather than a source-specific fetcher.
+## Official LOR names (`berlin_lor_names`, `berlin_wfs`)
 
-The WFS provider includes a changing `timeStamp` in each response, so a fresh provider download changes its raw hashes and does not hit the snapshot cache. Reimporting the same local files does reuse the cache.
+`berlin_lor_names` emits 542 `Area` records (hierarchy `planungsraum`, boundary edition `2021`) with `name = plr_name`. The `bzr_id/bzr_name/pgr_id/pgr_name/bez/stadtraum_id/stadtraum_name/stand` values go in `Area.attributes`. `berlin_lor` remains the canonical geometry. Scoring and the UI should take names from this dataset. The import is pinned to a `berlin_lor` snapshot and needs an identical PLR code set:
+
+```sh
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run location-data ingest berlin_lor_names --file /absolute/path/to/combined-wfs-feature-collection.json --lor-snapshot "$LOR_SNAPSHOT_ID"
+NAMES_SNAPSHOT_ID='replace-with-names-snapshot_id'
+uv run location-data records berlin_lor_names --snapshot "$NAMES_SNAPSHOT_ID" --area-code 01100101
+```
+
+Python callers can use `app.application.area_names.area_names(service, snapshot_id)`, which returns a pinned `{area_code: {"name": ..., **attributes}}` lookup.
+
+In a provider download, each WFS page is stored as a separate raw asset, copied in response order to `raw/<dataset>/<snapshot>/<index>-page-NNNN.json` with its own SHA-256 hash. `--file` accepts one combined FeatureCollection. Geometry differences from the parent snapshot are measured in EPSG:25833 and reported in the manifest coverage as `geometry_comparison`; they never cause a failure.
+
+The provider includes a changing `timeStamp` in every response, so a fresh provider download changes the raw hashes and does not hit the snapshot cache. This is deliberate: raw bytes and their hashes are stored exactly as received. Reimporting the same local files does reuse the cache.
+
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type` (currently `area` only), `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Once a record type has a normalizer, other gdi.berlin layers such as Kitas or schools need only configuration.
+
+Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
 
 ## Development checks
 
 ```sh
 uv run pytest
-uv run pytest -m live tests/live/test_berlin_wfs_live.py -k berlin_wfs
 uv run ruff check app tests
 uv run ruff format --check app tests
 ```
 
-Pytest's default options exclude tests marked `live`; an explicit `-m live` opts in to public-provider tests. GitHub Actions runs the offline checks with `uv sync --locked`.
+GitHub Actions runs the same checks offline with `uv sync --locked`; tests marked `live` are excluded.
 
 The normal suite runs offline with synthetic fixtures and mocked acquisition. It exercises the implemented connectors, contracts, ingestion failures and snapshot compatibility, API queries, and CLI behavior. It does not require downloading all provider data on each test run. Full official datasets and generated local snapshots are excluded from Git.
