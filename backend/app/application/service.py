@@ -404,9 +404,15 @@ class DataService:
             isinstance(layer, dict) and layer.get("indicators") for layer in layers
         ):
             raise NotFoundError("Dataset has no legend", "NOT_FOUND")
+        config_hash = _hash(asdict(config))
         try:
-            latest_snapshot_id = self.catalog.get(dataset_id).snapshot_id
+            active_manifest = self.catalog.get(dataset_id)
+            active_snapshot_id = active_manifest.snapshot_id
+            snapshot_config_matches = active_manifest.parser_config_hash == config_hash
+            latest_snapshot_id = active_snapshot_id if snapshot_config_matches else None
         except NotFoundError:
+            active_snapshot_id = None
+            snapshot_config_matches = None
             latest_snapshot_id = None
         indicators = []
         for layer in layers:
@@ -451,6 +457,8 @@ class DataService:
             "reference_period": config.reference_period,
             "limitations": config.parser_options.get("limitations", []),
             "latest_snapshot_id": latest_snapshot_id,
+            "active_snapshot_id": active_snapshot_id,
+            "snapshot_config_matches": snapshot_config_matches,
             "indicators": indicators,
         }
 

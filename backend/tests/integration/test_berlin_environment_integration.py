@@ -96,12 +96,16 @@ def service_setup(tmp_path, parent_codes=("01100101", "03400831", "06200418")):
             "berlin_environment": BerlinEnvironmentConnector(HTTPFetcher(client)),
         },
     )
-    return service, parent_path, client, state
+    return service, parent_path, client, state, config_dir
 
 
 @pytest.mark.asyncio
 async def test_ingests_mixed_records_checks_parent_and_serves_legend(tmp_path):
-    service, parent_path, client, state = service_setup(tmp_path)
+    service, parent_path, client, state, config_dir = service_setup(tmp_path)
+    empty_legend = service.legend("berlin_environment")
+    assert empty_legend["latest_snapshot_id"] is None
+    assert empty_legend["active_snapshot_id"] is None
+    assert empty_legend["snapshot_config_matches"] is None
     async with client:
         parent = await service.ingest("berlin_lor", local_file=parent_path)
         environment = await service.ingest(
@@ -128,10 +132,30 @@ async def test_ingests_mixed_records_checks_parent_and_serves_legend(tmp_path):
             assert response.status_code == 200
             legend = response.json()
             assert legend["latest_snapshot_id"] == environment.snapshot_id
+            assert legend["active_snapshot_id"] == environment.snapshot_id
+            assert legend["snapshot_config_matches"] is True
             assert len(legend["indicators"]) == 9
             assert legend["indicators"][0]["indicator_code"] == "noise_burden"
             assert legend["indicators"][0]["missing"]["null"]["color"] == "#C0C0C0"
             assert api.get("/api/v1/datasets/berlin_lor/legend").status_code == 404
+
+        config_path = config_dir / "berlin_environment.json"
+        changed_config = json.loads(config_path.read_text())
+        noise_indicator = next(
+            indicator
+            for layer in changed_config["parser_options"]["layers"]
+            for indicator in layer.get("indicators", [])
+            if indicator["indicator_code"] == "noise_burden"
+        )
+        noise_indicator["classes"][0]["color"] = "#FFFFFF"
+        config_path.write_text(json.dumps(changed_config))
+        changed_service = DataService(service.root, config_dir)
+        with TestClient(create_app(service=changed_service)) as api:
+            changed_legend = api.get("/api/v1/datasets/berlin_environment/legend").json()
+            assert changed_legend["latest_snapshot_id"] is None
+            assert changed_legend["active_snapshot_id"] == environment.snapshot_id
+            assert changed_legend["snapshot_config_matches"] is False
+            assert changed_legend["indicators"][0]["classes"][0]["color"] == "#FFFFFF"
 
         state["fail"] = True
         with pytest.raises(SchemaError, match="OGC ExceptionReport"):
@@ -147,7 +171,7 @@ async def test_ingests_mixed_records_checks_parent_and_serves_legend(tmp_path):
 
 @pytest.mark.asyncio
 async def test_parent_code_mismatch_rejects_environment_snapshot(tmp_path):
-    service, parent_path, client, _ = service_setup(
+    service, parent_path, client, _, _ = service_setup(
         tmp_path,
         parent_codes=("01100101", "03400831", "09999999"),
     )

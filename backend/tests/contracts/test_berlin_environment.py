@@ -311,6 +311,20 @@ def test_normalizer_rejects_unknown_class_and_missing_or_unknown_layer_asset(tmp
         )
 
 
+def test_normalizer_rejects_string_null_as_class_label(tmp_path):
+    config = configuration(page_size=3, max_pages=2, expected_count=3)
+    paths = edit_layer(
+        tmp_path,
+        "z_gesamt_umwelt2023",
+        lambda data: data["features"][0]["properties"].update(wol_l_l="null"),
+    )
+    with pytest.raises(
+        SchemaError,
+        match="Unknown class label z_gesamt_umwelt2023.wol_l_l='null'",
+    ):
+        BerlinEnvironmentConnector().normalize(raw_bundle(config, paths), config)
+
+
 def test_normalizer_rejects_single_local_file_without_layer_typename():
     config = configuration(page_size=3, max_pages=2, expected_count=3)
     fixture = FIXTURES / "a_laerm2023.json"

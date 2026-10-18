@@ -323,9 +323,18 @@ class BerlinEnvironmentConnector(FileConnector):
                 if field_name not in properties:
                     raise SchemaError(f"{source_layer} missing indicator field {field_name}")
                 source_value = properties[field_name]
-                marker = "null" if source_value is None else source_value
-                class_value = classes.get(source_value) if isinstance(source_value, str) else None
-                missing = missing_markers.get(marker) if isinstance(marker, str) else None
+                if source_value is None:
+                    class_value = None
+                    missing = missing_markers.get("null")
+                elif isinstance(source_value, str):
+                    class_value = classes.get(source_value)
+                    missing = missing_markers.get(source_value) if source_value != "null" else None
+                else:
+                    class_value = None
+                    try:
+                        missing = missing_markers.get(source_value)
+                    except TypeError:
+                        missing = None
                 if class_value is None and missing is None:
                     raise SchemaError(
                         f"Unknown class label {source_layer}.{field_name}={source_value!r}"

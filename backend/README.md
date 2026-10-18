@@ -154,7 +154,7 @@ The config-driven legend and indicator details are available without contacting 
 curl --fail http://127.0.0.1:8000/api/v1/datasets/berlin_environment/legend
 ```
 
-The response includes the configured class colors, missing markers, method/data-basis citations, limitations and latest local snapshot ID.
+The response includes the configured class colors, missing markers, method/data-basis citations, limitations, active snapshot ID and whether its config matches. `latest_snapshot_id` is null when no snapshot is active or the active snapshot was normalized with a different config.
 
 The live contract check is bounded to one feature request per layer and is opt-in:
 
