@@ -1157,6 +1157,110 @@ RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
 NormalizedRecord = NormalizedRecord | RoadTrafficSegment
 
 
+POPULATION_BLOCK_AGE_BANDS = (
+    "0-6",
+    "6-10",
+    "10-18",
+    "18-65",
+    "65-70",
+    "70-75",
+    "75-80",
+    "80+",
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PopulationBlock(Record):
+    """Umweltatlas ISU5 block (or block part) with registered residents as published."""
+
+    geometry: dict[str, Any]
+    block_id: str
+    area_ha: float
+    residents: int | None
+    residents_status: ValueStatus | str
+    density_per_ha: float | None
+    reference_period: str
+    residents_by_age: dict[str, int | None] = field(default_factory=dict)
+    land_use_type: str | None = None
+    land_use_type_en: str | None = None
+    area_code: str | None = None
+    hierarchy: str | None = None
+    boundary_edition: str | None = None
+    area_overlap_share: float | None = None
+    record_type: str = field(default="population_block", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("block_id", self.block_id)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"Polygon", "MultiPolygon"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Population block geometry must be a polygon with coordinates")
+        if (
+            isinstance(self.area_ha, bool)
+            or not isinstance(self.area_ha, (int, float))
+            or not isfinite(self.area_ha)
+            or self.area_ha <= 0
+        ):
+            raise ValidationError("area_ha must be a finite positive number")
+        try:
+            status = ValueStatus(self.residents_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported residents_status: {self.residents_status}") from exc
+        if status not in {ValueStatus.OBSERVED, ValueStatus.SUPPRESSED}:
+            raise ValidationError("residents_status must be observed or suppressed")
+        object.__setattr__(self, "residents_status", status)
+        if status is ValueStatus.OBSERVED:
+            if type(self.residents) is not int or self.residents < 0:
+                raise ValidationError("Observed residents must be a nonnegative integer")
+            if (
+                isinstance(self.density_per_ha, bool)
+                or not isinstance(self.density_per_ha, (int, float))
+                or not isfinite(self.density_per_ha)
+                or self.density_per_ha < 0
+            ):
+                raise ValidationError("Observed density_per_ha must be finite and nonnegative")
+        elif (
+            self.residents is not None
+            or self.density_per_ha is not None
+            or bool(self.residents_by_age)
+        ):
+            raise ValidationError("Suppressed population values and age bands must be missing")
+        if not isinstance(self.residents_by_age, dict):
+            raise ValidationError("residents_by_age must be an object")
+        if any(key not in POPULATION_BLOCK_AGE_BANDS for key in self.residents_by_age):
+            raise ValidationError("residents_by_age contains an unsupported age band")
+        if self.residents_by_age and set(self.residents_by_age) != set(POPULATION_BLOCK_AGE_BANDS):
+            raise ValidationError("residents_by_age must be empty or contain every age band")
+        if any(
+            value is not None and (type(value) is not int or value < 0)
+            for value in self.residents_by_age.values()
+        ):
+            raise ValidationError("Age-band residents must be nonnegative integers or missing")
+        _period(self.reference_period)
+        for name in ("land_use_type", "land_use_type_en"):
+            _optional_text(name, getattr(self, name))
+        parent_values = (self.area_code, self.hierarchy, self.boundary_edition)
+        if any(value is not None for value in (*parent_values, self.area_overlap_share)):
+            if any(value is None for value in (*parent_values, self.area_overlap_share)):
+                raise ValidationError("Parent assignment fields must be all set or all missing")
+            _area_keys(*parent_values)
+            share = self.area_overlap_share
+            if (
+                isinstance(share, bool)
+                or not isinstance(share, (int, float))
+                or not isfinite(share)
+                or not 0 < share <= 1
+            ):
+                raise ValidationError("area_overlap_share must be finite and in (0, 1]")
+
+
+RECORD_TYPES["population_block"] = PopulationBlock
+NormalizedRecord = NormalizedRecord | PopulationBlock
+
+
 @dataclass(frozen=True, kw_only=True)
 class Parcel(Record):
     geometry: dict[str, Any]
