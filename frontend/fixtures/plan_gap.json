@@ -1,0 +1,127 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t3",
+  "status": "awaiting_approval",
+  "question": "Where are Kitas missing in Neukölln?",
+  "classification": {
+    "shape": "gap",
+    "why": "The question asks where childcare is missing → compute a PLR supply-vs-demand gap score.",
+    "area": "Neukölln"
+  },
+  "plan": {
+    "area": {
+      "area_id": "ortsteil:0801",
+      "level": "ortsteil",
+      "name": "Neukölln",
+      "plr_count": 21
+    },
+    "area_candidates": [
+      {
+        "area_id": "ortsteil:0801",
+        "level": "ortsteil",
+        "name": "Neukölln",
+        "bezirk": "Neukölln"
+      },
+      {
+        "area_id": "bezirk:08",
+        "level": "bezirk",
+        "name": "Neukölln",
+        "bezirk": "Neukölln"
+      }
+    ],
+    "area_cells": 21,
+    "sub_questions": [
+      {
+        "id": "s1",
+        "text": "How many children under 6 live in each PLR?",
+        "source_class": "official geodata",
+        "sources": "ua_einwohnerdichte_2025",
+        "layer_ids": [
+          "demand"
+        ]
+      },
+      {
+        "id": "s2",
+        "text": "How many approved Kita places exist per PLR?",
+        "source_class": "official geodata",
+        "sources": "kita",
+        "layer_ids": [
+          "supply"
+        ]
+      },
+      {
+        "id": "s3",
+        "text": "What does the Bezirk Kita plan say about deficits?",
+        "source_class": "web (Tavily)",
+        "sources": "berlin.de, *.berlin.de",
+        "layer_ids": []
+      },
+      {
+        "id": "s4",
+        "text": "Which closures or openings are announced after today?",
+        "source_class": "web (Tavily)",
+        "sources": "berlin.de, local press",
+        "layer_ids": []
+      },
+      {
+        "id": "s5",
+        "text": "Where is new housing planned?",
+        "source_class": "official geodata",
+        "sources": "step_wo_2040",
+        "layer_ids": []
+      }
+    ],
+    "layers": [
+      {
+        "id": "demand",
+        "label": "Children under 6",
+        "direction": "+",
+        "weight_default": 0.4,
+        "evidence_id": "e2",
+        "why": "Demand: every child under 6 is a potential place.",
+        "unit": "children"
+      },
+      {
+        "id": "supply",
+        "label": "Kita places per child",
+        "direction": "-",
+        "weight_default": 0.35,
+        "evidence_id": "e3",
+        "why": "Supply: fewer places per child → larger gap.",
+        "unit": "places per child"
+      },
+      {
+        "id": "transit",
+        "label": "Transit access",
+        "direction": "-",
+        "weight_default": 0.1,
+        "evidence_id": "e4",
+        "why": "Poor access makes existing places further out effectively unavailable.",
+        "unit": "share within 300 m"
+      },
+      {
+        "id": "status",
+        "label": "Low social status (MSS)",
+        "direction": "+",
+        "weight_default": 0.15,
+        "evidence_id": "e5",
+        "why": "Equity: Bezirk planning prioritises low-status areas.",
+        "unit": "status index"
+      }
+    ],
+    "hypotheses": [],
+    "paid_sources": [],
+    "evidence_titles": {
+      "e1": "Official PLR geometries (lor_2021)",
+      "e2": "Population by age group (ua_einwohnerdichte_2025)",
+      "e3": "Kita locations & approved places (kita)",
+      "e4": "Undisturbed public transport access (oepnv_ungestoert)",
+      "e5": "Social monitoring 2025 (mss_2025)",
+      "e6": "Kita-Entwicklungsplanung Bezirk Neukölln",
+      "e7": "Planned housing — StEP Wohnen 2040 (step_wo_2040)",
+      "e8": "Local news: Kita operator closes two sites",
+      "e9": "Rejected city-wide Kita coverage claim (mockup fact-checker)"
+    },
+    "synthetic": true
+  }
+}

@@ -19,12 +19,15 @@
 <main>
 
 <section id="s-ask">
+  <div class="hero">
+    <div class="mf" id="mf" aria-hidden="true" title="Ask → research → score → cited answer"><span class="mf-n mf-ask"><i></i><i></i><i></i></span><span class="mf-c"></span><span class="mf-n mf-hub"><b></b><u></u></span><span class="mf-c"></span><span class="mf-n mf-map"><i style="--c:#e0f2fe;transition-delay:0ms"></i><i style="--c:#a78bfa;transition-delay:60ms"></i><i style="--c:#7dd3fc;transition-delay:120ms"></i><i style="--c:#f472b6;transition-delay:180ms"></i><i style="--c:#fb923c;transition-delay:240ms"></i><i style="--c:#a78bfa;transition-delay:300ms"></i><i style="--c:#7dd3fc;transition-delay:360ms"></i><i style="--c:#e0f2fe;transition-delay:420ms"></i><i style="--c:#f472b6;transition-delay:480ms"></i></span><span class="mf-c"></span><span class="mf-n mf-doc">📄<b>✓</b></span></div>
+    <h1>What's up <span class="brand">SpotWise</span>?</h1>
+    <p class="mut">Ask a question → approve the plan → get a cited answer.</p>
+  </div>
   <div class="card">
-    <h1>Ask a question about a place in Berlin</h1>
-    <p class="mut" style="margin:0 0 12px">SpotWise classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web. Every claim is fact-checked and cited.</p>
     <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
     <div class="row" style="margin-top:10px">
-      <label class="mut">Role (optional)
+      <label class="mut role-label">Role (optional)
         <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
       </label>
       <label class="mut">Operator profile (point questions)
@@ -48,7 +51,25 @@
 
 <section id="s-plan" class="hidden">
   <div class="card">
-    <div class="mut small">Question</div><h1 id="p-q"></h1>
+    <div class="plan-question-row">
+      <div class="plan-question-copy">
+        <div class="mut small">Question</div><div id="p-q" class="plan-question"></div>
+        <div id="p-chips" class="plan-chips"></div>
+      </div>
+      <button class="btn ghost" id="plan-edit-open">✏️ Edit</button>
+    </div>
+    <div id="plan-edit" class="plan-edit hidden">
+      <label>Question<textarea id="plan-edit-q" rows="2"></textarea></label>
+      <div class="row">
+        <label class="mut">Role
+          <select id="plan-edit-role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
+        </label>
+        <label class="mut">Operator profile
+          <input type="text" id="plan-edit-op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
+        </label>
+      </div>
+      <div class="row plan-edit-actions"><button class="btn" id="plan-replan">↻ Re-plan</button><button class="btn ghost" id="plan-edit-cancel">Cancel</button></div>
+    </div>
     <div id="p-note" class="demo-note hidden"></div>
     <div class="grid2" style="margin-top:12px">
       <div><h3>Classification</h3><div id="p-class"></div></div>
@@ -96,8 +117,11 @@
           <span class="export-label">Export</span>
           <button class="btn ghost" data-export="report.md">Report (.md)</button>
           <button class="btn ghost" data-export="report.html">Report (HTML)</button>
+          <button class="btn ghost" id="print-report">Print / PDF</button>
           <button class="btn ghost" data-export="sources.csv">Sources (.csv)</button>
           <button class="btn ghost" data-export="sources.bib">Sources (.bib)</button>
+          <button class="btn ghost" id="copy-share">Copy share link</button>
+          <span id="share-status" class="small mut" role="status" aria-live="polite"></span>
         </div>
         <div id="export-err" class="err hidden" role="alert"></div>
       </div>
@@ -113,7 +137,15 @@
       </div>
       <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
         <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
+        <div id="layer-preview" class="layer-preview hidden"></div>
         <div id="layers"></div>
+        <details id="overlay-panel" class="overlay-panel" open><summary>3D map overlays</summary><div class="overlay-toggles">
+          <label><input type="checkbox" data-overlay="top" checked> Top-3 pins</label>
+          <label><input type="checkbox" data-overlay="future" checked> Future developments ★</label>
+          <label><input type="checkbox" data-overlay="risks" checked> Risks &amp; unknowns</label>
+          <label><input type="checkbox" data-overlay="poi" checked> OpenFreeMap POIs</label>
+          <label><input type="checkbox" data-overlay="transit"> U-/S-Bahn stations</label>
+        </div></details>
         <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add their bonus (+0.10). High-severity risks change rank, not score. Missing values use the layer mean, or zero if none are observed.</p>
       </div>
     </div>
