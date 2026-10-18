@@ -35,6 +35,11 @@ from app.connectors.berlin_wfs_population_blocks import (
 from app.connectors.berlin_wfs_population_blocks import (
     validate_options as validate_population_block_options,
 )
+from app.connectors.berlin_wfs_roads import (
+    normalize_road_segments,
+    validate_road_segment_options,
+    validate_road_segments,
+)
 from app.domain import (
     Area,
     ConfigError,
@@ -45,6 +50,7 @@ from app.domain import (
     PopulationBlock,
     QualityReport,
     RawBundle,
+    RoadTrafficSegment,
     SchemaError,
 )
 from app.infrastructure.http import HTTPFetcher
@@ -193,7 +199,6 @@ def _options(config: DatasetConfig) -> dict:
         "id_field",
         "field_map",
         "attribute_fields",
-        "hierarchy",
         "record_type",
     )
     for name in required:
@@ -242,34 +247,40 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
-    if options["record_type"] not in {"area", "population_block"}:
+    if options["record_type"] not in {"area", "road_traffic_segment", "population_block"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
-    field_map = options["field_map"]
     if options["record_type"] == "area":
+        field_map = options["field_map"]
         if not isinstance(field_map, dict) or any(
             not isinstance(field_map.get(key), str) or not field_map[key]
             for key in ("area_code", "name")
         ):
             raise SchemaError("WFS field_map must map area_code and name to properties")
+        attributes = options["attribute_fields"]
+        if not isinstance(attributes, list) or any(
+            not isinstance(value, str) for value in attributes
+        ):
+            raise SchemaError("WFS attribute_fields must be a list of property names")
+        if not isinstance(options.get("hierarchy"), str) or not options["hierarchy"].strip():
+            raise SchemaError("WFS hierarchy must be a nonempty string")
+        geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
+        if not isinstance(geometry_types, list) or any(
+            value not in {"Polygon", "MultiPolygon"} for value in geometry_types
+        ):
+            raise SchemaError("WFS geometry_types must list Polygon and/or MultiPolygon")
+    elif options["record_type"] == "road_traffic_segment":
+        validate_road_segment_options(options)
     else:
         validate_population_block_options(options)
-    attributes = options["attribute_fields"]
-    if not isinstance(attributes, list) or any(not isinstance(value, str) for value in attributes):
-        raise SchemaError("WFS attribute_fields must be a list of property names")
-    if not isinstance(options["hierarchy"], str) or not options["hierarchy"].strip():
-        raise SchemaError("WFS hierarchy must be a nonempty string")
-    geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
-    if not isinstance(geometry_types, list) or any(
-        value not in {"Polygon", "MultiPolygon"} for value in geometry_types
-    ):
-        raise SchemaError("WFS geometry_types must list Polygon and/or MultiPolygon")
+        if not isinstance(options.get("hierarchy"), str) or not options["hierarchy"].strip():
+            raise SchemaError("WFS hierarchy must be a nonempty string")
     return options
 
 
 class BerlinWFSConnector(FileConnector):
     """Reviewed WFS 2.0 GeoJSON paging and polygon normalization."""
 
-    adapter_version = "1.0.0"
+    adapter_version = "1.1.0"
 
     async def fetch(self, request: FetchRequest) -> RawBundle:
         config = request.config
@@ -397,6 +408,8 @@ class BerlinWFSConnector(FileConnector):
             raise SchemaError(f"WFS expected {expected} features, received {matched}")
         if count_range is not None and not count_range[0] <= matched <= count_range[1]:
             raise SchemaError(f"WFS expected feature count in {count_range}, received {matched}")
+        if options["record_type"] == "road_traffic_segment":
+            return normalize_road_segments(features, options, config, raw)
 
         if options["record_type"] == "population_block":
             return normalize_population_blocks(features, raw, config, options)
@@ -501,6 +514,10 @@ class BerlinWFSConnector(FileConnector):
     def validate(self, batch: NormalizedBatch) -> QualityReport:
         if batch.records and all(isinstance(record, PopulationBlock) for record in batch.records):
             return validate_population_blocks(batch)
+        if batch.records and all(
+            isinstance(record, RoadTrafficSegment) for record in batch.records
+        ):
+            return validate_road_segments(batch)
         errors = []
         if not batch.records:
             errors.append("WFS snapshot is empty")

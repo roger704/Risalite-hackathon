@@ -1,0 +1,663 @@
+{
+  "area": {
+    "area_code": "01011102",
+    "area_km2": {
+      "calculation": {
+        "id": "planar_area",
+        "method": "Polygon area in EPSG:25833",
+        "version": "area_summary_v1"
+      },
+      "reference_period": "2023-01-01",
+      "sources": [
+        {
+          "dataset_id": "berlin_lor",
+          "snapshot_id": "berlin_lor-synthetic-1"
+        }
+      ],
+      "status": "derived",
+      "unit": "km2",
+      "value": 0.7552
+    },
+    "boundary": null,
+    "boundary_edition": "2021",
+    "boundary_source": {
+      "dataset_id": "berlin_lor",
+      "snapshot_id": "berlin_lor-synthetic-1"
+    },
+    "hierarchy": "planungsraum",
+    "name": {
+      "calculation": null,
+      "reference_period": "2021-01-01",
+      "sources": [
+        {
+          "dataset_id": "berlin_lor_names",
+          "snapshot_id": "berlin_lor_names-synthetic-1"
+        }
+      ],
+      "status": "observed",
+      "unit": null,
+      "value": "Synthetic Beta"
+    },
+    "official_attributes": {
+      "bez": "01 - Synthetic District",
+      "bzr_name": "Synthetic Region"
+    }
+  },
+  "calculation_version": "area_summary_v1",
+  "competitors": {
+    "category": "coffee_shop",
+    "combination": "not_combined",
+    "note": "Source-specific counts; do not add them as unique businesses.",
+    "sources": [
+      {
+        "category_mapping_version": "osm_v1",
+        "count": {
+          "calculation": {
+            "id": "point_in_polygon_count",
+            "method": "Places whose representative point lies inside the area in EPSG:25833",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-10-17",
+          "sources": [
+            {
+              "dataset_id": "osm_pois",
+              "snapshot_id": "osm_pois-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "records",
+          "value": 1
+        },
+        "dataset_id": "osm_pois",
+        "inventory": "mapped_places",
+        "items": [
+          {
+            "coordinates": [
+              13.365,
+              52.505
+            ],
+            "name": "Synthetic Café Beta",
+            "record_id": "way/4"
+          }
+        ],
+        "items_truncated": false,
+        "record_ids": [
+          "way/4"
+        ],
+        "record_ids_truncated": false,
+        "status": "used"
+      },
+      {
+        "category_mapping_version": "ihk_v1",
+        "count": {
+          "calculation": {
+            "id": "supplied_area_code_count",
+            "method": "Businesses whose IHK-supplied planungsraum_id equals area_code",
+            "version": "area_summary_v1"
+          },
+          "note": "Zero means none in this extraction, not none in reality.",
+          "reference_period": "2026-10",
+          "sources": [
+            {
+              "dataset_id": "ihk_businesses",
+              "snapshot_id": "ihk_businesses-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "records",
+          "value": 0
+        },
+        "dataset_id": "ihk_businesses",
+        "inventory": "registered_businesses",
+        "record_ids": [],
+        "record_ids_truncated": false,
+        "status": "used"
+      }
+    ]
+  },
+  "geometry_crs": "EPSG:4326",
+  "limitations": [
+    "OSM places and IHK businesses are separate inventories; report their counts side by side and never add them.",
+    "An empty or zero count only describes the pinned extraction, not the real world.",
+    "Scheduled departures measure timetable supply, not passengers or footfall.",
+    "Straight-line distances are not walking times; no routed distance is computed.",
+    "IHK employee size classes are bounds of registered businesses, not headcounts or measured daytime population.",
+    "Registered residents are counted at their principal residence; they are not daytime population or customer demand.",
+    "This endpoint produces no ranking, score, footfall, rent, revenue, vacancy or confidence figure."
+  ],
+  "metric_crs": "EPSG:25833",
+  "not_integrated": [
+    "retail_centers",
+    "planning_context",
+    "households",
+    "population_forecast",
+    "routed_walking_access",
+    "measured_daytime_population"
+  ],
+  "not_provided": [
+    "ranking",
+    "score",
+    "footfall",
+    "rent",
+    "revenue",
+    "vacancy",
+    "confidence"
+  ],
+  "parameters": {
+    "area_code": "01011102",
+    "category": "coffee_shop"
+  },
+  "residents": {
+    "age_bands": [
+      {
+        "age_max_exclusive": 18,
+        "age_min": 0,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "suppressed",
+          "unit": "persons",
+          "value": null
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": null,
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "suppressed",
+          "unit": "ratio",
+          "value": null
+        }
+      },
+      {
+        "age_max_exclusive": 65,
+        "age_min": 18,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "observed",
+          "unit": "persons",
+          "value": 40
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": null,
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "suppressed",
+          "unit": "ratio",
+          "value": null
+        }
+      },
+      {
+        "age_max_exclusive": null,
+        "age_min": 65,
+        "count": {
+          "calculation": null,
+          "reference_period": "2026-06-30",
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "suppressed",
+          "unit": "persons",
+          "value": null
+        },
+        "share": {
+          "calculation": {
+            "id": "age_band_share",
+            "method": "age band count / population_total",
+            "version": "area_summary_v1"
+          },
+          "reference_period": null,
+          "sources": [
+            {
+              "dataset_id": "berlin_population",
+              "snapshot_id": "berlin_population-synthetic-1"
+            }
+          ],
+          "status": "suppressed",
+          "unit": "ratio",
+          "value": null
+        }
+      }
+    ],
+    "density": {
+      "calculation": {
+        "id": "residents_per_km2",
+        "method": "population_total / planar area in EPSG:25833",
+        "version": "area_summary_v1"
+      },
+      "reference_period": null,
+      "sources": [
+        {
+          "dataset_id": "berlin_population",
+          "snapshot_id": "berlin_population-synthetic-1"
+        },
+        {
+          "dataset_id": "berlin_lor",
+          "snapshot_id": "berlin_lor-synthetic-1"
+        }
+      ],
+      "status": "suppressed",
+      "unit": "persons/km2",
+      "value": null
+    },
+    "measures": "registered residents (principal residence)",
+    "reference_date": "2026-06-30",
+    "status": "partial",
+    "total": {
+      "calculation": null,
+      "reference_period": "2026-06-30",
+      "sources": [
+        {
+          "dataset_id": "berlin_population",
+          "snapshot_id": "berlin_population-synthetic-1"
+        }
+      ],
+      "status": "suppressed",
+      "unit": "persons",
+      "value": null
+    }
+  },
+  "schema_version": "1.0",
+  "snapshots": [
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Amt für Statistik Berlin-Brandenburg; LOR Vektordaten, CC BY 3.0; transformed to EPSG:4326.",
+      "boundary_edition": "2021",
+      "dataset_id": "berlin_lor",
+      "landing_url": "https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/",
+      "license_id": "CC-BY-3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "parent_snapshot_ids": [],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": null,
+      "resource_url": "https://example.org/synthetic/berlin_lor",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "boundary",
+      "snapshot_id": "berlin_lor-synthetic-1",
+      "source_edition": "2023-01-01",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Amt für Statistik Berlin-Brandenburg; Lebensweltlich orientierte Räume (LOR) 01.01.2021, WFS lor_2021, CC BY 3.0 DE; transformed to EPSG:4326.",
+      "boundary_edition": "2021",
+      "dataset_id": "berlin_lor_names",
+      "landing_url": "https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848",
+      "license_id": "CC-BY-3.0-DE",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+      "parent_snapshot_ids": [
+        "berlin_lor-synthetic-1"
+      ],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": null,
+      "resource_url": "https://example.org/synthetic/berlin_lor_names",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "names",
+      "snapshot_id": "berlin_lor_names-synthetic-1",
+      "source_edition": "2021-01-01",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Amt für Statistik Berlin-Brandenburg, Einwohnerregisterstatistik Berlin, A I 16 – hj 1 / 26, 2026, CC BY 3.0 DE",
+      "boundary_edition": "2021",
+      "dataset_id": "berlin_population",
+      "landing_url": "https://www.statistik-berlin-brandenburg.de/a-i-16-hj/",
+      "license_id": "CC-BY-3.0-DE",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+      "parent_snapshot_ids": [
+        "berlin_lor-synthetic-1"
+      ],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": "2026-06-30",
+      "resource_url": "https://example.org/synthetic/berlin_population",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "population",
+      "snapshot_id": "berlin_population-synthetic-1",
+      "source_edition": "2026h01",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "© OpenStreetMap contributors, ODbL 1.0, https://www.openstreetmap.org/copyright; Berlin extract by Geofabrik GmbH.",
+      "boundary_edition": "not_applicable",
+      "dataset_id": "osm_pois",
+      "landing_url": "https://download.geofabrik.de/europe/germany/berlin.html",
+      "license_id": "ODbL-1.0",
+      "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "parent_snapshot_ids": [],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": null,
+      "resource_url": "https://example.org/synthetic/osm_pois",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "places",
+      "snapshot_id": "osm_pois-synthetic-1",
+      "source_edition": "2026-10-17",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "IHK Berlin, IHKBerlin_Gewerbedaten (October 2026 edition), CC0 1.0",
+      "boundary_edition": "2021",
+      "dataset_id": "ihk_businesses",
+      "landing_url": "https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten",
+      "license_id": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "parent_snapshot_ids": [
+        "berlin_lor-synthetic-1"
+      ],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": null,
+      "resource_url": "https://example.org/synthetic/ihk_businesses",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "businesses",
+      "snapshot_id": "ihk_businesses-synthetic-1",
+      "source_edition": "2026-10",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "adapter_version": "synthetic",
+      "attribution": "Verkehrsverbund Berlin-Brandenburg GmbH (VBB), GTFS-Fahrplandaten, CC BY 4.0",
+      "boundary_edition": "not_applicable",
+      "dataset_id": "vbb_gtfs",
+      "landing_url": "https://unternehmen.vbb.de/digitale-services/datensaetze/",
+      "license_id": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "parent_snapshot_ids": [],
+      "pinned_by": "active_snapshot",
+      "quality_warnings": [
+        "SYNTHETIC FIXTURE: not real data."
+      ],
+      "reference_period": "2026-10-15/2026-12-12",
+      "resource_url": "https://example.org/synthetic/vbb_gtfs",
+      "retrieved_at": "2026-10-18T12:00:00Z",
+      "role": "transit",
+      "snapshot_id": "vbb_gtfs-synthetic-1",
+      "source_edition": "20261015-20261212",
+      "status": "used",
+      "valid_from": null,
+      "valid_to": null
+    }
+  ],
+  "summary_type": "area_summary",
+  "transit": {
+    "dataset_id": "vbb_gtfs",
+    "measures": "scheduled timetable departures, not passengers or footfall",
+    "nearest_station": {
+      "coordinates": [
+        13.366,
+        52.505
+      ],
+      "distance": {
+        "calculation": {
+          "id": "straight_line_distance",
+          "method": "Euclidean distance in EPSG:25833 from the area's representative point to the nearest station with scheduled-service records",
+          "version": "area_summary_v1"
+        },
+        "reference_period": "2026-10-15/2026-12-12",
+        "sources": [
+          {
+            "dataset_id": "vbb_gtfs",
+            "snapshot_id": "vbb_gtfs-synthetic-1"
+          }
+        ],
+        "status": "derived",
+        "unit": "m",
+        "value": 67.9
+      },
+      "distance_type": "straight_line",
+      "from": {
+        "coordinates": [
+          13.365,
+          52.505
+        ],
+        "type": "area_representative_point"
+      },
+      "name": "Synthetic Stop Beta",
+      "stop_id": "S2"
+    },
+    "routed_distance": {
+      "calculation": null,
+      "note": "No routing source is integrated; straight-line distance is not walking time.",
+      "reference_period": null,
+      "sources": [],
+      "status": "not_available",
+      "unit": "m",
+      "value": null
+    },
+    "stations": [
+      {
+        "coordinates": [
+          13.366,
+          52.505
+        ],
+        "departures": [
+          {
+            "departures": 0,
+            "quality_flags": [],
+            "route_types": [],
+            "service_date": "2026-11-10",
+            "window_end": "10:00:00",
+            "window_start": "07:00:00"
+          },
+          {
+            "departures": 5,
+            "quality_flags": [
+              "frequency_headway_estimate"
+            ],
+            "route_types": [
+              3
+            ],
+            "service_date": "2026-11-10",
+            "window_end": "19:00:00",
+            "window_start": "16:00:00"
+          }
+        ],
+        "name": "Synthetic Stop Beta",
+        "stop_id": "S2"
+      }
+    ],
+    "stations_truncated": false,
+    "status": "used",
+    "stops_in_area": {
+      "0": {
+        "calculation": {
+          "id": "stops_point_in_polygon_count",
+          "method": "GTFS stops by location_type whose point lies inside the area in EPSG:25833",
+          "version": "area_summary_v1"
+        },
+        "reference_period": "2026-10-15/2026-12-12",
+        "sources": [
+          {
+            "dataset_id": "vbb_gtfs",
+            "snapshot_id": "vbb_gtfs-synthetic-1"
+          }
+        ],
+        "status": "derived",
+        "unit": "stops",
+        "value": 1
+      }
+    },
+    "windows": [
+      {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
+        "route_types": [],
+        "scheduled_departures": {
+          "calculation": {
+            "id": "station_departure_sum",
+            "method": "Sum of per-station departures; a trip serving several stations in the area is counted at each station",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-10-15/2026-12-12",
+          "sources": [
+            {
+              "dataset_id": "vbb_gtfs",
+              "snapshot_id": "vbb_gtfs-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "departures",
+          "value": 0
+        },
+        "service_date": "2026-11-10",
+        "stations_with_departures": {
+          "calculation": {
+            "id": "stations_with_departures",
+            "method": "StopService stations inside the area in EPSG:25833 with ≥1 departure",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-10-15/2026-12-12",
+          "sources": [
+            {
+              "dataset_id": "vbb_gtfs",
+              "snapshot_id": "vbb_gtfs-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "stations",
+          "value": 0
+        },
+        "timezone": "Europe/Berlin",
+        "window_end": "10:00:00",
+        "window_start": "07:00:00"
+      },
+      {
+        "estimated_station_windows": 1,
+        "includes_frequency_estimates": true,
+        "route_types": [
+          3
+        ],
+        "scheduled_departures": {
+          "calculation": {
+            "id": "station_departure_sum",
+            "method": "Sum of per-station departures; a trip serving several stations in the area is counted at each station",
+            "version": "area_summary_v1"
+          },
+          "note": "Includes departures estimated from GTFS frequencies.txt headways.",
+          "reference_period": "2026-10-15/2026-12-12",
+          "sources": [
+            {
+              "dataset_id": "vbb_gtfs",
+              "snapshot_id": "vbb_gtfs-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "departures",
+          "value": 5
+        },
+        "service_date": "2026-11-10",
+        "stations_with_departures": {
+          "calculation": {
+            "id": "stations_with_departures",
+            "method": "StopService stations inside the area in EPSG:25833 with ≥1 departure",
+            "version": "area_summary_v1"
+          },
+          "reference_period": "2026-10-15/2026-12-12",
+          "sources": [
+            {
+              "dataset_id": "vbb_gtfs",
+              "snapshot_id": "vbb_gtfs-synthetic-1"
+            }
+          ],
+          "status": "derived",
+          "unit": "stations",
+          "value": 1
+        },
+        "timezone": "Europe/Berlin",
+        "window_end": "19:00:00",
+        "window_start": "16:00:00"
+      }
+    ]
+  },
+  "warnings": [],
+  "workplaces": {
+    "dataset_id": "ihk_businesses",
+    "employee_size_classes": [],
+    "measured_daytime_population": {
+      "calculation": null,
+      "note": "No measured daytime-population source is integrated.",
+      "reference_period": null,
+      "sources": [],
+      "status": "not_available",
+      "unit": "persons",
+      "value": null
+    },
+    "registered_businesses": {
+      "calculation": {
+        "id": "supplied_area_code_count",
+        "method": "IHK registrations whose supplied planungsraum_id equals area_code",
+        "version": "area_summary_v1"
+      },
+      "reference_period": "2026-10",
+      "sources": [
+        {
+          "dataset_id": "ihk_businesses",
+          "snapshot_id": "ihk_businesses-synthetic-1"
+        }
+      ],
+      "status": "derived",
+      "unit": "businesses",
+      "value": 0
+    },
+    "status": "used"
+  }
+}

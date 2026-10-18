@@ -442,7 +442,70 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
-NormalizedRecord: TypeAlias = Area | AreaObservation | Place | Business | TransitStop | StopService
+@dataclass(frozen=True, kw_only=True)
+class GridObservation(Record):
+    geometry: dict[str, Any]
+    grid_id: str
+    grid_crs: str
+    resolution_m: int
+    metric_code: str
+    value: float | int | None
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    area_code: str | None = None
+    record_type: str = field(default="grid_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") != "Polygon":
+            raise ValidationError("Grid geometry must be a GeoJSON Polygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("Grid geometry must have coordinates")
+        for ring in coordinates:
+            if not isinstance(ring, (list, tuple)) or not ring:
+                raise ValidationError("Grid geometry must have polygon coordinate rings")
+            for position in ring:
+                if (
+                    not isinstance(position, (list, tuple))
+                    or len(position) != 2
+                    or any(
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not isfinite(value)
+                        for value in position
+                    )
+                ):
+                    raise ValidationError("Grid coordinates must be finite WGS84 positions")
+                longitude, latitude = position
+                if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+                    raise ValidationError("Grid coordinates must be WGS84 longitude/latitude")
+        for name in ("grid_id", "grid_crs", "metric_code", "unit"):
+            _text(name, getattr(self, name))
+        if type(self.resolution_m) is not int or self.resolution_m <= 0:
+            raise ValidationError("resolution_m must be a positive integer")
+        _period(self.reference_period)
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status in {ValueStatus.MISSING, ValueStatus.SUPPRESSED, ValueStatus.NOT_APPLICABLE}:
+            if self.value is not None:
+                raise ValidationError("Missing, suppressed and not-applicable values must be null")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+        ):
+            raise ValidationError("Observed, estimated and forecast values must be finite numbers")
+        _optional_text("area_code", self.area_code)
+
+
+NormalizedRecord: TypeAlias = (
+    Area | AreaObservation | Place | Business | TransitStop | StopService | GridObservation
+)
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
@@ -450,6 +513,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "grid_observation": GridObservation,
 }
 
 
@@ -581,6 +645,54 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
 
 
+@dataclass(frozen=True, kw_only=True)
+class RoadTrafficSegment(Record):
+    """Road segment with average daily motor-vehicle traffic (vehicles/day); WGS84 line geometry."""
+
+    geometry: dict[str, Any]
+    reference_period: str
+    dtv_motor_vehicles_per_day: int | None = None
+    vehicle_class_volumes_per_day: dict[str, int] = field(default_factory=dict)
+    name: str | None = None
+    source_length_m: int | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="road_traffic_segment", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _period(self.reference_period)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"LineString", "MultiLineString"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Road traffic geometry must have LineString coordinates")
+        _optional_count("dtv_motor_vehicles_per_day", self.dtv_motor_vehicles_per_day)
+        _optional_count("source_length_m", self.source_length_m)
+        for name in ("name", "area_code"):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.vehicle_class_volumes_per_day, dict) or any(
+            not isinstance(key, str)
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            for key, value in self.vehicle_class_volumes_per_day.items()
+        ):
+            raise ValidationError(
+                "vehicle_class_volumes_per_day must map strings to nonnegative integers"
+            )
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
+NormalizedRecord = NormalizedRecord | RoadTrafficSegment
+
+
 POPULATION_BLOCK_AGE_BANDS = (
     "0-6",
     "6-10",
@@ -682,3 +794,4 @@ class PopulationBlock(Record):
 
 
 RECORD_TYPES["population_block"] = PopulationBlock
+NormalizedRecord = NormalizedRecord | PopulationBlock
