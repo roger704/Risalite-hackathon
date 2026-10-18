@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "DATA_UNAVAILABLE",
+    "dataset_id": null,
+    "message": "A usable berlin_lor boundary snapshot is required for area summaries",
+    "request_id": "<request-id>",
+    "retryable": true
+  }
+}

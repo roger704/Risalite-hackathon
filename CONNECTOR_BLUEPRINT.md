@@ -308,13 +308,14 @@ Confirm endpoint and account capabilities against the [Nebius API documentation]
 
 ## 7. API and Agent Tool Boundary
 
-Dataset listing, manifest, and record routes below are implemented under `/api/v1`, with OpenAPI available at `/docs` and `/openapi.json`. Analysis, evidence, and event routes remain proposed contracts.
+Dataset listing, manifest, record, and area-summary routes below are implemented under `/api/v1`, with OpenAPI available at `/docs` and `/openapi.json`. Analysis, evidence, and event routes remain proposed contracts.
 
 | Route | Behavior |
 |---|---|
 | `GET /api/v1/datasets` | List registered datasets, access-validation states, latest valid snapshots, freshness, coverage, and attribution |
 | `GET /api/v1/datasets/{dataset_id}/snapshots/{snapshot_id}` | Read an immutable manifest and quality summary |
 | `GET /api/v1/datasets/{dataset_id}/records` | Query a required `snapshot_id`, supported filters, `limit`, and opaque cursor |
+| `GET /api/v1/areas/{area_code}/summary` | One frontend-ready Planungsraum summary (schema `1.0`, calculation `area_summary_v1`) built from pinned LOR, name, population, OSM, IHK, and GTFS snapshots; see [Area Summary](#area-summary) |
 | `POST /api/v1/analyses` | Validate a use case and area; pin snapshots; create an analysis and return `202` with a status URL |
 | `GET /api/v1/analyses/{analysis_id}` | Return status, ranked results when available, input snapshots, warnings, and missing metrics |
 | `GET /api/v1/analyses/{analysis_id}/evidence` | Paginated source records, passages, and claim-support relationships |
@@ -357,6 +358,75 @@ The following example is synthetic contract data; IDs and counts are illustrativ
 ```
 
 An empty result only establishes that this extraction has no matching records in the requested scope. It does not establish that no real-world competitors exist.
+
+### Area Summary
+
+`GET /api/v1/areas/{area_code}/summary` returns one Planungsraum (eight-digit LOR code, leading zeroes preserved) so the frontend does not assemble raw provider records. It reads only published local snapshots and never downloads.
+
+Query parameters: `category` (canonical category, default `coffee_shop`), `include_geometry` (default `true`), and optional pins `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_id`, `osm_snapshot_id`, `ihk_snapshot_id`, `gtfs_snapshot_id`. Unpinned datasets use the active valid snapshot and are reported with `pinned_by: "active_snapshot"`; any other query parameter is `422 UNSUPPORTED_FILTER`. The same snapshot IDs and parameters always return the same body; to make a frontend view reproducible, copy every `snapshots[].snapshot_id` back into the pins.
+
+| Situation | Result |
+|---|---|
+| No usable `berlin_lor` snapshot (required boundary) | `503 DATA_UNAVAILABLE` |
+| Area code not in the boundary snapshot | `404 AREA_NOT_FOUND`; unknown pinned snapshot is `404 SNAPSHOT_NOT_FOUND` |
+| Explicitly pinned snapshot built on another LOR snapshot/boundary edition | `409 SNAPSHOT_INCOMPATIBLE` |
+| Explicitly pinned snapshot whose files are missing or quality is invalid | `503 DATA_UNAVAILABLE` |
+| Optional dataset not imported, unusable, or (active, unpinned) incompatible | `200`; its section and `snapshots[]` entry have `status` `missing`, `unavailable`, or `incompatible`, values are `null`, and a `warnings[]` entry explains why |
+
+Top-level keys: `schema_version`, `summary_type`, `calculation_version`, `metric_crs` (`EPSG:25833`), `geometry_crs` (`EPSG:4326`), `parameters`, `area`, `residents`, `competitors`, `workplaces`, `transit`, `snapshots`, `not_integrated`, `not_provided`, `limitations`, `warnings`.
+
+Every metric is a field envelope `{value, status, unit, sources[{dataset_id, snapshot_id}], reference_period, calculation}`. `status` is `observed` (copied from a record), `derived` (computed here; `calculation` then carries `id`, `version`, and `method`), `missing`, `suppressed`, `not_applicable`, or `not_available`. Missing and suppressed values are `null`, never `0`; a true zero is `0` with status `observed` or `derived`.
+
+- `area`: code, hierarchy, boundary edition, WGS84 `boundary`, `area_km2` (`planar_area`, EPSG:25833), official `name` and attributes from `berlin_lor_names` when available.
+- `residents`: registered residents `total`, age-band `count` and `share` (`age_band_share`; `not_applicable` when the total is `0`, `suppressed` when an input is suppressed), and `density` (`residents_per_km2`).
+- `competitors`: one entry per source for the requested category, never summed (`combination: "not_combined"`): OSM mapped places counted by point-in-polygon in EPSG:25833, IHK registered businesses counted by their IHK-supplied `planungsraum_id`, each with record IDs and the category mapping version recorded on that snapshot's records (not the currently installed config). A source whose mapping lacks the category is `not_applicable`.
+- `workplaces`: derived counts of IHK registered businesses and of businesses per employee size class (bounded labels `employees_min`/`employees_max`); `measured_daytime_population` is always `not_available`. Size classes are not headcounts.
+- `transit`: scheduled departures per configured GTFS window summed over stations inside the area (timetable supply, not passengers), stops by GTFS `location_type`, a per-window `includes_frequency_estimates` flag (plus per-station `quality_flags`) when departures were estimated from `frequencies.txt` headways, and `nearest_station` with `distance_type: "straight_line"` (EPSG:25833, from the area's representative point). `routed_distance` is `not_available`; straight-line distance is not walking time.
+- `snapshots`: role, status, pin origin, snapshot ID, source edition, reference period, retrieval time, landing/resource URLs, license, attribution, parent IDs, and quality warnings for each dataset consulted.
+- `not_integrated` lists later datasets (retail centers, planning, households, forecasts, routed walking access, measured daytime population) that will be added as optional sections when their connectors land; the endpoint does not wait for them. `not_provided` lists figures this endpoint deliberately never produces: ranking, score, footfall, rent, revenue, vacancy, confidence.
+
+Synthetic frontend fixtures (all snapshots carry a `SYNTHETIC FIXTURE` quality warning) live in `backend/tests/fixtures/area_summary/`: `complete`, `optional_missing`, `suppressed`, `zero`, `incompatible_default`, `incompatible_snapshot`, `missing_required`. Tests regenerate and diff them.
+
+Frontend example (abridged from `complete.json`):
+
+```ts
+const params = new URLSearchParams({ category: "coffee_shop", include_geometry: "true" });
+const res = await fetch(`/api/v1/areas/01011101/summary?${params}`);
+if (!res.ok) throw new Error((await res.json()).error.code); // 404/409/422/503
+const s = await res.json();
+const label = s.area.name.value ?? s.area.area_code;           // name may be missing
+const residents = s.residents.total?.value;                      // null = missing/suppressed, show "n/a"
+const osm = s.competitors.sources.find((c) => c.dataset_id === "osm_pois");
+const distanceType = s.transit.nearest_station?.distance_type; // "straight_line" — never label as walking time
+```
+
+```json
+{
+  "schema_version": "1.0",
+  "summary_type": "area_summary",
+  "calculation_version": "area_summary_v1",
+  "parameters": {"area_code": "01011101", "category": "coffee_shop"},
+  "area": {
+    "area_code": "01011101",
+    "name": {"value": "Synthetic Alpha", "status": "observed", "unit": null, "reference_period": "2021-01-01",
+             "sources": [{"dataset_id": "berlin_lor_names", "snapshot_id": "berlin_lor_names-synthetic-1"}], "calculation": null},
+    "area_km2": {"value": 0.7552, "status": "derived", "unit": "km2", "reference_period": "2023-01-01",
+                 "sources": [{"dataset_id": "berlin_lor", "snapshot_id": "berlin_lor-synthetic-1"}],
+                 "calculation": {"id": "planar_area", "version": "area_summary_v1", "method": "Polygon area in EPSG:25833"}}
+  },
+  "residents": {"status": "available", "reference_date": "2026-06-30",
+                "total": {"value": 100, "status": "observed", "unit": "persons", "...": "..."}},
+  "competitors": {"category": "coffee_shop", "combination": "not_combined", "sources": [
+    {"dataset_id": "osm_pois", "inventory": "mapped_places", "status": "used", "count": {"value": 2, "status": "derived", "unit": "records", "...": "..."}},
+    {"dataset_id": "ihk_businesses", "inventory": "registered_businesses", "status": "used", "count": {"value": 2, "status": "derived", "unit": "records", "...": "..."}}
+  ]},
+  "transit": {"nearest_station": {"stop_id": "S1", "distance_type": "straight_line",
+                                  "distance": {"value": 67.9, "unit": "m", "status": "derived", "...": "..."}},
+              "routed_distance": {"value": null, "status": "not_available", "unit": "m", "...": "..."}},
+  "not_provided": ["ranking", "score", "footfall", "rent", "revenue", "vacancy", "confidence"],
+  "warnings": []
+}
+```
 
 ### Errors and Events
 

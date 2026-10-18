@@ -1,0 +1,89 @@
+{
+  "dataset_id": "berlin_traffic_volumes_2019",
+  "provider": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas)",
+  "adapter": "berlin_wfs",
+  "landing_url": "https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/",
+  "resource_url": "https://gdi.berlin.de/services/wfs/ua_verkehrsmengen_2019?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ua_verkehrsmengen_2019:verkehrsmengen_2019&OUTPUTFORMAT=application/json&SORTBY=schluessel",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "redistribution_status": "allowed",
+  "attribution": "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin, Umweltatlas Berlin: Verkehrsmengen 2019 (DTV), WFS ua_verkehrsmengen_2019, Datenlizenz Deutschland – Zero – 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2019",
+  "reference_period": "2019",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 60,
+  "parser_options": {
+    "typename": "ua_verkehrsmengen_2019:verkehrsmengen_2019",
+    "page_size": 1000,
+    "max_pages": 20,
+    "max_total_bytes": 30000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "link_id",
+      "str_name",
+      "meter",
+      "herkunft",
+      "dtv",
+      "pkw",
+      "lkw",
+      "lieferwagen",
+      "krad",
+      "reisebusse",
+      "linienbusse",
+      "schluessel"
+    ],
+    "id_field": "schluessel",
+    "id_pattern": "^(?:\\d{8}|T\\d{7})_(?:\\d{8}|T\\d{7})$",
+    "expected_count_range": [
+      9000,
+      12000
+    ],
+    "record_type": "road_traffic_segment",
+    "field_map": {
+      "name": "str_name",
+      "length_m": "meter",
+      "motor_vehicles_per_day": "dtv"
+    },
+    "volume_fields": {
+      "pkw": "cars",
+      "lkw": "trucks_over_3_5t_excl_buses",
+      "lieferwagen": "vans_up_to_3_5t",
+      "krad": "motorcycles",
+      "reisebusse": "coaches",
+      "linienbusse": "scheduled_buses"
+    },
+    "attribute_fields": [
+      "link_id",
+      "herkunft"
+    ],
+    "geometry_types": [
+      "LineString",
+      "MultiLineString"
+    ],
+    "limitations": [
+      "Measures motor-vehicle traffic only: average daily traffic (DTV, Kfz) in vehicles/day, plus per-class DTV. It does NOT measure pedestrians, cyclists, footfall or customer potential.",
+      "Reference year 2019 (pre-pandemic). Values are compiled from the Verkehrsmengenkarte 2019, VISUM traffic-model outputs and counts dated 2017–2019 (field herkunft); they are not current or live traffic.",
+      "Covers the classified main road network (about 10.4k segments), not every residential street; a street without a segment has unknown traffic, not zero.",
+      "DTV is reported per segment as published; direction split is not provided. Straight-line distance to a segment is not walking time.",
+      "Source access, CRS, paging and field mapping checked 2026-10-18."
+    ]
+  }
+}

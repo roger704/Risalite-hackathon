@@ -443,78 +443,68 @@ class StopService(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
-class Parcel(Record):
+class GridObservation(Record):
     geometry: dict[str, Any]
-    parcel_id: str
-    cadastral_district_code: str
-    parcel_numerator: str
-    cadastral_district_name: str | None = None
-    cadastral_section: str | None = None
-    parcel_denominator: str | None = None
-    municipality_code: str | None = None
-    municipality_name: str | None = None
-    responsible_office: str | None = None
-    official_area_m2: float | None = None
-    official_area_source: str = "ALKIS afl (Amtliche Fläche), source-provided"
-    geometry_area_m2: float
-    geometry_area_method: str = "planar area of source geometry in EPSG:25833"
-    area_unit: str = "m2"
-    created_date: str | None = None
-    lifespan_start: str | None = None
-    record_type: str = field(default="parcel", init=False)
+    grid_id: str
+    grid_crs: str
+    resolution_m: int
+    metric_code: str
+    value: float | int | None
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    area_code: str | None = None
+    record_type: str = field(default="grid_observation", init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        for name in (
-            "parcel_id",
-            "cadastral_district_code",
-            "parcel_numerator",
-            "official_area_source",
-            "geometry_area_method",
-            "area_unit",
-        ):
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") != "Polygon":
+            raise ValidationError("Grid geometry must be a GeoJSON Polygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("Grid geometry must have coordinates")
+        for ring in coordinates:
+            if not isinstance(ring, (list, tuple)) or not ring:
+                raise ValidationError("Grid geometry must have polygon coordinate rings")
+            for position in ring:
+                if (
+                    not isinstance(position, (list, tuple))
+                    or len(position) != 2
+                    or any(
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not isfinite(value)
+                        for value in position
+                    )
+                ):
+                    raise ValidationError("Grid coordinates must be finite WGS84 positions")
+                longitude, latitude = position
+                if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+                    raise ValidationError("Grid coordinates must be WGS84 longitude/latitude")
+        for name in ("grid_id", "grid_crs", "metric_code", "unit"):
             _text(name, getattr(self, name))
-        for name in (
-            "cadastral_district_name",
-            "cadastral_section",
-            "parcel_denominator",
-            "municipality_code",
-            "municipality_name",
-            "responsible_office",
+        if type(self.resolution_m) is not int or self.resolution_m <= 0:
+            raise ValidationError("resolution_m must be a positive integer")
+        _period(self.reference_period)
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status in {ValueStatus.MISSING, ValueStatus.SUPPRESSED, ValueStatus.NOT_APPLICABLE}:
+            if self.value is not None:
+                raise ValidationError("Missing, suppressed and not-applicable values must be null")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
         ):
-            _optional_text(name, getattr(self, name))
-        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
-            "Polygon",
-            "MultiPolygon",
-        }:
-            raise ValidationError("Parcel geometry must preserve a Polygon or MultiPolygon")
-        if not self.geometry.get("coordinates"):
-            raise ValidationError("Parcel geometry must have coordinates")
-        if self.official_area_m2 is not None and (
-            isinstance(self.official_area_m2, bool)
-            or not isinstance(self.official_area_m2, (int, float))
-            or not isfinite(self.official_area_m2)
-            or self.official_area_m2 <= 0
-        ):
-            raise ValidationError("official_area_m2 must be a finite positive number or null")
-        if (
-            isinstance(self.geometry_area_m2, bool)
-            or not isinstance(self.geometry_area_m2, (int, float))
-            or not isfinite(self.geometry_area_m2)
-            or self.geometry_area_m2 < 0
-        ):
-            raise ValidationError("geometry_area_m2 must be a finite nonnegative number")
-        for name in ("created_date", "lifespan_start"):
-            value = getattr(self, name)
-            if value is not None:
-                try:
-                    date.fromisoformat(value)
-                except (TypeError, ValueError) as exc:
-                    raise ValidationError(f"{name} must be an ISO calendar date or null") from exc
+            raise ValidationError("Observed, estimated and forecast values must be finite numbers")
+        _optional_text("area_code", self.area_code)
 
 
 NormalizedRecord: TypeAlias = (
-    Area | AreaObservation | Place | Business | TransitStop | StopService | Parcel
+    Area | AreaObservation | Place | Business | TransitStop | StopService | GridObservation
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -523,7 +513,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
-    "parcel": Parcel,
+    "grid_observation": GridObservation,
 }
 
 
@@ -653,3 +643,126 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class RoadTrafficSegment(Record):
+    """Road segment with average daily motor-vehicle traffic (vehicles/day); WGS84 line geometry."""
+
+    geometry: dict[str, Any]
+    reference_period: str
+    dtv_motor_vehicles_per_day: int | None = None
+    vehicle_class_volumes_per_day: dict[str, int] = field(default_factory=dict)
+    name: str | None = None
+    source_length_m: int | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="road_traffic_segment", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _period(self.reference_period)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"LineString", "MultiLineString"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Road traffic geometry must have LineString coordinates")
+        _optional_count("dtv_motor_vehicles_per_day", self.dtv_motor_vehicles_per_day)
+        _optional_count("source_length_m", self.source_length_m)
+        for name in ("name", "area_code"):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.vehicle_class_volumes_per_day, dict) or any(
+            not isinstance(key, str)
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            for key, value in self.vehicle_class_volumes_per_day.items()
+        ):
+            raise ValidationError(
+                "vehicle_class_volumes_per_day must map strings to nonnegative integers"
+            )
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
+NormalizedRecord = NormalizedRecord | RoadTrafficSegment
+
+
+@dataclass(frozen=True, kw_only=True)
+class Parcel(Record):
+    geometry: dict[str, Any]
+    parcel_id: str
+    cadastral_district_code: str
+    parcel_numerator: str
+    cadastral_district_name: str | None = None
+    cadastral_section: str | None = None
+    parcel_denominator: str | None = None
+    municipality_code: str | None = None
+    municipality_name: str | None = None
+    responsible_office: str | None = None
+    official_area_m2: float | None = None
+    official_area_source: str = "ALKIS afl (Amtliche Fläche), source-provided"
+    geometry_area_m2: float
+    geometry_area_method: str = "planar area of source geometry in EPSG:25833"
+    area_unit: str = "m2"
+    created_date: str | None = None
+    lifespan_start: str | None = None
+    record_type: str = field(default="parcel", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        for name in (
+            "parcel_id",
+            "cadastral_district_code",
+            "parcel_numerator",
+            "official_area_source",
+            "geometry_area_method",
+            "area_unit",
+        ):
+            _text(name, getattr(self, name))
+        for name in (
+            "cadastral_district_name",
+            "cadastral_section",
+            "parcel_denominator",
+            "municipality_code",
+            "municipality_name",
+            "responsible_office",
+        ):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Parcel geometry must preserve a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Parcel geometry must have coordinates")
+        if self.official_area_m2 is not None and (
+            isinstance(self.official_area_m2, bool)
+            or not isinstance(self.official_area_m2, (int, float))
+            or not isfinite(self.official_area_m2)
+            or self.official_area_m2 <= 0
+        ):
+            raise ValidationError("official_area_m2 must be a finite positive number or null")
+        if (
+            isinstance(self.geometry_area_m2, bool)
+            or not isinstance(self.geometry_area_m2, (int, float))
+            or not isfinite(self.geometry_area_m2)
+            or self.geometry_area_m2 < 0
+        ):
+            raise ValidationError("geometry_area_m2 must be a finite nonnegative number")
+        for name in ("created_date", "lifespan_start"):
+            value = getattr(self, name)
+            if value is not None:
+                try:
+                    date.fromisoformat(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{name} must be an ISO calendar date or null") from exc
+
+
+RECORD_TYPES["parcel"] = Parcel
+NormalizedRecord = NormalizedRecord | Parcel

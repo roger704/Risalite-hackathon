@@ -408,7 +408,7 @@ class DataService:
         config = self._config(dataset_id)
         if not 1 <= limit <= 1000:
             raise ConnectorError("INVALID_FILTER", "limit must be between 1 and 1000")
-        if metric_code is not None and config.adapter != "population":
+        if metric_code is not None and config.adapter not in {"population", "households"}:
             raise ConnectorError(
                 "INVALID_FILTER", "metric_code is unsupported for boundary records"
             )
