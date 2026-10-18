@@ -1,6 +1,6 @@
 # Location intelligence backend
 
-The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, and VBB GTFS transit stops and scheduled-service summaries. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
+The first implementation downloads, validates, stores, and serves Berlin LOR boundaries and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
 ## Setup
 
@@ -27,7 +27,6 @@ Import boundaries first, then population:
 ```sh
 uv run location-data ingest berlin_lor
 uv run location-data ingest berlin_population
-uv run location-data ingest vbb_gtfs
 uv run location-data datasets
 ```
 
@@ -43,7 +42,6 @@ Previously downloaded source files can be imported without contacting the provid
 ```sh
 uv run location-data ingest berlin_lor --file /absolute/path/to/lor-source.7z
 uv run location-data ingest berlin_population --file /absolute/path/to/SB_A01-16-00_2026h01_BE.xlsx
-uv run location-data ingest vbb_gtfs --file /path/to/gtfs.zip
 ```
 
 The raw file is copied into the local store. Imports preserve SHA-256 hashes, source URLs, retrieval times, parser configuration hashes, quality reports, attribution, and parent snapshot IDs. Reimporting the same data with the same configuration and dependencies reuses its cached snapshot. Failed validation leaves the previously active snapshot available; diagnostic files remain in staging.
