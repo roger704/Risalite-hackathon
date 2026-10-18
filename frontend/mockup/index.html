@@ -610,7 +610,7 @@ function typeSeq(steps,done){
   const tok=++typeTok,fine=matchMedia('(pointer:fine)').matches;
   const end=()=>{typeTok++;typeDone=typeCancel=null;done()};
   typeDone=()=>{steps.forEach(([e,s])=>e.value=s);end()};
-  typeCancel=end;
+  typeCancel=src=>{steps.slice(0,Math.max(0,steps.findIndex(([e])=>e===src))).forEach(([e,s])=>e.value=s);end()};
   const ours=()=>{const a=document.activeElement;return !a||a===document.body||steps.some(([e])=>e===a)};
   if(reduceMotion()){typeDone();return}
   steps.forEach(([e])=>e.value='');
@@ -630,7 +630,7 @@ function startGuide(){
   stopGuide();guideI=0;
   const step=()=>{const ts=guideTargets();$$('.hint').forEach(e=>e.classList.remove('hint'));ts[guideI++%ts.length].classList.add('hint')};
   step();guideT=setInterval(step,1900)}
-['#q','#op'].forEach(s=>$(s).addEventListener('input',()=>typeCancel&&typeCancel()));
+['#q','#op'].forEach(s=>$(s).addEventListener('input',e=>typeCancel&&typeCancel(e.target)));
 $$('.tpl .t').forEach(t=>t.onclick=()=>{
   stopGuide();$('#clar').classList.add('hidden');$('#op').value='';
   const s=[[$('#q'),t.dataset.q]];if(t.dataset.op)s.push([$('#op'),t.dataset.op]);
