@@ -465,6 +465,16 @@ class PopulationForecastConnector(FileConnector):
                     raise SchemaError(
                         f"Overview year label changed at {name}!A{row_number}: {actual!r}"
                     )
+            expected_years = {2024}
+            expected_years.update(
+                int(label[:-1])
+                for label in options["overview_year_labels"]
+                if isinstance(label, str) and re.fullmatch(r"\d{4}\*", label)
+            )
+            expected_matrix = {
+                (scenario, year) for scenario in _SCENARIO_COLUMNS for year in expected_years
+            }
+            overview_matrix = set()
             for scenario, column in _SCENARIO_COLUMNS.items():
                 for row_number in (10, 11, 12, 13):
                     label = rows[row_number - 1][0]
@@ -477,8 +487,15 @@ class PopulationForecastConnector(FileConnector):
                             )
                         year, status = int(label[:-1]), "forecast"
                     value = rows[row_number - 1][column - 1]
-                    if isinstance(value, bool) or not isinstance(value, (int, float)):
-                        continue
+                    value_cell = f"{get_column_letter(column)}{row_number}"
+                    if (
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not math.isfinite(value)
+                    ):
+                        raise SchemaError(
+                            f"Overview scenario value must be numeric at {name}!{value_cell}"
+                        )
                     record = ForecastObservation(
                         source_id=config.dataset_id,
                         snapshot_id=raw.snapshot_id,
@@ -508,6 +525,10 @@ class PopulationForecastConnector(FileConnector):
                         quality_flags=("rounded_to_thousands",),
                     )
                     records.append(record)
+                    overview_matrix.add((scenario, year))
+            if len(overview_matrix) != 12 or overview_matrix != expected_matrix:
+                missing = sorted(expected_matrix - overview_matrix)
+                raise SchemaError(f"Overview scenario/year matrix is incomplete; missing {missing}")
         finally:
             book.close()
 

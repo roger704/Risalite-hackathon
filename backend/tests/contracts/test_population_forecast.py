@@ -282,6 +282,15 @@ def test_changed_headers_mixed_scenarios_and_bad_periods_are_rejected(
         PopulationForecastConnector().normalize(raw_bundle(config, small, overview), config)
 
 
+@pytest.mark.parametrize("value", [None, "not numeric"])
+def test_overview_scenario_year_cells_are_mandatory(tmp_path, value):
+    config, small, overview = forecast_config(tmp_path)
+    mutate_workbook(overview, OVERVIEW_SHEET, "D13", value)
+    config = config_for(small, overview)
+    with pytest.raises(SchemaError, match=r"scenario value must be numeric.*D13"):
+        PopulationForecastConnector().normalize(raw_bundle(config, small, overview), config)
+
+
 def test_single_asset_bundle_is_a_clear_config_error(tmp_path):
     config, small, overview = forecast_config(tmp_path)
     raw = raw_bundle(config, small, overview)
@@ -513,6 +522,182 @@ async def service_fixture(tmp_path: Path):
     return service, fetcher, small, overview, parent, forecast
 
 
+def forecast_api_service(config: DatasetConfig, fixture_records: tuple[ForecastObservation, ...]):
+    class RecordsService:
+        configs = {"berlin_population_forecast": config}
+
+        def records(self, dataset_id, snapshot_id, *, area_code, limit, cursor):
+            selected = [record for record in fixture_records if record.area_code == area_code]
+            return {
+                "records": [record_to_dict(record) for record in selected],
+                "next_cursor": None,
+            }
+
+    return RecordsService()
+
+
+def area_forecast_records(
+    area_code: str,
+    hierarchy: str,
+    base_value: float,
+    target_value: float,
+    base_period: str = "2024-12-31",
+) -> tuple[ForecastObservation, ForecastObservation]:
+    return (
+        forecast_record(
+            record_id=f"{hierarchy}-base",
+            area_code=area_code,
+            hierarchy=hierarchy,
+            value=base_value,
+            reference_period=base_period,
+            base_period=base_period,
+        ),
+        forecast_record(
+            record_id=f"{hierarchy}-target",
+            area_code=area_code,
+            hierarchy=hierarchy,
+            value=target_value,
+            reference_period="2040-12-31",
+            value_status="forecast",
+            base_period=base_period,
+        ),
+    )
+
+
+def test_api_expected_change_disambiguates_area_11_hierarchy(tmp_path):
+    config, _, _ = forecast_config(tmp_path)
+    records = (
+        *area_forecast_records("11", "land", 1000, 1200),
+        *area_forecast_records("11", "bezirk", 800, 950),
+    )
+    service = forecast_api_service(config, records)
+
+    with TestClient(create_app(service=service)) as client:
+        for hierarchy, base_value, target_value in (
+            ("land", 1000, 1200),
+            ("bezirk", 800, 950),
+        ):
+            response = client.get(
+                "/api/v1/population-forecast/expected-change",
+                params={
+                    "snapshot_id": "test",
+                    "area_code": "11",
+                    "target_year": 2040,
+                    "hierarchy": hierarchy,
+                },
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["hierarchy"] == hierarchy
+            assert response.json()["base_value"] == base_value
+            assert response.json()["target_value"] == target_value
+
+        ambiguous = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={"snapshot_id": "test", "area_code": "11", "target_year": 2040},
+        )
+        assert ambiguous.status_code == 422
+        assert ambiguous.json()["error"]["code"] == "INVALID_FILTER"
+        assert "hierarchy=land" in ambiguous.json()["error"]["message"]
+        assert "hierarchy=bezirk" in ambiguous.json()["error"]["message"]
+
+        invalid_hierarchy = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={
+                "snapshot_id": "test",
+                "area_code": "11",
+                "target_year": 2040,
+                "hierarchy": "planungsraum",
+            },
+        )
+        assert invalid_hierarchy.status_code == 422
+        assert invalid_hierarchy.json()["error"]["code"] == "INVALID_FILTER"
+
+
+def test_api_expected_change_uses_snapshot_base_period_not_current_config(tmp_path):
+    config, _, _ = forecast_config(tmp_path)
+    config = replace(
+        config,
+        parser_options={**config.parser_options, "base_period": "2099-12-31", "target_years": []},
+    )
+    records = area_forecast_records("11", "land", 10, 25, base_period="2023-12-31")
+    service = forecast_api_service(config, records)
+
+    with TestClient(create_app(service=service)) as client:
+        response = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={
+                "snapshot_id": "test",
+                "area_code": "11",
+                "target_year": 2040,
+                "hierarchy": "land",
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["base_period"] == "2023-12-31"
+        assert response.json()["base_value"] == 10
+        assert response.json()["target_value"] == 25
+
+        before_base = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={
+                "snapshot_id": "test",
+                "area_code": "11",
+                "target_year": 2020,
+                "hierarchy": "land",
+            },
+        )
+        assert before_base.status_code == 422
+        assert before_base.json()["error"]["code"] == "INVALID_FILTER"
+
+        missing_target = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={
+                "snapshot_id": "test",
+                "area_code": "11",
+                "target_year": 2030,
+                "hierarchy": "land",
+            },
+        )
+        assert missing_target.status_code == 404
+        assert missing_target.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_api_expected_change_rejects_snapshot_records_with_mixed_base_periods(tmp_path):
+    config, _, _ = forecast_config(tmp_path)
+    base = forecast_record(
+        record_id="base-2023",
+        area_code="11",
+        hierarchy="land",
+        value=100,
+        reference_period="2023-12-31",
+        base_period="2023-12-31",
+    )
+    target = forecast_record(
+        record_id="target-2024",
+        area_code="11",
+        hierarchy="land",
+        value=110,
+        reference_period="2040-12-31",
+        value_status="forecast",
+        base_period="2024-12-31",
+    )
+    service = forecast_api_service(config, (base, target))
+
+    with TestClient(create_app(service=service)) as client:
+        response = client.get(
+            "/api/v1/population-forecast/expected-change",
+            params={
+                "snapshot_id": "test",
+                "area_code": "11",
+                "target_year": 2040,
+                "hierarchy": "land",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "INVALID_FILTER"
+        assert "base period" in response.json()["error"]["message"]
+
+
 @pytest.mark.asyncio
 async def test_service_ingest_api_and_failed_refresh_preserve_latest_snapshot(tmp_path):
     service, fetcher, small, overview, parent, snapshot = await service_fixture(tmp_path)
@@ -572,7 +757,8 @@ async def test_service_ingest_api_and_failed_refresh_preserve_latest_snapshot(tm
                 "target_year": 2041,
             },
         )
-        assert unknown_year.status_code == 422
+        assert unknown_year.status_code == 404
+        assert unknown_year.json()["error"]["code"] == "NOT_FOUND"
         unavailable = client.get(
             "/api/v1/population-forecast/expected-change",
             params={

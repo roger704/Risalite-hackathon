@@ -139,6 +139,7 @@ The API exposes expected change between the observed base and a selected target 
 curl --fail --get http://127.0.0.1:8000/api/v1/population-forecast/expected-change \
   --data-urlencode "snapshot_id=$FORECAST_SNAPSHOT_ID" \
   --data-urlencode 'area_code=0210' \
+  --data-urlencode 'hierarchy=prognoseraum' \
   --data-urlencode 'target_year=2040' \
   --data-urlencode 'scenario=middle'
 ```

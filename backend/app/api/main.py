@@ -2,7 +2,7 @@
 
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
@@ -190,6 +190,7 @@ def create_app(
         area_code: Annotated[str, Query(min_length=1)],
         target_year: int,
         scenario: str = "middle",
+        hierarchy: str | None = None,
         metric_code: str = "population_total",
         age_min: Annotated[int | None, Query(ge=0)] = None,
         age_max_exclusive: Annotated[int | None, Query(ge=0)] = None,
@@ -201,10 +202,10 @@ def create_app(
             raise ConnectorError(
                 "INVALID_FILTER", "scenario must be one of middle, upper, or lower"
             )
-        if target_year not in config.parser_options.get("target_years", ()):
+        if hierarchy is not None and hierarchy not in {"land", "bezirk", "prognoseraum"}:
             raise ConnectorError(
                 "INVALID_FILTER",
-                f"target_year must be between 2025 and 2040; received {target_year}",
+                "hierarchy must be one of land, bezirk, or prognoseraum",
             )
         if re.fullmatch(r"\d{8}", area_code):
             raise ConnectorError(
@@ -236,13 +237,49 @@ def create_app(
                     and record.scenario == scenario
                     and record.age_min == age_min
                     and record.age_max_exclusive == age_max_exclusive
+                    and (hierarchy is None or record.hierarchy == hierarchy)
                 ):
                     matches.append(record)
             cursor = page["next_cursor"]
             if cursor is None:
                 break
-        base_period = config.parser_options["base_period"]
-        target_period = f"{target_year}-12-31"
+
+        if hierarchy is None:
+            matched_hierarchies = {record.hierarchy for record in matches}
+            if len(matched_hierarchies) > 1:
+                choices = [
+                    f"hierarchy={candidate}"
+                    for candidate in ("land", "bezirk", "prognoseraum")
+                    if candidate in matched_hierarchies
+                ]
+                raise ConnectorError(
+                    "INVALID_FILTER",
+                    f"Area code {area_code} is ambiguous; specify " + " or ".join(choices) + ".",
+                )
+        if not matches:
+            raise ConnectorError(
+                "NOT_FOUND",
+                f"No {scenario} {metric_code} data for area {area_code} and target year "
+                f"{target_year} with the requested age interval.",
+            )
+        base_periods = {record.base_period for record in matches}
+        if len(base_periods) != 1:
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "Forecast records in this snapshot do not share one base period.",
+            )
+        base_period = next(iter(base_periods))
+        try:
+            target_period = date(target_year, 12, 31).isoformat()
+        except ValueError as exc:
+            raise ConnectorError(
+                "INVALID_FILTER", "target_year must be a valid calendar year"
+            ) from exc
+        if date.fromisoformat(target_period) <= date.fromisoformat(base_period):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                f"target_year must be later than the snapshot base period {base_period}.",
+            )
         bases = [
             record
             for record in matches
