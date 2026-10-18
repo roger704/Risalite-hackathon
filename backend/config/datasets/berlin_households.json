@@ -1,0 +1,499 @@
+{
+  "dataset_id": "berlin_households",
+  "provider": "Amt für Statistik Berlin-Brandenburg",
+  "adapter": "households",
+  "landing_url": "https://www.statistik-berlin-brandenburg.de/a-i-17-j/",
+  "resource_url": "https://download.statistik-berlin-brandenburg.de/1c12fbe76a5c983f/bef7fc5b1b3a/SB_A01-17-00_2025j01_BE.xlsx",
+  "allowed_hosts": [
+    "download.statistik-berlin-brandenburg.de"
+  ],
+  "license_id": "CC-BY-3.0-DE",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+  "attribution": "Amt für Statistik Berlin-Brandenburg, Statistischer Bericht A I 17 – j / 25, Einwohnerinnen und Einwohner und Privathaushalte in Berlin am 31.12.2025, Potsdam 2026, CC BY 3.0 DE",
+  "boundary_edition": "2021",
+  "source_edition": "2025j01",
+  "reference_period": "2025-12-31",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "format": "xlsx",
+    "parent_dataset": "berlin_lor",
+    "hierarchy": "planungsraum",
+    "area_code_column": "A",
+    "area_code_width": 8,
+    "expected_area_count": 542,
+    "max_unpacked_bytes": 30000000,
+    "methodology_url": "https://download.statistik-berlin-brandenburg.de/cdee008073f488cd/108aa06d9c06/MD_19213_2022.pdf",
+    "source_pdf_url": "https://download.statistik-berlin-brandenburg.de/21e5d83e3172d406/5ed0fe603e55/SB_A01-17-00_2025j01_BE.pdf",
+    "skip_labels": [
+      "Zusammen"
+    ],
+    "total_label": "Berlin",
+    "code_directory": {
+      "worksheet": "Schlüssel",
+      "code_column": "E",
+      "first_data_row": 7,
+      "expected_cells": {
+        "A1": "Schlüssel- und Namensverzeichnis der LOR-Planungsräume nach Bezirken",
+        "A2": "Stand  Dezember 2024",
+        "A3": "Bezirk",
+        "B3": "Prognose-\nraum",
+        "C3": "Bezirks-\nregion",
+        "D3": "Planungs-\nraum",
+        "E3": "Planungsraumname"
+      }
+    },
+    "sentinels": {
+      "": "missing",
+      "•": "suppressed",
+      "/": "suppressed",
+      "…": "missing",
+      "x": "not_applicable",
+      "–": "zero"
+    },
+    "tables": [
+      {
+        "worksheet": "T1.2",
+        "first_data_row": 10,
+        "expected_cells": {
+          "A1": "1.2  Berliner Haushalte am 31. Dezember 2025 nach Planungsräumen und Haushaltsgröße     ",
+          "A3": "LOR\nPlanungsraum\nBezirk",
+          "B3": "\nInsgesamt",
+          "C3": "Davon in …",
+          "H3": "Durch-\nschnittl.\nHaus-\nhalts-\ngröße",
+          "C4": "Ein-\npersonen-\nhaushalten",
+          "D4": "Mehrpersonenhaushalten",
+          "D5": "zu-\nsammen",
+          "E5": "davon mit ... Personen",
+          "E6": 2,
+          "F6": 3,
+          "G6": "4 und\nmehr"
+        },
+        "check_columns": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H"
+        ],
+        "metrics": [
+          {
+            "column": "B",
+            "metric_code": "households_total",
+            "unit": "households"
+          },
+          {
+            "column": "C",
+            "metric_code": "households_single_person",
+            "unit": "households"
+          },
+          {
+            "column": "D",
+            "metric_code": "households_multi_person",
+            "unit": "households"
+          },
+          {
+            "column": "E",
+            "metric_code": "households_size_2",
+            "unit": "households"
+          },
+          {
+            "column": "F",
+            "metric_code": "households_size_3",
+            "unit": "households"
+          },
+          {
+            "column": "G",
+            "metric_code": "households_size_4_plus",
+            "unit": "households"
+          },
+          {
+            "column": "H",
+            "metric_code": "average_household_size",
+            "unit": "persons_per_household",
+            "integer": false
+          }
+        ]
+      },
+      {
+        "worksheet": "T1.1",
+        "first_data_row": 10,
+        "expected_cells": {
+          "A1": "1.1  Einwohnerinnen und Einwohner in Berliner Haushalten am 31. Dezember 2025 nach Planungsräumen\n        und Haushaltsgröße",
+          "A3": "LOR\nPlanungsraum\nBezirk",
+          "B3": "Insgesamt",
+          "C3": "Davon in …",
+          "H3": "Durch-\nschnittl.\nHaus-\nhalts-\ngröße",
+          "C4": "Ein-\npersonen-\nhaushalten",
+          "D4": "Mehrpersonenhaushalten"
+        },
+        "check_columns": [
+          "B",
+          "C",
+          "H"
+        ],
+        "metrics": [
+          {
+            "column": "B",
+            "metric_code": "residents_in_households_total",
+            "unit": "persons"
+          }
+        ]
+      },
+      {
+        "worksheet": "T2.2",
+        "first_data_row": 11,
+        "expected_cells": {
+          "A1": "2.2 Berliner Haushalte am 31. Dezember 2025 nach Planungsräumen und Haushaltstypen",
+          "A3": "LOR\nPlanungsraum\nBezirk",
+          "B3": "\nInsgesamt",
+          "C3": "Davon in …",
+          "C4": "Ein-\npersonen-\nhaushalten",
+          "D4": "Mehrpersonenhaushalten",
+          "D5": "zu-\nsammen",
+          "E5": "davon",
+          "E6": "Ehepaare",
+          "H6": "Paare in nichtehelicher Lebensgemeinschaften",
+          "K6": "Allein-\nerziehende",
+          "L6": "sonstige\nMehr-\npersonen-\nhaushalte \nohne Kind(er)",
+          "E7": "zu-\nsammen",
+          "F7": "ohne\nKind",
+          "G7": "mindestens ein Kind",
+          "H7": "zu-\nsammen",
+          "I7": "ohne\nKind",
+          "J7": "mindestens \nein Kind"
+        },
+        "check_columns": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H",
+          "I",
+          "J",
+          "K",
+          "L"
+        ],
+        "metrics": [
+          {
+            "column": "E",
+            "metric_code": "households_married_couple",
+            "unit": "households"
+          },
+          {
+            "column": "F",
+            "metric_code": "households_married_couple_without_children",
+            "unit": "households"
+          },
+          {
+            "column": "G",
+            "metric_code": "households_married_couple_with_children",
+            "unit": "households"
+          },
+          {
+            "column": "H",
+            "metric_code": "households_cohabiting_couple",
+            "unit": "households"
+          },
+          {
+            "column": "I",
+            "metric_code": "households_cohabiting_couple_without_children",
+            "unit": "households"
+          },
+          {
+            "column": "J",
+            "metric_code": "households_cohabiting_couple_with_children",
+            "unit": "households"
+          },
+          {
+            "column": "K",
+            "metric_code": "households_single_parent",
+            "unit": "households"
+          },
+          {
+            "column": "L",
+            "metric_code": "households_other_multi_person_without_children",
+            "unit": "households"
+          }
+        ]
+      },
+      {
+        "worksheet": "T4",
+        "first_data_row": 10,
+        "expected_cells": {
+          "A1": "4  Berliner Haushalte am 31. Dezember 2025 nach Planungsräumen und Haushaltstypen",
+          "A3": "LOR Planungsraum                                             Bezirk",
+          "B3": "Insgesamt",
+          "C3": "Davon",
+          "C4": "Haushalte ohne Kinder",
+          "D4": "Haushalte mit … Kinder",
+          "D5": "zu-\nsammen",
+          "E5": "davon",
+          "H5": "darunter von Sp. 3 Alleinerziehende",
+          "E6": 1,
+          "F6": 2,
+          "G6": " 3 und mehr",
+          "H6": "absolut",
+          "I6": "% Anteil"
+        },
+        "check_columns": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H",
+          "I"
+        ],
+        "metrics": [
+          {
+            "column": "C",
+            "metric_code": "households_without_children",
+            "unit": "households"
+          },
+          {
+            "column": "D",
+            "metric_code": "households_with_children",
+            "unit": "households"
+          },
+          {
+            "column": "E",
+            "metric_code": "households_with_1_child",
+            "unit": "households"
+          },
+          {
+            "column": "F",
+            "metric_code": "households_with_2_children",
+            "unit": "households"
+          },
+          {
+            "column": "G",
+            "metric_code": "households_with_3_plus_children",
+            "unit": "households"
+          },
+          {
+            "column": "I",
+            "metric_code": "single_parent_share_of_households_with_children",
+            "unit": "percent",
+            "integer": false,
+            "denominator_metric_code": "households_with_children"
+          }
+        ]
+      },
+      {
+        "worksheet": "T3",
+        "first_data_row": 8,
+        "expected_cells": {
+          "A1": "3  Einpersonenhaushalte in Berlin am 31. Dezember 2025 nach Planungsräumen\n    und Alter der Personen",
+          "A3": "LOR\nPlanungsraum\nBezirk",
+          "B3": "Insgesamt",
+          "C3": " Davon im Alter von … bis unter … Jahren",
+          "F3": "darunter\nweiblich",
+          "C4": "unter 30",
+          "D4": "30 - 65",
+          "E4": "65\nund mehr"
+        },
+        "check_columns": [
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "metrics": [
+          {
+            "column": "C",
+            "metric_code": "single_person_households_age_band",
+            "unit": "households",
+            "age_min": 0,
+            "age_max_exclusive": 30
+          },
+          {
+            "column": "D",
+            "metric_code": "single_person_households_age_band",
+            "unit": "households",
+            "age_min": 30,
+            "age_max_exclusive": 65
+          },
+          {
+            "column": "E",
+            "metric_code": "single_person_households_age_band",
+            "unit": "households",
+            "age_min": 65,
+            "age_max_exclusive": null
+          },
+          {
+            "column": "F",
+            "metric_code": "single_person_households_female",
+            "unit": "households"
+          }
+        ]
+      }
+    ],
+    "sum_checks": [
+      [
+        "T1.2!B",
+        [
+          "T1.2!C",
+          "T1.2!D"
+        ]
+      ],
+      [
+        "T1.2!D",
+        [
+          "T1.2!E",
+          "T1.2!F",
+          "T1.2!G"
+        ]
+      ],
+      [
+        "T1.1!C",
+        [
+          "T1.2!C"
+        ]
+      ],
+      [
+        "T2.2!B",
+        [
+          "T1.2!B"
+        ]
+      ],
+      [
+        "T2.2!C",
+        [
+          "T1.2!C"
+        ]
+      ],
+      [
+        "T2.2!D",
+        [
+          "T1.2!D"
+        ]
+      ],
+      [
+        "T2.2!D",
+        [
+          "T2.2!E",
+          "T2.2!H",
+          "T2.2!K",
+          "T2.2!L"
+        ]
+      ],
+      [
+        "T2.2!E",
+        [
+          "T2.2!F",
+          "T2.2!G"
+        ]
+      ],
+      [
+        "T2.2!H",
+        [
+          "T2.2!I",
+          "T2.2!J"
+        ]
+      ],
+      [
+        "T4!B",
+        [
+          "T1.2!B"
+        ]
+      ],
+      [
+        "T4!B",
+        [
+          "T4!C",
+          "T4!D"
+        ]
+      ],
+      [
+        "T4!D",
+        [
+          "T4!E",
+          "T4!F",
+          "T4!G"
+        ]
+      ],
+      [
+        "T4!D",
+        [
+          "T2.2!G",
+          "T2.2!J",
+          "T2.2!K"
+        ]
+      ],
+      [
+        "T4!H",
+        [
+          "T2.2!K"
+        ]
+      ],
+      [
+        "T3!B",
+        [
+          "T1.2!C"
+        ]
+      ],
+      [
+        "T3!B",
+        [
+          "T3!C",
+          "T3!D",
+          "T3!E"
+        ]
+      ]
+    ],
+    "ratio_checks": [
+      {
+        "value": "T1.2!H",
+        "numerator": "T1.1!B",
+        "denominator": "T1.2!B",
+        "scale": 1,
+        "tolerance": 0.005
+      },
+      {
+        "value": "T1.1!H",
+        "numerator": "T1.1!B",
+        "denominator": "T1.2!B",
+        "scale": 1,
+        "tolerance": 0.005
+      },
+      {
+        "value": "T4!I",
+        "numerator": "T4!H",
+        "denominator": "T4!D",
+        "scale": 100,
+        "tolerance": 0.05
+      }
+    ],
+    "derived_ratios": [
+      {
+        "metric_code": "households_with_children_share",
+        "unit": "percent",
+        "numerator": "T4!D",
+        "denominator": "T4!B",
+        "numerator_metric_code": "households_with_children",
+        "denominator_metric_code": "households_total",
+        "scale": 100,
+        "round": 2
+      }
+    ],
+    "limitations": [
+      "Reference date is 31 December 2025 (Stichtag of A I 17 – j / 25, published July 2026). berlin_population refers to 30 June 2026; any combination must show both reference periods. Household counts are households, not persons, and are never current population.",
+      "Households are register-generated 'Wohnhaushalte' (HHGen procedure on the Berlin population register, main residence), not surveyed households. The publisher states the method overstates single-person households; persons in institutions are excluded. Figures are not comparable with Mikrozensus or Zensus household counts.",
+      "'Children' are unmarried persons under 18 without own children or own household. Households in which all children are 18 or older count as households without children ('sonstige Mehrpersonenhaushalte ohne Kind').",
+      "households_with_children_share is derived as 100 × households_with_children / households_total from worksheet T4 (same table, same date), rounded to 2 decimals; it is null when either input is not observed and not_applicable when there are no households. single_parent_share_of_households_with_children is published by the source (T4 column I) with denominator households_with_children.",
+      "residents_in_households_total counts persons in private households (T1.1) and differs from the berlin_population total by date and by excluding institutional population; do not substitute one for the other.",
+      "Tables overlap by design (size, type, children, single-person age): metrics from different breakdowns and totals with their components must not be added together. Single-person age bands use an exclusive upper bound.",
+      "The workbook's code directory (worksheet Schlüssel) is dated December 2024 and uses the 2021 LOR scheme (542 Planungsräume); codes are joined exactly to the pinned berlin_lor snapshot. Code compatibility does not certify unchanged polygon boundaries.",
+      "Source access, worksheet mappings, legend and CC BY 3.0 DE license (Impressum worksheet) checked 2026-10-18. Legend markers are kept as quality flags; '/' (not reliable enough) and '•' (unknown or confidential) are stored as suppressed nulls, '–' as zero; other annotations (p, r, s, parentheses) fail the import rather than being guessed."
+    ]
+  }
+}

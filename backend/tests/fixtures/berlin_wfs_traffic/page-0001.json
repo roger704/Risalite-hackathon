@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 3,
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[390200, 5819000], [390300, 5819000]]
+      },
+      "properties": {
+        "link_id": "T0000001_00000003",
+        "str_name": null,
+        "meter": null,
+        "herkunft": "Zählung 20190101",
+        "dtv": null,
+        "pkw": null,
+        "lkw": null,
+        "lieferwagen": 0,
+        "krad": 0,
+        "reisebusse": 0,
+        "linienbusse": 0,
+        "schluessel": "T0000001_00000003"
+      }
+    }
+  ]
+}

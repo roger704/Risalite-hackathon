@@ -106,6 +106,17 @@ The fixture files live in `frontend/fixtures/`. Rebuild them offline with
 
 The records response includes reference and retrieval dates, coverage, warnings, attribution, and pagination. Availability and freshness are separate. Freshness remains `unknown` unless an explicit refresh policy has been configured; a successful download alone does not establish current demographic conditions.
 
+### Area summary
+
+`GET /api/v1/areas/{area_code}/summary` combines the active (or explicitly pinned) `berlin_lor`, `berlin_lor_names`, `berlin_population`, `osm_pois`, `ihk_businesses`, and `vbb_gtfs` snapshots into one provenance-bearing Planungsraum summary. Only `berlin_lor` is required; other datasets degrade to explicit `missing`/`unavailable`/`incompatible` states. Schema, statuses, and a frontend example are in [CONNECTOR_BLUEPRINT.md](../CONNECTOR_BLUEPRINT.md#area-summary).
+
+```sh
+curl --fail --get http://127.0.0.1:8000/api/v1/areas/01100101/summary \
+  --data-urlencode 'category=coffee_shop' --data-urlencode 'include_geometry=false'
+```
+
+Pin snapshots with `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_id`, `osm_snapshot_id`, `ihk_snapshot_id`, `gtfs_snapshot_id`. The first request per snapshot builds an in-memory spatial index (about 1–2 s on the full real snapshots); later requests take about 0.5 s. Synthetic frontend fixtures are in `tests/fixtures/area_summary/`; regenerate them with `UPDATE_AREA_SUMMARY_FIXTURES=1 uv run pytest tests/integration/test_area_summary.py`.
+
 ## Validated sources and meaning
 
 Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic and contain no research findings.
@@ -114,8 +125,11 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
+| `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
+| `zensus_grid` | [Official Zensus 2022 page](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/_inhalt.html), [pinned population-grid ZIP](https://www.destatis.de/static/DE/zensus/gitterdaten/Zensus2022_Bevoelkerungszahl.zip) | 100 m census population cells, publication Version 2 (30 September 2024), reference date **15 May 2022**. INSPIRE IDs encode cell corners in EPSG:3035; stored cell polygons are WGS84. Licensed [dl-de/by-2-0](https://www.govdata.de/dl-de/by-2-0), with attribution to the Statistische Ämter des Bundes und der Länder. |
+| `berlin_households` | [Official household tables page](https://www.statistik-berlin-brandenburg.de/a-i-17-j/), [2025 workbook](https://download.statistik-berlin-brandenburg.de/1c12fbe76a5c983f/bef7fc5b1b3a/SB_A01-17-00_2025j01_BE.xlsx), worksheets `T1.1`, `T1.2`, `T2.2`, `T3`, `T4` | Reference date **31 December 2025**, source edition `2025j01`: household counts, residents in households, household-size and household-type breakdowns, single-person age groups, and child-household counts across 542 Planungsräume. A derived share reports households with children as a percentage of all households. `T4!I` is the source-published single-parent share among households with children. |
 | `osm_pois` | [Geofabrik Berlin page](https://download.geofabrik.de/europe/germany/berlin.html), [pinned Berlin extract](https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf) | `berlin-latest.osm.pbf` redirected to the dated `berlin-261017.osm.pbf` file on 18 October 2026. The 99,794,715-byte file header reports replication timestamp `2026-10-17T20:20:51Z` (source edition `2026-10-17`). A real import produced 11,837 places within bbox `[13.0, 52.3, 13.9, 52.8]`: 2,666 `coffee_shop`, 71 `coffee_retail`, 1,262 `bakery`, 2,877 `fast_food`, 4,799 `restaurant`, 148 `coworking`, and 14 unmapped; 11,112 nodes, 724 way polygons, and 1 relation multipolygon, with no assembly failures or unlocatable elements. The configured minimum is 1,800 coffee shops (70% of the observed count, rounded down to the nearest hundred). OSM completeness and operating status are not guaranteed. Attribution: © OpenStreetMap contributors, ODbL 1.0, Berlin extract by Geofabrik GmbH. |
 | `osm_pois_overpass` | [Overpass API](https://overpass-api.de/api/interpreter) | Optional pinned query for bbox `[52.520, 13.390, 52.540, 13.420]`; this is a small-area refresh only. The endpoint was unreachable or returned HTTP 500 during the 18 October 2026 check. A response with an Overpass `remark` or without `elements` is rejected as incomplete. |
 | `vbb_gtfs` | [VBB datasets page](https://unternehmen.vbb.de/digitale-services/datensaetze/), [GTFS resource](https://www.vbb.de/gtfs) | Reviewed feed edition `20261015-20261212`, validity 2026-10-15–2026-12-12. GTFS stops and scheduled departures are summarized by station and local time window; see the counting rules below. Attribution: Verkehrsverbund Berlin-Brandenburg GmbH (VBB), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). |
@@ -130,6 +144,30 @@ Age intervals have an inclusive lower and **exclusive upper** bound: `[0, 6)`, `
 The connector distinguishes numeric zero from suppressed, missing, and not-applicable values. The official legend's `–` means no quantity and becomes zero; `•` becomes a null suppressed value; `…` and `/` become null missing values; `x` becomes null not applicable. Original markers remain in quality flags. Unrecognized annotations fail validation instead of becoming zero. Explicit CSV settings are supported for reviewed alternative configurations, but the default official import uses XLSX.
 
 HTML returned instead of data, changed headers, invalid identifiers, duplicate observations, overlapping age-band mappings, incomplete area coverage, and inconsistent age totals prevent publication. The general [connector blueprint](../CONNECTOR_BLUEPRINT.md) describes later connectors and the wider architecture; it is not a list of already implemented capabilities.
+
+## Zensus 2022 population grid
+
+Import the reviewed census grid after the LOR boundaries so the snapshot can be checked against Berlin:
+
+```sh
+uv run location-data ingest berlin_lor
+uv run location-data ingest zensus_grid
+```
+
+The connector streams the pinned 100 m CSV from the ZIP and retains cells intersecting the configured EPSG:3035 extent. The manifest reports whole cells within Berlin, all cells intersecting Berlin, cells whose centroids fall inside Berlin, and an area-weighted estimate. The fully contained published-cell sum is the lower bound; the all-intersecting-cell sum is an upper bound only when cells with published values cover the whole catchment (otherwise the upper bound is null because absent cells may be unpublished). Areal weighting assumes uniform density within each partially intersecting cell. Coverage reports how much of the catchment is covered by published cells, while absent cells remain unpublished rather than being treated as measured zero.
+
+Catchments must lie inside the recorded extract extent; otherwise the CLI rejects them to avoid undercounting. If an intersecting cell has no published value, the upper bound is unavailable.
+
+The counts are census population at the historical reference date **15 May 2022**, perturbed using the cell-key method (CKM). They are not current residents or the Einwohnerregister population. Berlin's census total is 3,596,999; the register-based count for 30 June 2022 is 3,725,650. Do not add, mix, or substitute `zensus_grid` and `berlin_population` values. Grid totals also need not equal official totals because of CKM perturbation, unpublished cells, and addresses not represented in the grid.
+
+Query a pinned snapshot with a straight-line circular catchment (not walking time):
+
+```sh
+ZENSUS_SNAPSHOT_ID='replace-with-zensus-grid-snapshot_id'
+uv run location-data records zensus_grid --snapshot "$ZENSUS_SNAPSHOT_ID" --limit 3
+uv run location-data catchment zensus_grid --snapshot "$ZENSUS_SNAPSHOT_ID" \
+  --lon 13.4132 --lat 52.5219 --radius-m 500
+```
 
 ## OpenStreetMap points of interest
 
@@ -171,6 +209,22 @@ The imports processed 4,032,869 input rows into 86,067 records with zero rejecti
 | S+U Alexanderplatz Bhf (Berlin) | 16:00–19:00 | 365 | 365 | 109, 400 |
 | S+U Zoologischer Garten Bhf (Berlin) | 07:00–10:00 | 301 | 301 | 109, 400 |
 | S+U Zoologischer Garten Bhf (Berlin) | 16:00–19:00 | 306 | 306 | 109, 400 |
+
+### Berlin household profiles (`berlin_households`)
+
+The connector emits the reviewed metrics from `T1.1` (residents in households), `T1.2` (household size and average size), `T2.2` (household types), `T3` (single-person household age groups), and `T4` (households with and without children). It also derives `households_with_children_share` as a percentage of all households; `T4!I` remains the source-published single-parent share among households with children.
+
+These are register-generated household profiles at **31 December 2025**, not the population snapshot's 30 June 2026 reference date. Household counts are not person counts; only `residents_in_households_total` is measured in persons. The source defines children as unmarried persons under 18 without their own children and without their own household. All household tables are overlapping breakdowns and must not be added together.
+
+After importing the matching `berlin_lor` snapshot, ingest the workbook or pin an explicit LOR parent snapshot:
+
+```sh
+uv run location-data ingest berlin_lor
+uv run location-data ingest berlin_households
+uv run location-data ingest berlin_households --lor-snapshot "$LOR_SNAPSHOT_ID"
+```
+
+Real import on 18 October 2026 (provider download into a fresh data dir after `berlin_lor`): 542 of 542 Planungsräume, 14,634 observations (27 metrics × 542), 0 rejected rows, joined exactly to `berlin_lor` (542 areas). Wall time 1.34 s, peak RSS 239,376 KB; raw XLSX 580,763 bytes (SHA-256 `e83a88f1…87a7a`), normalized snapshot 1,033,989 bytes. Checked totals: 2,231,314 households, 376,366 with children (16.9 %), 3,930,822 residents in households. Example `01100101` (Stülerstraße): 2,310 households, average size 1.59, 247 with children (`households_with_children_share` 10.69), single-parent share 22.3 %.
 
 ## Research adapters (Tavily, Nebius)
 
@@ -247,7 +301,7 @@ In a provider download, each WFS page is stored as a separate raw asset, copied 
 
 The provider includes a changing `timeStamp` in every response, so a fresh provider download changes the raw hashes and does not hit the snapshot cache. This is deliberate: raw bytes and their hashes are stored exactly as received. Reimporting the same local files does reuse the cache.
 
-`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type` (currently `area` only), `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Once a record type has a normalizer, other gdi.berlin layers such as Kitas or schools need only configuration.
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, and `record_type` (`area` or `road_traffic_segment`). Area options include `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`; road options use road-specific field and volume mappings. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Additional gdi.berlin layers need a compatible record-type normalizer as well as configuration.
 
 Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
 
@@ -276,6 +330,48 @@ discarded and counted as missing, with an `unlegended_source_marking` quality fl
 Directional counters report only their stated direction. The source publishes
 annual workbook editions and notes that construction, detours, network changes,
 replacement transport, and wrong-way cycling can affect counts.
+
+### Road traffic volumes 2019 (`berlin_traffic_volumes_2019`, `berlin_wfs`)
+
+This dataset emits `RoadTrafficSegment` records with WGS84 `LineString` or
+`MultiLineString` geometry. `dtv_motor_vehicles_per_day` and
+`vehicle_class_volumes_per_day` are average daily motor-vehicle counts in
+vehicles/day; `source_length_m` preserves the source's segment length. A missing
+count remains null/omitted and is never filled with zero. Source attributes
+include `link_id` and `herkunft`.
+
+The source covers the classified main road network, not every residential
+street. It measures motor vehicles only—not pedestrians, cyclists, footfall, or
+customer potential. Values are from 2019 and include counts dated 2017–2019;
+they are not current traffic. DTV is not split by direction. Straight-line
+proximity is not walking time, and a street without a segment has unknown
+traffic, not zero. Segments are not assigned to PLRs during ingestion because
+they can cross area boundaries.
+
+Use the metric helpers to query proximity and summarize clipped lengths within
+area boundaries:
+
+```python
+from app.geo.traffic import road_segments_near_point, summarize_road_traffic_by_area
+
+nearby = road_segments_near_point(segments, 13.4132, 52.5219, 300)
+by_area = summarize_road_traffic_by_area(segments, planungsraeume)
+```
+
+`road_segments_near_point` returns segments within the inclusive radius, sorted
+by metric distance then record ID. `summarize_road_traffic_by_area` counts only
+positive-length intersections and weights DTV by the clipped metric length of
+segments with known volume.
+
+The reviewed full import contains 10,420 of 10,420 `numberMatched` features,
+with zero rejected rows and 11 WFS pages. In the measured run it took 10.43 s
+(peak RSS 252,812 KB); the raw and normalized snapshot directories occupied
+6.4 MiB and 3.0 MiB, respectively, and `records.parquet` was 3,077,663 bytes.
+The quality report records the source limitations, DTV-source breakdown,
+missing-volume count, and total metric network length. On the imported road
+and LOR snapshots, the Alexanderplatz 300 m nearby query (five nearest roads listed)
+ran in 0.22 s; the area summary covered all 542 PLRs in 0.91 s (525 with road
+segments, 17 without).
 
 ## Development checks
 
