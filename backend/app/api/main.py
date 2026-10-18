@@ -22,6 +22,7 @@ from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
 from app.application.childcare import childcare_areas, childcare_facilities
+from app.application.green_spaces import nearby_green_spaces
 from app.application.mobility import station_layer
 from app.application.service import DataService
 from app.connectors.population_forecast import expected_change
@@ -280,6 +281,34 @@ def create_app(
             metric_code=metric_code,
             limit=limit,
             cursor=cursor,
+        )
+
+    @application.get("/api/v1/datasets/{dataset_id}/green-spaces/nearby")
+    def green_spaces_nearby(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        lon: Annotated[float, Query(ge=-180, le=180)],
+        lat: Annotated[float, Query(ge=-90, le=90)],
+        radius_m: Annotated[float, Query(ge=0, le=5000)] = 500.0,
+        feature_type: Annotated[str | None, Query(min_length=1)] = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    ):
+        unknown = set(request.query_params) - {
+            "snapshot_id",
+            "lon",
+            "lat",
+            "radius_m",
+            "feature_type",
+            "limit",
+        }
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        return nearby_green_spaces(
+            data, dataset_id, snapshot_id, lon, lat, radius_m, feature_type, limit
         )
 
     @application.get(
