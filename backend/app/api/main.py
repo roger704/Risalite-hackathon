@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.centers import create_centers_router
+from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
 from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
@@ -453,6 +454,7 @@ def create_app(
         headers = {"Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'}
         return Response(content=body, media_type=media_type, headers=headers)
 
+    application.include_router(planning_router(get_service))
     if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
         application.include_router(fixture_runs_router)
 
