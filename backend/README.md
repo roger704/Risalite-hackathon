@@ -269,3 +269,21 @@ uv run ruff format --check app tests
 GitHub Actions runs the same checks offline with `uv sync --locked`; tests marked `live` are excluded.
 
 The normal suite runs offline with synthetic fixtures and mocked acquisition. It exercises the implemented connectors, contracts, ingestion failures and snapshot compatibility, API queries, and CLI behavior. It does not require downloading all provider data on each test run. Full official datasets and generated local snapshots are excluded from Git.
+
+## Exports
+
+Persisted research runs under `runs/<run_id>/` can be exported as a Markdown report, a
+self-contained printable HTML report (use **Print / Save as PDF** in a browser), a sources CSV,
+or a BibTeX bibliography. The CLI writes to standard output by default or to a file with `-o`:
+
+```sh
+uv run location-data export ../runs/demo-coffee --format md
+uv run location-data export ../runs/demo-coffee --format html --mode future -o report.html
+uv run location-data export ../runs/demo-coffee --format csv -o sources.csv
+```
+
+Area reports accept `--layers layer_a,layer_b` and `--mode present|future`; report formats also
+accept `--share-url URL`. The API serves the same formats from
+`GET /api/v1/runs/{run_id}/export/{fmt}` where `fmt` is `report.md`, `report.html`,
+`sources.csv`, or `sources.bib`. Set `RISALITE_RUNS_DIR` to select the run store; it defaults to
+the repository-root `runs/` directory. API filters `layers` and `mode` customize area findings.
