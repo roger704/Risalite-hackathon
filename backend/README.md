@@ -119,12 +119,13 @@ Pin snapshots with `lor_snapshot_id`, `names_snapshot_id`, `population_snapshot_
 
 ## Validated sources and meaning
 
-Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic and contain no research findings.
+Source resources and mappings were checked on **18 October 2026**. The checked files are real provider resources; offline test fixtures are synthetic except for the reviewed Berlin environmental WFS feature subsets, which preserve their source geometries and contain no research findings.
 
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
 | `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
+| `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
@@ -143,6 +144,48 @@ Age intervals have an inclusive lower and **exclusive upper** bound: `[0, 6)`, `
 The connector distinguishes numeric zero from suppressed, missing, and not-applicable values. The official legend's `–` means no quantity and becomes zero; `•` becomes a null suppressed value; `…` and `/` become null missing values; `x` becomes null not applicable. Original markers remain in quality flags. Unrecognized annotations fail validation instead of becoming zero. Explicit CSV settings are supported for reviewed alternative configurations, but the default official import uses XLSX.
 
 HTML returned instead of data, changed headers, invalid identifiers, duplicate observations, overlapping age-band mappings, incomplete area coverage, and inconsistent age totals prevent publication. The general [connector blueprint](../CONNECTOR_BLUEPRINT.md) describes later connectors and the wider architecture; it is not a list of already implemented capabilities.
+
+## Berlin environmental indicators (`berlin_environment`)
+
+Import the reviewed Berlin Planungsraum environment indicators after the canonical LOR boundaries. The import pins the active LOR snapshot by default; use `--lor-snapshot` to select one explicitly:
+
+```sh
+uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_environment --lor-snapshot "$LOR_SNAPSHOT_ID"
+ENVIRONMENT_SNAPSHOT_ID='replace-with-environment-snapshot_id'
+uv run location-data records berlin_environment --snapshot "$ENVIRONMENT_SNAPSHOT_ID" --area-code 01100101
+```
+
+`berlin_environment` emits 542 `Area` records with geometry from `a_laerm2023` and 4,878 `AreaIndicatorClass` records (542 for each of nine indicators). Classes are ordinal labels, not numeric measurements; indicator records have no geometry and join by exact `area_code`. Missing source values remain null with their source markers in `quality_flags`. A local `--file` import is unsupported because each snapshot requires all eight coordinated WFS layers; it fails with a schema error rather than publishing partial data.
+
+| Indicator | Reference period | Rank direction |
+|---|---|---|
+| `noise_burden` | 2022 | Higher rank means more burden |
+| `air_pollution_burden` | 2023 | Higher rank means more burden |
+| `green_space_provision` | 2020 | Higher rank means worse provision |
+| `thermal_burden` | 2022 | Higher rank means more burden |
+| `social_disadvantage` | 2023 | Higher rank means more disadvantage |
+| `multiple_burden_environment` | 2023/2024 | Higher rank means more worst-class indicators |
+| `multiple_burden_environment_social` | 2023/2024 | Higher rank means more worst-class indicators |
+| `population_density_class` | 31 December 2023 | Higher rank means denser |
+| `simple_residential_location_hint` | 2024 | Flag only; null means not flagged or unknown |
+
+The classes are relative to Berlin and use different methods and reference periods; they are not legal limits, address-level measurements, individual health predictions, or measures of exposure at a particular premises. Noise, air, thermal and green-space classes are model/interpolation based; social index areas below 300 residents are excluded and remain missing. Green-space classes measure public provision per resident, not quality or private gardens. The official population legend says “Einwohnerdichte in EW/km²” while the method describes resident counts. The official maps also mask largely uninhabited areas, while the WFS contains full Planungsraum polygons. Do not average or sum ordinal ranks. These indicators are contextual data and are not used in any opportunity score; any future scoring transformation requires separate documentation.
+
+The config-driven legend and indicator details are available without contacting the provider:
+
+```sh
+curl --fail http://127.0.0.1:8000/api/v1/datasets/berlin_environment/legend
+```
+
+The response includes the configured class colors, missing markers, method/data-basis citations, limitations, active snapshot ID and whether its config matches. `latest_snapshot_id` is null when no snapshot is active or the active snapshot was normalized with a different config.
+
+The live contract check is bounded to one feature request per layer and is opt-in:
+
+```sh
+RUN_LIVE_TESTS=1 uv run pytest tests/live/test_berlin_environment_live.py -m live
+```
 
 ## Zensus 2022 population grid
 
@@ -278,7 +321,7 @@ Categories come from the versioned mapping [`config/categories/ihk_v1.json`](con
 
 ## Adding a connector
 
-Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
+Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `AreaIndicatorClass` (ordinal area-indicator classes), `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
 
 Register an adapter name in `app/connectors/registry.py`; modules load lazily, so a planned adapter that has no module yet fails with `Adapter is not implemented`. A dataset that must be pinned to another snapshot sets `parser_options.parent_dataset`, and its connector implements `check_parent(config, records, parent_records) -> dict`. The returned dict is merged into the manifest coverage. Use `--lor-snapshot` to pin an explicit parent.
 
