@@ -40,6 +40,19 @@ def test_config_separates_http_and_extract_timeouts():
             config(timeout_seconds=http_timeout, extract_timeout_seconds=extract_timeout)
 
 
+def test_config_rejects_unallowlisted_base_host_without_exposing_key():
+    with pytest.raises(ConfigError) as exc:
+        config(base_url="https://attacker.example")
+    assert "secret-key" not in str(exc.value)
+    assert (
+        config(
+            base_url="https://custom.example",
+            allowed_hosts=("custom.example",),
+        ).base_url
+        == "https://custom.example"
+    )
+
+
 @pytest.mark.asyncio
 async def test_search_maps_fields_caches_per_request_ids_and_sends_auth_header():
     requests = []
@@ -82,6 +95,48 @@ async def test_search_maps_fields_caches_per_request_ids_and_sends_auth_header()
     assert first.evidence[0].candidate_id == "one"
     assert budget.searches_used == 1
     assert "secret-key" not in repr(config())
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_search_cache_preserves_acquisition_timestamp():
+    timestamps = iter(
+        (
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+    )
+
+    async def handler(request):
+        return response({"results": [{"url": "https://example.com", "content": "snippet"}]})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    connector = TavilyClient(
+        config(),
+        ResearchBudget(1, 0, 0, 0),
+        client=http,
+        clock=lambda: next(timestamps),
+    )
+    first = await connector.search(ResearchSearch("same query"))
+    second = await connector.search(ResearchSearch("same query"))
+    assert first.evidence[0].retrieved_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert second.evidence[0].retrieved_at == first.evidence[0].retrieved_at
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_search_invalid_port_becomes_partial_url_failure():
+    async def handler(request):
+        return response(
+            {"results": [{"url": "https://example.com:99999/page", "content": "snippet"}]}
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    connector = TavilyClient(config(), ResearchBudget(1, 0, 0, 0), client=http)
+    page = await connector.search(ResearchSearch("query"))
+    assert page.status == "partial"
+    assert page.evidence == ()
+    assert page.failures == ({"url": "https://example.com:99999/page", "reason": "invalid_url"},)
     await http.aclose()
 
 
@@ -164,6 +219,41 @@ async def test_extract_matches_provider_result_by_canonical_url():
 
 
 @pytest.mark.asyncio
+async def test_extract_empty_content_is_failed_without_losing_other_results():
+    urls = (
+        "https://example.com/empty",
+        "https://example.com/whitespace",
+        "https://example.com/full",
+    )
+
+    async def handler(request):
+        return response(
+            {
+                "results": [
+                    {"url": urls[0], "raw_content": ""},
+                    {"url": urls[1], "raw_content": " \t\n "},
+                    {"url": urls[2], "raw_content": "Full page"},
+                ]
+            }
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    connector = TavilyClient(
+        config(), ResearchBudget(0, 3, 0, 0), client=http, resolver=public_resolver
+    )
+    page = await connector.extract(ResearchExtract(urls))
+    assert page.status == "partial"
+    assert [item.failure_reason for item in page.evidence] == [
+        "empty_content",
+        "empty_content",
+        None,
+    ]
+    assert page.evidence[2].passage == "Full page"
+    assert {item["reason"] for item in page.failures} == {"empty_content"}
+    await http.aclose()
+
+
+@pytest.mark.asyncio
 async def test_extract_payload_uses_only_explicit_provider_timeout():
     payloads = []
 
@@ -192,12 +282,21 @@ async def test_extract_payload_uses_only_explicit_provider_timeout():
 
 @pytest.mark.asyncio
 async def test_extract_http_400_failed_results_becomes_failed_page():
+    urls = (
+        "https://example.com/exact",
+        "https://example.com/normalized?utm_source=x",
+        "https://example.com/missing",
+    )
+
     async def handler(request):
         return response(
             {
                 "detail": {
                     "error": "invalid target",
-                    "failed_results": [{"url": "https://example.com", "error": "not fetched"}],
+                    "failed_results": [
+                        {"url": urls[0], "error": "not fetched"},
+                        {"url": "https://example.com/normalized", "error": "canonical failure"},
+                    ],
                 }
             },
             status=400,
@@ -205,11 +304,20 @@ async def test_extract_http_400_failed_results_becomes_failed_page():
 
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     connector = TavilyClient(
-        config(), ResearchBudget(0, 1, 0, 0), client=http, resolver=public_resolver
+        config(), ResearchBudget(0, 3, 0, 0), client=http, resolver=public_resolver
     )
-    page = await connector.extract(ResearchExtract(("https://example.com",)))
+    page = await connector.extract(ResearchExtract(urls))
     assert page.status == "failed"
-    assert page.evidence[0].failure_reason == "not fetched"
+    assert [item.failure_reason for item in page.evidence] == [
+        "not fetched",
+        "canonical failure",
+        "missing_from_provider_response",
+    ]
+    assert [item["reason"] for item in page.failures] == [
+        "not fetched",
+        "canonical failure",
+        "missing_from_provider_response",
+    ]
     await http.aclose()
 
 
@@ -290,6 +398,15 @@ async def test_extract_rejects_private_and_malformed_urls_without_transport():
 
 
 @pytest.mark.asyncio
+async def test_validate_public_url_only_accepts_default_ports():
+    with pytest.raises(UnsafeURLError) as exc:
+        await validate_public_url("https://example.com:8443/page", public_resolver)
+    assert exc.value.message == "non_default_port"
+    await validate_public_url("http://example.com:80/page", public_resolver)
+    await validate_public_url("https://example.com:443/page", public_resolver)
+
+
+@pytest.mark.asyncio
 async def test_extract_splits_more_than_twenty_urls_into_provider_batches():
     batches = []
 
@@ -311,6 +428,26 @@ async def test_extract_splits_more_than_twenty_urls_into_provider_batches():
     assert [len(batch) for batch in batches] == [20, 1]
     assert len(page.evidence) == 21
     assert budget.extract_urls_used == 21
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_extract_budget_reserves_all_uncached_batches_before_http():
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        return response({"results": []})
+
+    urls = tuple(f"https://example.com/{index}" for index in range(21))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    connector = TavilyClient(
+        config(), ResearchBudget(0, 20, 0, 0), client=http, resolver=public_resolver
+    )
+    with pytest.raises(BudgetExceededError):
+        await connector.extract(ResearchExtract(urls))
+    assert calls == 0
     await http.aclose()
 
 

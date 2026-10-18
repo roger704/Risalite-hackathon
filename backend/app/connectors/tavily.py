@@ -42,6 +42,7 @@ from app.domain.research import (
 class TavilyConfig:
     api_key: str = field(repr=False)
     base_url: str = "https://api.tavily.com"
+    allowed_hosts: tuple[str, ...] = ("api.tavily.com",)
     search_depth: str = "basic"
     max_results: int = 5
     topic: str = "general"
@@ -64,8 +65,16 @@ class TavilyConfig:
             parsed = urlsplit(self.base_url)
         except ValueError as exc:
             raise ConfigError("Tavily base_url must be https") from exc
-        if parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username:
-            raise ConfigError("Tavily base_url must be https")
+        allowed_hosts = {
+            host.rstrip(".").lower() for host in self.allowed_hosts if isinstance(host, str)
+        }
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.hostname.rstrip(".").lower() not in allowed_hosts
+        ):
+            raise ConfigError("Tavily base_url must use an allowed HTTPS host")
         if self.search_depth not in {"advanced", "basic", "fast", "ultra-fast"}:
             raise ConfigError("Invalid Tavily search_depth")
         if type(self.max_results) is not int or not 0 <= self.max_results <= 20:
@@ -148,11 +157,14 @@ async def validate_public_url(url: str, resolver: Any = None) -> None:
         parsed = urlsplit(url)
         scheme = parsed.scheme.lower()
         host = parsed.hostname
-        port = parsed.port or (443 if scheme == "https" else 80)
+        explicit_port = parsed.port
+        port = explicit_port if explicit_port is not None else (443 if scheme == "https" else 80)
     except (AttributeError, TypeError, ValueError) as exc:
         raise UnsafeURLError("invalid_url") from exc
     if scheme not in {"http", "https"}:
         raise UnsafeURLError("unsupported_scheme")
+    if explicit_port is not None and explicit_port != (443 if scheme == "https" else 80):
+        raise UnsafeURLError("non_default_port")
     if not host:
         raise UnsafeURLError("hostname_required")
     if parsed.username is not None or parsed.password is not None:
@@ -217,7 +229,7 @@ class TavilyClient:
         self.resolver = resolver
         self.sleep = sleep
         self.clock = clock
-        self._cache: dict[str, dict[str, Any]] = {}
+        self._cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
 
     async def __aenter__(self) -> "TavilyClient":
         return self
@@ -327,6 +339,7 @@ class TavilyClient:
         published_at: datetime | None = None,
         published_at_raw: str | None = None,
         score: float | None = None,
+        retrieved_at: datetime | None = None,
     ) -> WebEvidence:
         canonical = canonicalize_url(url)
         return WebEvidence(
@@ -336,7 +349,7 @@ class TavilyClient:
             canonical_url=canonical,
             title=data.get("title"),
             query=query,
-            retrieved_at=self.clock(),
+            retrieved_at=retrieved_at if retrieved_at is not None else self.clock(),
             published_at=published_at,
             published_at_raw=published_at_raw,
             snippet=snippet,
@@ -380,11 +393,12 @@ class TavilyClient:
         key = self._cache_key(payload)
         cached = key in self._cache
         if cached:
-            data = self._cache[key]
+            fetched_at, data = self._cache[key]
         else:
             self.budget.consume_search()
             data = await self._post("search", payload, extract=False)
-            self._cache[key] = data
+            fetched_at = self.clock()
+            self._cache[key] = (fetched_at, data)
         evidence: list[WebEvidence] = []
         failures: list[dict[str, str]] = []
         for result in data["results"]:
@@ -400,7 +414,7 @@ class TavilyClient:
                     raise ValueError("unsupported scheme")
                 if not urlsplit(url).hostname:
                     raise ValueError("missing hostname")
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, ValidationError):
                 failures.append({"url": url, "reason": "invalid_url"})
                 continue
             content = result.get("content")
@@ -432,6 +446,7 @@ class TavilyClient:
                     published_at=published_at,
                     published_at_raw=raw_date if isinstance(raw_date, str) else None,
                     score=result.get("score"),
+                    retrieved_at=fetched_at,
                 )
             )
         return EvidencePage(
@@ -449,6 +464,7 @@ class TavilyClient:
         reason: str,
         request: ResearchExtract,
         request_id: Any = None,
+        retrieved_at: datetime | None = None,
     ) -> WebEvidence | None:
         try:
             canonical = canonicalize_url(url)
@@ -467,7 +483,7 @@ class TavilyClient:
             canonical_url=canonical,
             title=None,
             query=request.query,
-            retrieved_at=self.clock(),
+            retrieved_at=retrieved_at if retrieved_at is not None else self.clock(),
             published_at=None,
             published_at_raw=None,
             snippet=None,
@@ -483,7 +499,7 @@ class TavilyClient:
             score=None,
         )
 
-    async def _extract_batch(self, request: ResearchExtract, urls: tuple[str, ...]) -> EvidencePage:
+    def _extract_payload(self, request: ResearchExtract, urls: tuple[str, ...]) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "urls": list(urls),
             "extract_depth": request.extract_depth or self.config.extract_depth,
@@ -496,24 +512,63 @@ class TavilyClient:
             payload["query"] = request.query
             if self.config.chunks_per_source is not None:
                 payload["chunks_per_source"] = self.config.chunks_per_source
+        return payload
+
+    @staticmethod
+    def _index_extract_entries(
+        items: list[Any], label: str
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        by_url: dict[str, dict[str, Any]] = {}
+        by_canonical_url: dict[str, dict[str, Any]] = {}
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("url"), str):
+                raise SchemaError(f"Tavily {label} is not an object")
+            url = item["url"]
+            by_url[url] = item
+            canonical_url = TavilyClient._canonical_result_url(url)
+            if canonical_url is not None:
+                by_canonical_url.setdefault(canonical_url, item)
+        return by_url, by_canonical_url
+
+    def _match_extract_entry(
+        self,
+        url: str,
+        by_url: dict[str, dict[str, Any]],
+        by_canonical_url: dict[str, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        item = by_url.get(url)
+        if item is not None:
+            return item
+        canonical_url = self._canonical_result_url(url)
+        return by_canonical_url.get(canonical_url) if canonical_url is not None else None
+
+    async def _extract_batch(self, request: ResearchExtract, urls: tuple[str, ...]) -> EvidencePage:
+        payload = self._extract_payload(request, urls)
         key = self._cache_key(payload)
         cached = key in self._cache
         if cached:
-            data = self._cache[key]
+            fetched_at, data = self._cache[key]
         else:
-            self.budget.consume_extract_urls(len(urls))
             data = await self._post("extract", payload, extract=True)
-            self._cache[key] = data
+            fetched_at = self.clock()
+            self._cache[key] = (fetched_at, data)
         if data.get("__extract_http_400__"):
             failures: list[dict[str, str]] = []
             evidence: list[WebEvidence] = []
-            for item in data["failed_results"]:
-                if not isinstance(item, dict):
-                    continue
-                url = str(item.get("url", ""))
-                reason = str(item.get("error", "provider_error"))
+            failed_by_url, failed_by_canonical_url = self._index_extract_entries(
+                data["failed_results"], "failed result"
+            )
+            for url in urls:
+                item = self._match_extract_entry(url, failed_by_url, failed_by_canonical_url)
+                reason = (
+                    str(item.get("error", "provider_error"))
+                    if item is not None
+                    else "missing_from_provider_response"
+                )
                 failures.append({"url": url, "reason": reason})
-                failed = self._failed_evidence(url, reason, request, data.get("request_id"))
+                failed = self._failed_evidence(
+                    url, reason, request, data.get("request_id"), retrieved_at=fetched_at
+                )
                 if failed is not None:
                     evidence.append(failed)
             return EvidencePage(
@@ -523,26 +578,12 @@ class TavilyClient:
         failed_results = data.get("failed_results", [])
         if not isinstance(failed_results, list):
             raise SchemaError("Tavily failed_results is not a list")
-        result_by_url = {}
-        result_by_canonical_url = {}
-        for result in provider_results:
-            if not isinstance(result, dict) or not isinstance(result.get("url"), str):
-                raise SchemaError("Tavily extraction result is not an object")
-            result_url = result["url"]
-            result_by_url[result_url] = result
-            canonical_url = self._canonical_result_url(result_url)
-            if canonical_url is not None:
-                result_by_canonical_url.setdefault(canonical_url, result)
-        failed_by_url = {}
-        failed_by_canonical_url = {}
-        for item in failed_results:
-            if not isinstance(item, dict) or not isinstance(item.get("url"), str):
-                raise SchemaError("Tavily failed result is not an object")
-            failed_url = item["url"]
-            failed_by_url[failed_url] = item
-            canonical_url = self._canonical_result_url(failed_url)
-            if canonical_url is not None:
-                failed_by_canonical_url.setdefault(canonical_url, item)
+        result_by_url, result_by_canonical_url = self._index_extract_entries(
+            provider_results, "extraction result"
+        )
+        failed_by_url, failed_by_canonical_url = self._index_extract_entries(
+            failed_results, "failed result"
+        )
         evidence: list[WebEvidence] = []
         failures: list[dict[str, str]] = []
         for url in urls:
@@ -557,6 +598,19 @@ class TavilyClient:
                 raw_content = result.get("raw_content")
                 if not isinstance(raw_content, str):
                     raise SchemaError("Tavily extraction result is missing raw_content")
+                if not raw_content.strip():
+                    reason = "empty_content"
+                    failures.append({"url": url, "reason": reason})
+                    evidence.append(
+                        self._failed_evidence(
+                            url,
+                            reason,
+                            request,
+                            data.get("request_id"),
+                            retrieved_at=fetched_at,
+                        )
+                    )
+                    continue
                 truncated = len(raw_content) > self.config.max_passage_chars
                 passage = raw_content[: self.config.max_passage_chars]
                 evidence.append(
@@ -576,19 +630,24 @@ class TavilyClient:
                             "source_length": len(raw_content),
                         },
                         content_hash=hashlib.sha256(raw_content.encode()).hexdigest(),
+                        retrieved_at=fetched_at,
                     )
                 )
             elif failed_result is not None:
                 reason = str(failed_result.get("error", "provider_error"))
                 failures.append({"url": url, "reason": reason})
                 evidence.append(
-                    self._failed_evidence(url, reason, request, data.get("request_id"))  # type: ignore[arg-type]
+                    self._failed_evidence(
+                        url, reason, request, data.get("request_id"), retrieved_at=fetched_at
+                    )  # type: ignore[arg-type]
                 )
             else:
                 reason = "missing_from_provider_response"
                 failures.append({"url": url, "reason": reason})
                 evidence.append(
-                    self._failed_evidence(url, reason, request, data.get("request_id"))  # type: ignore[arg-type]
+                    self._failed_evidence(
+                        url, reason, request, data.get("request_id"), retrieved_at=fetched_at
+                    )  # type: ignore[arg-type]
                 )
         successes = sum(
             item.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}
@@ -630,11 +689,19 @@ class TavilyClient:
             if canonical not in seen:
                 seen.add(canonical)
                 accepted.append(url)
+        batches = [tuple(accepted[start : start + 20]) for start in range(0, len(accepted), 20)]
+        uncached_url_count = sum(
+            len(batch)
+            for batch in batches
+            if self._cache_key(self._extract_payload(request, batch)) not in self._cache
+        )
+        if uncached_url_count:
+            self.budget.consume_extract_urls(uncached_url_count)
         batch_cached: list[bool] = []
         request_ids: list[str] = []
         credit_values: list[float] = []
-        for start in range(0, len(accepted), 20):
-            page = await self._extract_batch(request, tuple(accepted[start : start + 20]))
+        for batch in batches:
+            page = await self._extract_batch(request, batch)
             evidence.extend(page.evidence)
             failures.extend(page.failures)
             batch_cached.append(page.cached)

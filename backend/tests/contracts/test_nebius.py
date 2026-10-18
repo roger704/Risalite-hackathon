@@ -64,6 +64,19 @@ async def test_config_requires_model_without_echoing_credentials():
         NebiusConfig.from_env({"NEBIUS_API_KEY": "not-for-output"})
 
 
+def test_config_rejects_unallowlisted_base_host_without_exposing_key():
+    with pytest.raises(ConfigError) as exc:
+        config(base_url="https://attacker.example/v1/")
+    assert "nebius-secret" not in str(exc.value)
+    assert (
+        config(
+            base_url="https://custom.example/v1/",
+            allowed_hosts=("custom.example",),
+        ).base_url
+        == "https://custom.example/v1/"
+    )
+
+
 @pytest.mark.asyncio
 async def test_request_uses_configured_model_schema_and_never_sends_tools():
     requests = []
@@ -111,6 +124,36 @@ async def test_invalid_json_then_valid_output_retries_and_sums_tokens():
     assert budget.tokens_used == 7
     assert seen_messages[1][-2]["role"] == "assistant"
     assert seen_messages[1][-1]["content"].startswith("Your previous reply was rejected:")
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("first_response_kind", "first_usage"),
+    (("invalid_json", 0), ("non_object", 0), ("missing_choices", 2)),
+)
+async def test_invalid_http_200_body_retries_through_schema_attempts(
+    first_response_kind, first_usage
+):
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            return httpx.Response(200, json=completion('{"candidates": []}', usage=3))
+        if first_response_kind == "invalid_json":
+            return httpx.Response(200, text="not-json")
+        if first_response_kind == "non_object":
+            return httpx.Response(200, json=["not", "an", "object"])
+        return httpx.Response(200, json={"usage": {"total_tokens": first_usage}})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    budget = ResearchBudget(0, 0, 2, 100)
+    gateway = NebiusGateway(config(max_schema_retries=1), budget, client=http)
+    assert (await gateway.plan({}, ResearchPlan)).candidates == []
+    assert calls == 2
+    assert budget.tokens_used == first_usage + 3
     await http.aclose()
 
 

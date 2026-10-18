@@ -64,6 +64,7 @@ class NebiusConfig:
     api_key: str = field(repr=False)
     model: str
     base_url: str = "https://api.tokenfactory.nebius.com/v1/"
+    allowed_hosts: tuple[str, ...] = ("api.tokenfactory.nebius.com",)
     timeout_seconds: float = 60.0
     max_http_retries: int = 3
     backoff_seconds: float = 1.0
@@ -83,8 +84,16 @@ class NebiusConfig:
             parsed = urlsplit(self.base_url)
         except ValueError as exc:
             raise ConfigError("Nebius base_url must be https") from exc
-        if parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username:
-            raise ConfigError("Nebius base_url must be https")
+        allowed_hosts = {
+            host.rstrip(".").lower() for host in self.allowed_hosts if isinstance(host, str)
+        }
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.hostname.rstrip(".").lower() not in allowed_hosts
+        ):
+            raise ConfigError("Nebius base_url must use an allowed HTTPS host")
         object.__setattr__(self, "base_url", self.base_url.rstrip("/") + "/")
         if (
             isinstance(self.timeout_seconds, bool)
@@ -310,11 +319,17 @@ class NebiusGateway:
             if response.status_code >= 400:
                 raise ConnectorError("INFERENCE_REQUEST_INVALID", self._provider_detail(response))
             try:
-                data = response.json()
-            except ValueError as exc:
-                raise StructuredOutputError(1, "Provider response was not JSON") from exc
-            if not isinstance(data, dict):
-                raise StructuredOutputError(1, "Provider response was not an object")
+                response_data = response.json()
+            except ValueError:
+                response_data = None
+                response_error = "Provider response was not JSON"
+            else:
+                response_error = (
+                    "Provider response was not an object"
+                    if not isinstance(response_data, dict)
+                    else None
+                )
+            data = response_data if isinstance(response_data, dict) else {}
             usage = data.get("usage")
             tokens = usage.get("total_tokens") if isinstance(usage, dict) else None
             if not isinstance(tokens, int) or isinstance(tokens, bool) or tokens < 0:
@@ -332,6 +347,8 @@ class NebiusGateway:
                 else:
                     tokens = 0
             self.budget.record_tokens(tokens)
+            if response_error is not None:
+                return {"__response_error__": response_error}
             return data
         raise SourceUnavailableError("Nebius provider unavailable after retries")
 
@@ -375,6 +392,8 @@ class NebiusGateway:
             data = await self._request(messages, output_model)
             content = ""
             try:
+                if "__response_error__" in data:
+                    raise ValueError(str(data["__response_error__"]))
                 choices = data.get("choices")
                 if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
                     raise ValueError("Provider response is missing choices")
