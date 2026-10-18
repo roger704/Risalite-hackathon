@@ -509,7 +509,12 @@ def create_app(
         return Response(content=body, media_type=media_type, headers=headers)
 
     application.include_router(planning_router(get_service))
-    if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
+    runs_mode = os.environ.get("RISALITE_RUNS", "").casefold()
+    if runs_mode == "live":
+        from app.api.runs_live import router as live_runs_router
+
+        application.include_router(live_runs_router)
+    elif runs_mode != "off":
         application.include_router(fixture_runs_router)
 
     # Keep this last: the "/" mount catches every otherwise-unmatched route.
