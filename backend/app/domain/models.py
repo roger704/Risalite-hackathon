@@ -504,6 +504,51 @@ class DevelopmentPlan(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Address(Record):
+    """An official address point (WGS84). Never implies vacancy, availability or permitted use."""
+
+    geometry: dict[str, Any]
+    street_name: str
+    address_type: str
+    street_code: str | None = None
+    house_number: int | None = None
+    house_number_suffix: str | None = None
+    postcode: str | None = None
+    district_code: str | None = None
+    district_name: str | None = None
+    locality_code: str | None = None
+    locality_name: str | None = None
+    area_code: str | None = None
+    area_name: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="address", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("street_name", self.street_name)
+        _text("address_type", self.address_type)
+        for name in (
+            "street_code",
+            "house_number_suffix",
+            "postcode",
+            "district_code",
+            "district_name",
+            "locality_code",
+            "locality_name",
+            "area_code",
+            "area_name",
+        ):
+            _optional_text(name, getattr(self, name))
+        _optional_count("house_number", self.house_number)
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class ForecastObservation(Record):
     area_code: str
     hierarchy: str
@@ -932,6 +977,7 @@ NormalizedRecord: TypeAlias = (
     | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
+    | Address
     | Facility
     | Building
     | ResidentialLocationClass
@@ -944,6 +990,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "address": Address,
     "residential_location_class": ResidentialLocationClass,
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
@@ -1082,6 +1129,122 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
 
 
 @dataclass(frozen=True, kw_only=True)
+class RetailCenter(Record):
+    """Planning-designated retail center or specialist retail site; WGS84 GeoJSON geometry."""
+
+    geometry: dict[str, Any]
+    layer: str
+    wfs_feature_id: str
+    center_type: str | None
+    center_category: str | None
+    center_role: str | None
+    hierarchy_level: int | None
+    name: str | None
+    parent_center_id: str | None
+    category_mapping_version: str
+    source_url: str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="retail_center", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Point",
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("RetailCenter geometry must be a Point, Polygon or MultiPolygon")
+        coordinates = self.geometry.get("coordinates")
+        if not isinstance(coordinates, (list, tuple)) or not coordinates:
+            raise ValidationError("RetailCenter geometry must have coordinates")
+
+        def position(value: Any) -> tuple[float, ...]:
+            if (
+                not isinstance(value, (list, tuple))
+                or len(value) < 2
+                or any(
+                    type(coordinate) not in (int, float) or not isfinite(coordinate)
+                    for coordinate in value
+                )
+                or not -180 <= value[0] <= 180
+                or not -90 <= value[1] <= 90
+            ):
+                raise ValidationError("RetailCenter coordinates must be finite WGS84 positions")
+            return tuple(value)
+
+        def ring(value: Any) -> None:
+            if not isinstance(value, (list, tuple)) or len(value) < 4:
+                raise ValidationError(
+                    "RetailCenter polygon rings must have at least four positions"
+                )
+            positions = [position(item) for item in value]
+            if positions[0] != positions[-1]:
+                raise ValidationError("RetailCenter polygon rings must be closed")
+
+        def polygon(value: Any) -> None:
+            if not isinstance(value, (list, tuple)) or not value:
+                raise ValidationError("RetailCenter polygons must have at least one ring")
+            for polygon_ring in value:
+                ring(polygon_ring)
+
+        geometry_type = self.geometry["type"]
+        if geometry_type == "Point":
+            position(coordinates)
+        elif geometry_type == "Polygon":
+            polygon(coordinates)
+        else:
+            if not isinstance(coordinates, (list, tuple)) or not coordinates:
+                raise ValidationError("RetailCenter multipolygons must contain polygons")
+            for component in coordinates:
+                polygon(component)
+        for name in ("layer", "wfs_feature_id", "category_mapping_version", "source_url"):
+            _text(name, getattr(self, name))
+        for name in (
+            "center_type",
+            "center_category",
+            "center_role",
+            "name",
+            "parent_center_id",
+        ):
+            _optional_text(name, getattr(self, name))
+        if self.center_role not in {
+            None,
+            "center",
+            "center_area",
+            "special_center",
+            "specialist_retail_site",
+        }:
+            raise ValidationError("Unsupported retail-center role")
+        if self.hierarchy_level is not None and (
+            type(self.hierarchy_level) is not int or self.hierarchy_level not in range(1, 5)
+        ):
+            raise ValidationError("hierarchy_level must be 1-4 or null")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+NormalizedRecord = (
+    Area
+    | AreaObservation
+    | ForecastObservation
+    | Place
+    | Business
+    | TransitStop
+    | StopService
+    | DevelopmentPlan
+    | ResidentialLocationClass
+    | AreaIndicatorClass
+    | GridObservation
+    | Facility
+    | RetailCenter
+)
+RECORD_TYPES["retail_center"] = RetailCenter
+
+
+@dataclass(frozen=True, kw_only=True)
 class MobilityObservation(Record):
     """Counted traffic at one fixed counter for an explicit local interval.
 
@@ -1182,6 +1345,8 @@ class MobilityObservation(Record):
 
 
 RECORD_TYPES["mobility_observation"] = MobilityObservation
+
+NormalizedRecord = NormalizedRecord | MobilityObservation
 
 
 @dataclass(frozen=True, kw_only=True)

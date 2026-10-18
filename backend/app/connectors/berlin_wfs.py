@@ -247,6 +247,8 @@ def _options(config: DatasetConfig) -> dict:
         or count_range[0] > count_range[1]
     ):
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
+    if options["record_type"] == "address":
+        return options
     if options["record_type"] == "residential_location_class":
         return options
     if options["record_type"] not in {
