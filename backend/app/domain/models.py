@@ -442,6 +442,153 @@ class StopService(Record):
         _optional_text("area_code", self.area_code)
 
 
+DEVELOPMENT_PLAN_STATUSES = frozenset(
+    {"in_progress", "adopted", "partially_in_force", "repealed", "unmapped"}
+)
+"""Coarse status values for Berlin development-plan procedures."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class DevelopmentPlan(Record):
+    """A Berlin development-plan procedure with WGS84 polygon geometry."""
+
+    geometry: dict[str, Any]
+    plan_id: str
+    name: str | None
+    status: str
+    raw_status: str | None
+    source_layer: str
+    district: str | None
+    plan_type: str | None
+    procedure_type: str | None
+    area_description: str | None
+    land_use_text: str | None
+    aufstellungsbeschluss_date: str | None
+    festsetzung_date: str | None
+    dates: dict[str, str]
+    document_urls: dict[str, str]
+    attributes: dict[str, str]
+    record_type: str = field(default="development_plan", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("plan_id", self.plan_id)
+        _text("source_layer", self.source_layer)
+        if self.status not in DEVELOPMENT_PLAN_STATUSES:
+            raise ValidationError(f"Unsupported development-plan status: {self.status}")
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Development-plan geometry must be a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Development-plan geometry must have coordinates")
+        for name in (
+            "name",
+            "raw_status",
+            "district",
+            "plan_type",
+            "procedure_type",
+            "area_description",
+            "land_use_text",
+            "aufstellungsbeschluss_date",
+            "festsetzung_date",
+        ):
+            _optional_text(name, getattr(self, name))
+        for name in ("dates", "document_urls", "attributes"):
+            value = getattr(self, name)
+            if not isinstance(value, dict) or any(
+                not isinstance(key, str) or not isinstance(item, str) for key, item in value.items()
+            ):
+                raise ValidationError(f"{name} must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ForecastObservation(Record):
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    metric_code: str
+    value: float | int
+    unit: str
+    reference_period: str
+    value_status: ValueStatus | str
+    scenario: str
+    forecast_edition: str
+    base_period: str
+    age_min: int | None = None
+    age_max_exclusive: int | None = None
+    record_type: str = field(default="forecast_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("metric_code", self.metric_code)
+        _text("scenario", self.scenario)
+        _text("forecast_edition", self.forecast_edition)
+        if self.scenario not in {"middle", "upper", "lower"}:
+            raise ValidationError(f"Unsupported forecast scenario: {self.scenario}")
+        if self.hierarchy == "land":
+            valid_code = self.area_code == "11"
+        elif self.hierarchy == "bezirk":
+            valid_code = (
+                bool(re.fullmatch(r"\d{2}", self.area_code)) and 1 <= int(self.area_code) <= 12
+            )
+        elif self.hierarchy == "prognoseraum":
+            valid_code = (
+                bool(re.fullmatch(r"\d{4}", self.area_code)) and 1 <= int(self.area_code[:2]) <= 12
+            )
+        else:
+            valid_code = False
+        if not valid_code:
+            raise ValidationError(
+                f"Invalid area code {self.area_code!r} for hierarchy {self.hierarchy!r}"
+            )
+        for name in ("reference_period", "base_period"):
+            value = getattr(self, name)
+            try:
+                if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    raise ValueError
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise ValidationError(f"{name} must be an ISO calendar date") from exc
+        reference = date.fromisoformat(self.reference_period)
+        base = date.fromisoformat(self.base_period)
+        if reference < base:
+            raise ValidationError("reference_period cannot be before base_period")
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        expected_status = ValueStatus.OBSERVED if reference == base else ValueStatus.FORECAST
+        if status != expected_status:
+            raise ValidationError(
+                f"value_status must be {expected_status.value} for this reference_period"
+            )
+        object.__setattr__(self, "value_status", status)
+        if (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+        ):
+            raise ValidationError("Forecast value must be a finite nonnegative number")
+        if self.unit not in {"persons", "thousand_persons"}:
+            raise ValidationError(f"Unsupported forecast unit: {self.unit}")
+        _text("unit", self.unit)
+        lower, upper = self.age_min, self.age_max_exclusive
+        if lower is None and upper is not None:
+            raise ValidationError("Age bounds must both be null for totals or have an age_min")
+        if lower is not None and (
+            isinstance(lower, bool) or not isinstance(lower, int) or lower < 0
+        ):
+            raise ValidationError("age_min must be a nonnegative integer or null")
+        if upper is not None and (
+            isinstance(upper, bool) or not isinstance(upper, int) or lower is None or upper <= lower
+        ):
+            raise ValidationError("age_max_exclusive must be greater than age_min or null")
+
+
 @dataclass(frozen=True, kw_only=True)
 class ResidentialLocationClass(Record):
     geometry: dict[str, Any]
@@ -649,10 +796,12 @@ class GridObservation(Record):
 NormalizedRecord: TypeAlias = (
     Area
     | AreaObservation
+    | ForecastObservation
     | Place
     | Business
     | TransitStop
     | StopService
+    | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
     | ResidentialLocationClass
@@ -660,11 +809,13 @@ NormalizedRecord: TypeAlias = (
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
     "area_observation": AreaObservation,
+    "forecast_observation": ForecastObservation,
     "place": Place,
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
     "residential_location_class": ResidentialLocationClass,
+    "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
 }
@@ -796,6 +947,109 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class MobilityObservation(Record):
+    """Counted traffic at one fixed counter for an explicit local interval.
+
+    A count measures the stated mode at that location only; it is not footfall,
+    customers or revenue and must not be projected onto other streets.
+    """
+
+    geometry: dict
+    location_id: str
+    location_name: str
+    mode: str
+    metric_code: str
+    unit: str
+    aggregation: str
+    interval_start: str
+    interval_end: str
+    timezone: str
+    measurement_status: str
+    value: int | float | None = None
+    value_status: ValueStatus = ValueStatus.MISSING
+    direction: str | None = None
+    window_id: str | None = None
+    expected_intervals: int = 0
+    observed_intervals: int = 0
+    reconstructed_intervals: int = 0
+    implausible_intervals: int = 0
+    missing_intervals: int = 0
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="mobility_observation", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        for name in (
+            "location_id",
+            "location_name",
+            "mode",
+            "metric_code",
+            "unit",
+            "aggregation",
+            "interval_start",
+            "interval_end",
+            "timezone",
+            "measurement_status",
+        ):
+            _text(name, getattr(self, name))
+        for name in ("direction", "window_id", "area_code"):
+            _optional_text(name, getattr(self, name))
+        try:
+            status = ValueStatus(self.value_status)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        null_status = status in {
+            ValueStatus.MISSING,
+            ValueStatus.NOT_APPLICABLE,
+            ValueStatus.SUPPRESSED,
+        }
+        if self.value is None:
+            if not null_status:
+                raise ValidationError("A null mobility value requires a null value_status")
+        elif (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+            or self.value < 0
+            or null_status
+        ):
+            raise ValidationError("Mobility values must be nonnegative finite numbers")
+        for name in (
+            "expected_intervals",
+            "observed_intervals",
+            "reconstructed_intervals",
+            "implausible_intervals",
+            "missing_intervals",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{name} must be a nonnegative integer")
+        if (
+            self.observed_intervals
+            + self.reconstructed_intervals
+            + self.implausible_intervals
+            + self.missing_intervals
+            != self.expected_intervals
+        ):
+            raise ValidationError("Mobility interval counts must sum to expected_intervals")
+        if self.aggregation not in {"day", "window"}:
+            raise ValidationError("aggregation must be day or window")
+        if self.aggregation == "window" and self.window_id is None:
+            raise ValidationError("Window observations require a window_id")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["mobility_observation"] = MobilityObservation
 
 
 @dataclass(frozen=True, kw_only=True)
