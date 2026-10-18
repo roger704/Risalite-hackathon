@@ -13,6 +13,7 @@ Public URL: **https://spotwise.81-85-0-244.sslip.io/**. The marketing page is at
 | Operator SSH | `deploy@81.85.0.244`, restricted to `83.135.183.58` |
 | App checkout | `/opt/spotwise` |
 | Persistent data | `/var/lib/spotwise` |
+| Research, skeptic, review and writer model | `nvidia/nemotron-3-super-120b-a12b` |
 
 The whole application runs on one dedicated Ubuntu 24.04 Nebius VM: `cpu-d3`, `2vcpu-8gb`, 40 GiB SSD, in the assigned hackathon project. It needs no GPU. Caddy terminates HTTPS and proxies the UI, API and streaming agent events to a single FastAPI worker listening only on `127.0.0.1:8000`.
 

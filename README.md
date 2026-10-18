@@ -385,7 +385,7 @@ uv run --python 3.11 location-data ingest berlin_centers --lor-snapshot "$LOR_SN
 
 ### Start and run
 
-Start the dashboard and live API from `backend/`; replace the secret placeholders with secret-manager references. Set `NEBIUS_MODEL` to a model available to your Token Factory account and set `RISALITE_RESEARCH_MODEL`, `RISALITE_SKEPTIC_MODEL`, `RISALITE_WRITER_MODEL`, and `RISALITE_REVIEW_MODEL` to that same model initially. The public review server currently uses `Qwen/Qwen3-30B-A3B-Instruct-2507` for all roles.
+Start the dashboard and live API from `backend/`; replace the secret placeholders with secret-manager references. The public review server is configured to use **`nvidia/nemotron-3-super-120b-a12b`** for all roles. Set `NEBIUS_MODEL`, `RISALITE_RESEARCH_MODEL`, `RISALITE_SKEPTIC_MODEL`, `RISALITE_WRITER_MODEL`, and `RISALITE_REVIEW_MODEL` to that model, or another model available to your Token Factory account.
 
 ```sh
 LOCATION_DATA_DIR=/home/ubuntu/data/risalite RISALITE_RUNS=live \
