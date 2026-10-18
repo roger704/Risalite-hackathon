@@ -1,0 +1,134 @@
+{
+  "dataset_id": "berlin_population",
+  "provider": "Amt für Statistik Berlin-Brandenburg",
+  "adapter": "population",
+  "landing_url": "https://www.statistik-berlin-brandenburg.de/a-i-16-hj/",
+  "resource_url": "https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx",
+  "allowed_hosts": [
+    "download.statistik-berlin-brandenburg.de"
+  ],
+  "license_id": "CC-BY-3.0-DE",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+  "attribution": "Amt für Statistik Berlin-Brandenburg, Einwohnerregisterstatistik Berlin, A I 16 – hj 1 / 26, 2026, CC BY 3.0 DE",
+  "boundary_edition": "2021",
+  "source_edition": "2026h01",
+  "reference_period": "2026-06-30",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "format": "xlsx",
+    "worksheet": "T2",
+    "first_data_row": 7,
+    "area_code_columns": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "area_code_widths": [
+      2,
+      2,
+      2,
+      2
+    ],
+    "allow_numeric_code_components": true,
+    "hierarchy": "planungsraum",
+    "integer_counts": true,
+    "metrics": [
+      {
+        "column": "E",
+        "metric_code": "population_total",
+        "unit": "persons"
+      },
+      {
+        "column": "F",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 0,
+        "age_max_exclusive": 6
+      },
+      {
+        "column": "G",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 6,
+        "age_max_exclusive": 15
+      },
+      {
+        "column": "H",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 15,
+        "age_max_exclusive": 18
+      },
+      {
+        "column": "I",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 18,
+        "age_max_exclusive": 27
+      },
+      {
+        "column": "J",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 27,
+        "age_max_exclusive": 45
+      },
+      {
+        "column": "K",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 45,
+        "age_max_exclusive": 55
+      },
+      {
+        "column": "L",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 55,
+        "age_max_exclusive": 65
+      },
+      {
+        "column": "M",
+        "metric_code": "population_age_band",
+        "unit": "persons",
+        "age_min": 65,
+        "age_max_exclusive": null
+      }
+    ],
+    "check_age_total": true,
+    "expected_area_count": 542,
+    "max_unpacked_bytes": 30000000,
+    "expected_cells": {
+      "A1": "2  Einwohnerinnen und Einwohner in Berlin am 30. Juni 2026 nach LOR-Planungsräumen und Altersgruppen",
+      "A3": "Bezirk\nPrognoseraum\nBezirksregion\nPlanungsraum",
+      "E3": "Ins-\ngesamt",
+      "F3": "Davon im Alter von ... bis unter ... Jahren",
+      "F4": "unter 6",
+      "G4": "6 - 15",
+      "H4": "15 - 18",
+      "I4": "18 - 27",
+      "J4": "27 - 45",
+      "K4": "45 - 55",
+      "L4": "55 - 65",
+      "M4": "65 und\nmehr"
+    },
+    "sentinels": {
+      "": "missing",
+      "•": "suppressed",
+      "/": "missing",
+      "…": "missing",
+      "x": "not_applicable",
+      "–": "zero"
+    },
+    "limitations": [
+      "Population means registered residents at their principal residence on 2026-06-30; it is not daytime population or measured customer demand.",
+      "Age intervals use an exclusive upper bound; the total and age-band observations must not be added together.",
+      "Population code directory states December 2021. Boundary edition 2021 denotes the LOR scheme; ingestion must pin a compatible LOR geometry snapshot and check all codes.",
+      "Source access and XLSX sheet T2 mapping checked 2026-10-18; source report license and legend are in its Impressum worksheet."
+    ]
+  }
+}

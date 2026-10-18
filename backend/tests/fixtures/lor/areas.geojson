@@ -1,0 +1,76 @@
+{
+  "type": "FeatureCollection",
+  "name": "SYNTHETIC LOR CONTRACT FIXTURE \u2014 NOT OFFICIAL BOUNDARIES",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "PLR_ID": "01011101",
+        "PLR_NAME": "Synthetic Alpha"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              13.35,
+              52.5
+            ],
+            [
+              13.36,
+              52.5
+            ],
+            [
+              13.36,
+              52.51
+            ],
+            [
+              13.35,
+              52.51
+            ],
+            [
+              13.35,
+              52.5
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "PLR_ID": "01011102",
+        "PLR_NAME": "Synthetic Beta"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                13.37,
+                52.5
+              ],
+              [
+                13.38,
+                52.5
+              ],
+              [
+                13.38,
+                52.51
+              ],
+              [
+                13.37,
+                52.51
+              ],
+              [
+                13.37,
+                52.5
+              ]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

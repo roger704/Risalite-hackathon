@@ -91,3 +91,9 @@ Proxies must be labeled explicitly:
 3. **Verification and richer recommendations:** Add development plans, housing-growth context, environmental risks, and targeted research into shortlisted locations.
 
 This provides a free data foundation for both demo scenarios while keeping uncertain assumptions visible.
+
+## 7. First Implementation Validation
+
+The [backend setup guide](backend/README.md) documents the two working connectors and their reviewed download resources. On 18 October 2026, a full download-to-publication run imported 542 LOR planning-area polygons and 4,878 population observations (542 areas, one total plus eight age bands) from the official sources without rejected rows. Population refers to 30 June 2026; the selected boundary archive is the 1 January 2023 release of the 2021 LOR scheme. All area codes matched; code matching alone does not certify unchanged geometry between editions.
+
+The selected LOR archive is licensed CC BY 3.0 and supplies IDs without neighborhood names. The population workbook is licensed CC BY 3.0 DE. These source-specific licenses take precedence over general assumptions about Berlin Open Data licensing. Exact URLs, mappings, attribution, and reference dates are in the reviewed files under `backend/config/datasets/`.

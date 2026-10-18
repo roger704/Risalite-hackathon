@@ -1,6 +1,6 @@
 # Connector Blueprint — AI Location Intelligence
 
-Status: proposed implementation design. No connectors are implemented yet.
+Status: implementation blueprint. The first slice now implements backend structure, shared contracts, LOR and population adapters, snapshot ingestion/storage, and dataset read APIs. See the [backend setup guide](backend/README.md) for commands and validated source details. Other connectors and analysis/research workflows remain planned.
 
 Design date: **18 October 2026**. Source inventory: [DATA_SOURCES.md](DATA_SOURCES.md). Project scope: [README.md](README.md).
 
@@ -298,7 +298,7 @@ Confirm endpoint and account capabilities against the [Nebius API documentation]
 
 ## 7. API and Agent Tool Boundary
 
-These routes are proposed contracts. The project has no running backend yet. Use `/api/v1` and publish OpenAPI schemas when implemented.
+Dataset listing, manifest, and record routes below are implemented under `/api/v1`, with OpenAPI available at `/docs` and `/openapi.json`. Analysis, evidence, and event routes remain proposed contracts.
 
 | Route | Behavior |
 |---|---|
@@ -382,7 +382,7 @@ data/
   catalog.sqlite      # Manifests/jobs/events; ignored by Git
 ```
 
-This is a proposed layout, not an existing scaffold. When implementation starts, add a `.gitignore` for generated data, caches, logs, virtual environments, and `.env`; include only empty environment-variable examples in `.env.example`. Keep API keys server-side and out of source URLs, logs, events, and manifests. Follow redirects only to allowed provider/download hosts; evidence extraction must reject private/local network destinations.
+The first implementation follows this layout for its implemented modules; future connector, scoring, and research modules are still planned. `.gitignore` excludes generated data, caches, logs, virtual environments, and `.env`; `.env.example` contains empty credential examples. Keep API keys server-side and out of source URLs, logs, events, and manifests. Follow redirects only to allowed provider/download hosts; evidence extraction must reject private/local network destinations.
 
 ## 9. Acceptance Criteria and Integration Checks
 

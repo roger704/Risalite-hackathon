@@ -1,0 +1,35 @@
+{
+  "dataset_id": "berlin_lor",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen / Amt für Statistik Berlin-Brandenburg",
+  "adapter": "lor",
+  "landing_url": "https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/",
+  "resource_url": "https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163",
+  "allowed_hosts": [
+    "www.berlin.de"
+  ],
+  "license_id": "CC-BY-3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/",
+  "attribution": "Amt für Statistik Berlin-Brandenburg; LOR Vektordaten, CC BY 3.0; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2023-01-01",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 30.0,
+  "parser_options": {
+    "archive_member": "LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp",
+    "code_field": "PLR_ID",
+    "name_field": null,
+    "code_length": 8,
+    "hierarchy": "planungsraum",
+    "expected_rows": 542,
+    "max_unpacked_bytes": 50000000,
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ]
+  }
+}

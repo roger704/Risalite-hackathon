@@ -4,6 +4,8 @@
 
 **Challenge:** Agentic Deep Research with Nebius Token Factory & Tavily
 
+**Implementation:** The [backend setup guide](backend/README.md) covers the working LOR and population connectors, ingestion CLI, versioned snapshots, and read API. The remaining project capabilities below are planned.
+
 ## 1. Vision — What We Want to Build
 
 **"Don't just research a location. Discover where opportunity exists."**
