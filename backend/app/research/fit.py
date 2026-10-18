@@ -50,9 +50,7 @@ def _fake(hypotheses: Sequence[dict], findings: list[dict[str, Any]]) -> FitAsse
         hid = str(hypothesis["id"])
         for key, name in DIMENSIONS.items():
             rows = [
-                f
-                for f in findings
-                if f.get("hypothesis_id") == hid and f.get("dimension") == key
+                f for f in findings if f.get("hypothesis_id") == hid and f.get("dimension") == key
             ]
             if not rows:
                 continue
@@ -92,7 +90,14 @@ async def derive_fit(
             "findings": [
                 {
                     k: f.get(k)
-                    for k in ("hypothesis_id", "dimension", "stance", "claim", "quote", "evidence_ids")
+                    for k in (
+                        "hypothesis_id",
+                        "dimension",
+                        "stance",
+                        "claim",
+                        "quote",
+                        "evidence_ids",
+                    )
                 }
                 for f in rows
             ],
@@ -107,7 +112,9 @@ async def derive_fit(
     known = {str(h["id"]) for h in hypotheses}
     fit: dict[str, dict[str, dict[str, Any]]] = {}
     for item in result.items if result else []:
-        ids = [e for e in dict.fromkeys(item.evidence_ids) if e in allowed.get(item.hypothesis_id, ())]
+        ids = [
+            e for e in dict.fromkeys(item.evidence_ids) if e in allowed.get(item.hypothesis_id, ())
+        ]
         if item.hypothesis_id not in known or not ids:
             continue
         fit.setdefault(item.hypothesis_id, {})[item.dimension] = {

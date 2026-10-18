@@ -199,9 +199,7 @@ async def test_fact_check_only_checks_and_prefetches_selected_ids(tmp_path):
     assert ledger.get("ev_b").get("status", "unverified") == "unverified"
 
 
-async def test_fact_check_entries_run_concurrently_but_write_in_ledger_order(
-    tmp_path, monkeypatch
-):
+async def test_fact_check_entries_run_concurrently_but_write_in_ledger_order(tmp_path, monkeypatch):
     monkeypatch.setenv("RISALITE_FACTCHECK_CONCURRENCY", "2")
     evidence_ids = ["ev_slow", "ev_medium", "ev_fast"]
     EvidenceLedger(tmp_path).extend(
@@ -220,14 +218,10 @@ async def test_fact_check_entries_run_concurrently_but_write_in_ledger_order(
             self.max_active = max(self.max_active, self.active)
             try:
                 await asyncio.sleep(
-                    {"ev_slow": 0.05, "ev_medium": 0.01, "ev_fast": 0.001}[
-                        entry["evidence_id"]
-                    ]
+                    {"ev_slow": 0.05, "ev_medium": 0.01, "ev_fast": 0.001}[entry["evidence_id"]]
                 )
                 self.completed.append(entry["evidence_id"])
-                return CheckResult(
-                    entry["evidence_id"], "evidence", "verified", 1.0, "test"
-                )
+                return CheckResult(entry["evidence_id"], "evidence", "verified", 1.0, "test")
             finally:
                 self.active -= 1
 
@@ -264,9 +258,7 @@ async def test_recheck_failure_uses_a_matching_stored_extract():
         )
 
     assert stored_result.status == "partial"
-    assert stored_result.reason == (
-        "re-fetch failed (HTTP 429); matched stored extract"
-    )
+    assert stored_result.reason == ("re-fetch failed (HTTP 429); matched stored extract")
     assert finding_result.status == "partial"
     assert finding_result.matched_ids == ("ev_stored",)
     assert missing_result.status == "unsupported"

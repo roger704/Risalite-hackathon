@@ -447,6 +447,7 @@ def create_app(
                 "INVALID_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
             )
         return station_layer(data, dataset_id, snapshot_id, window_id, year)
+
     @application.get("/api/v1/population-forecast/expected-change")
     def population_forecast_change(
         data: Annotated[DataService, Depends(get_service)],
@@ -564,7 +565,7 @@ def create_app(
                 "NOT_FOUND",
                 f"No {scenario} {metric_code} data for area {area_code} and target year "
                 f"{target_year} with the requested age interval.",
-        )
+            )
         return expected_change(bases[0], targets[0])
 
     def get_area_summaries(

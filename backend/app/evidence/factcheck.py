@@ -260,9 +260,7 @@ class FactChecker:
         if self.offline or self.research is None:
             return
         selected = [
-            entry
-            for entry in entries
-            if only_ids is None or entry.get("evidence_id") in only_ids
+            entry for entry in entries if only_ids is None or entry.get("evidence_id") in only_ids
         ]
         urls = tuple(
             dict.fromkeys(
@@ -296,9 +294,7 @@ class FactChecker:
                 Fetched(
                     None,
                     "tavily-extract",
-                    failures.get(
-                        url, self._refetch_failure_reason("no content returned")
-                    ),
+                    failures.get(url, self._refetch_failure_reason("no content returned")),
                 ),
             )
 
