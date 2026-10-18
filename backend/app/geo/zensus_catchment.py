@@ -5,8 +5,9 @@ from collections import Counter
 from typing import Iterable
 
 from pyproj import Transformer
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import transform
 
 from app.domain import GridObservation
 from app.geo.inspire_grid import cell_polygon, parse_grid_id
@@ -53,7 +54,20 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
         raise ValueError("At least one census grid cell is required")
     if catchment.is_empty or not catchment.is_valid or catchment.area <= 0:
         raise ValueError("catchment must be nonempty and valid")
-    for name in ("source_id", "metric_code", "reference_period", "resolution_m", "grid_crs"):
+    seen_grid_ids: set[str] = set()
+    for record in records:
+        if record.grid_id in seen_grid_ids:
+            raise ValueError(f"duplicate grid_id {record.grid_id}")
+        seen_grid_ids.add(record.grid_id)
+    for name in (
+        "source_id",
+        "snapshot_id",
+        "metric_code",
+        "reference_period",
+        "resolution_m",
+        "grid_crs",
+        "unit",
+    ):
         if len({getattr(record, name) for record in records}) != 1:
             raise ValueError(f"census grid cells must share one {name}")
     first = records[0]
@@ -67,6 +81,7 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
     centroid_in_sum: int | float = 0
     area_weighted_sum = 0.0
     published_area = 0.0
+    valueless_area = 0.0
 
     for record in records:
         polygon = cell_polygon(parse_grid_id(record.grid_id), "EPSG:25833")
@@ -75,7 +90,6 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             continue
         intersecting += 1
         fraction = intersection.area / polygon.area
-        published_area += intersection.area
         is_within = catchment.covers(polygon)
         if is_within:
             within += 1
@@ -85,7 +99,9 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             without_value += 1
             status = getattr(record.value_status, "value", record.value_status)
             without_value_by_status[str(status)] += 1
+            valueless_area += intersection.area
             continue
+        published_area += intersection.area
         intersecting_sum += record.value
         if is_within:
             within_sum += record.value
@@ -94,8 +110,22 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
         area_weighted_sum += record.value * fraction
 
     catchment_area = catchment.area
+    complete = without_value == 0
+    warnings = [
+        "Values are perturbed by the cell-key method (CKM); sums need not match official totals.",
+        "Cells absent from the file have no published value; absence is not zero.",
+        "Area-weighted estimates assume uniform density within each cell.",
+        "Values describe the historical reference date 2022-05-15, not current population.",
+    ]
+    if not complete:
+        statuses = ", ".join(sorted(without_value_by_status))
+        warnings.append(
+            f"{without_value} intersecting cells have no published value (statuses {statuses}); "
+            "upper bound unavailable and estimate covers known cells only"
+        )
     return {
         "source_id": first.source_id,
+        "snapshot_id": first.snapshot_id,
         "metric_code": first.metric_code,
         "unit": first.unit,
         "reference_period": first.reference_period,
@@ -115,6 +145,7 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
             "intersecting_sum": intersecting_sum,
             "centroid_in_sum": centroid_in_sum,
             "value_status": "observed",
+            "complete": complete,
             "spatial_unit": "union of whole grid cells, not the catchment",
         },
         "intersected_estimate": {
@@ -124,23 +155,20 @@ def aggregate_grid(cells: Iterable[GridObservation], catchment: BaseGeometry) ->
         },
         "bounds": {
             "lower": within_sum,
-            "upper": intersecting_sum,
+            "upper": intersecting_sum if complete else None,
+            "complete": complete,
             "meaning": "sum of fully contained vs all intersecting published cells",
         },
         "coverage": {
             "published_cell_area_in_catchment_m2": round(published_area, 1),
             "share_of_catchment": round(published_area / catchment_area, 4),
+            "valueless_cell_area_in_catchment_m2": round(valueless_area, 1),
             "meaning": (
-                "share of the catchment covered by published cells; the rest has no "
-                "residents or unpublished values"
+                "share of the catchment covered by cells with published values; valueless "
+                "cell area is reported separately"
             ),
         },
-        "warnings": [
-            "Values are perturbed by the cell-key method (CKM); sums need not match official totals.",
-            "Cells absent from the file have no published value; absence is not zero.",
-            "Area-weighted estimates assume uniform density within each cell.",
-            "Values describe the historical reference date 2022-05-15, not current population.",
-        ],
+        "warnings": warnings,
     }
 
 
@@ -150,7 +178,25 @@ def snapshot_catchment(
     manifest = service.catalog.get(dataset_id, snapshot_id)
     if len(manifest.normalized_assets) != 1:
         raise ValueError("Snapshot must contain exactly one normalized asset")
+    extract_extent = manifest.coverage.get("extract_extent")
+    if (
+        not isinstance(extract_extent, dict)
+        or extract_extent.get("crs") != "EPSG:3035"
+        or extract_extent.get("rule") != "cells intersecting bbox"
+        or not _valid_bbox(extract_extent.get("bbox"))
+    ):
+        raise ValueError(
+            "snapshot has no recorded extract extent; re-import with adapter 1.1.0"
+        )
+    bbox = tuple(extract_extent["bbox"])
     catchment = circle_catchment(lon, lat, radius_m)
+    to_3035 = Transformer.from_crs("EPSG:25833", "EPSG:3035", always_xy=True)
+    catchment_3035 = transform(to_3035.transform, catchment)
+    if not box(*bbox).covers(catchment_3035):
+        raise ValueError(
+            "catchment extends beyond the imported extract extent "
+            f"{list(bbox)} (EPSG:3035); results would undercount"
+        )
     path = service.root / manifest.normalized_assets[0]
     records = read_records(path)
     result = aggregate_grid(
@@ -162,6 +208,7 @@ def snapshot_catchment(
             "snapshot_id": snapshot_id,
             "dataset_id": dataset_id,
             "source_edition": manifest.source_edition,
+            "extract_extent": extract_extent,
             "attribution": manifest.attribution,
             "license_id": manifest.license_id,
             "license_url": manifest.license_url,
@@ -177,3 +224,18 @@ def snapshot_catchment(
         }
     )
     return result
+
+
+def _valid_bbox(value) -> bool:
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 4
+        and all(
+            isinstance(item, (int, float))
+            and not isinstance(item, bool)
+            and math.isfinite(item)
+            for item in value
+        )
+        and value[0] < value[2]
+        and value[1] < value[3]
+    )

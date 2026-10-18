@@ -31,7 +31,7 @@ from app.geo.inspire_grid import cell_geojson_wgs84, cell_polygon, parse_grid_id
 
 
 class ZensusGridConnector(FileConnector):
-    adapter_version = "1.0.0"
+    adapter_version = "1.1.0"
 
     def normalize(self, raw: RawBundle, config: DatasetConfig) -> NormalizedBatch:
         if len(raw.assets) != 1:
@@ -289,6 +289,11 @@ class ZensusGridConnector(FileConnector):
         first = records[0] if records else None
         return {
             "parent_dataset": "berlin_lor",
+            "extract_extent": {
+                "crs": "EPSG:3035",
+                "bbox": list(source_bbox),
+                "rule": "cells intersecting bbox",
+            },
             "grid_crs": first.grid_crs if first else options.get("grid_crs"),
             "resolution_m": first.resolution_m if first else options.get("resolution_m"),
             "reference_period": first.reference_period if first else config.reference_period,

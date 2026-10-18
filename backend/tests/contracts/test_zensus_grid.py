@@ -370,6 +370,36 @@ def test_aggregate_grid_whole_cells_estimate_coverage_and_null_values():
     assert missing_result["whole_cells"]["intersecting_sum"] == 0
 
 
+def test_aggregate_grid_marks_missing_bounds_incomplete_and_excludes_missing_area():
+    first = grid_observation(GridCell(100, 3270900, 4548500), 10)
+    suppressed = grid_observation(
+        GridCell(100, 3270900, 4548600), None, status="suppressed"
+    )
+    first_polygon = cell_polygon(parse_grid_id(first.grid_id), "EPSG:25833")
+    suppressed_polygon = cell_polygon(parse_grid_id(suppressed.grid_id), "EPSG:25833")
+    catchment = unary_union([first_polygon, suppressed_polygon])
+
+    result = aggregate_grid([first, suppressed], catchment)
+
+    assert result["bounds"]["lower"] == 10
+    assert result["bounds"]["upper"] is None
+    assert result["bounds"]["complete"] is False
+    assert result["whole_cells"]["intersecting_sum"] == 10
+    assert result["whole_cells"]["complete"] is False
+    assert result["coverage"]["published_cell_area_in_catchment_m2"] == pytest.approx(
+        round(first_polygon.area, 1)
+    )
+    assert result["coverage"]["valueless_cell_area_in_catchment_m2"] == pytest.approx(
+        round(suppressed_polygon.area, 1)
+    )
+    assert result["coverage"]["share_of_catchment"] == pytest.approx(0.5, abs=0.0001)
+    assert any(
+        "1 intersecting cells have no published value (statuses suppressed)" in warning
+        and "upper bound unavailable" in warning
+        for warning in result["warnings"]
+    )
+
+
 def test_aggregate_grid_rejects_mixed_data_or_periods():
     cell = GridCell(100, 3270900, 4548500)
     record = grid_observation(cell, 10)
@@ -396,7 +426,25 @@ def test_aggregate_grid_rejects_mixed_data_or_periods():
             polygon,
         )
     with pytest.raises(ValueError, match="reference_period"):
-        aggregate_grid([record, replace(record, reference_period="2022-05-16")], polygon)
+        aggregate_grid(
+            [
+                record,
+                replace(
+                    grid_observation(GridCell(100, 3270900, 4548600), 10),
+                    reference_period="2022-05-16",
+                ),
+            ],
+            polygon,
+        )
+    other_record = grid_observation(GridCell(100, 3270900, 4548600), 10)
+    with pytest.raises(ValueError, match="snapshot_id"):
+        aggregate_grid([record, replace(other_record, snapshot_id="other")], polygon)
+    with pytest.raises(ValueError, match="unit"):
+        aggregate_grid([record, replace(other_record, unit="households")], polygon)
+    with pytest.raises(ValueError, match="duplicate grid_id"):
+        aggregate_grid([record, record], polygon)
+    result = aggregate_grid([record], polygon)
+    assert result["snapshot_id"] == record.snapshot_id
 
 
 def test_circle_catchment_has_metric_area_and_rejects_invalid_radius():

@@ -131,6 +131,8 @@ uv run location-data ingest zensus_grid
 
 The connector streams the pinned 100 m CSV from the ZIP and retains cells intersecting the configured EPSG:3035 extent. The manifest reports whole cells within Berlin, all cells intersecting Berlin, cells whose centroids fall inside Berlin, and an area-weighted estimate. The within/intersecting whole-cell sums form lower and upper bounds; areal weighting assumes uniform density within each partially intersecting cell. Coverage reports how much of the catchment is covered by published cells, while absent cells remain unpublished rather than being treated as measured zero.
 
+Catchments must lie inside the recorded extract extent; otherwise the CLI rejects them to avoid undercounting. If an intersecting cell has no published value, the upper bound is unavailable.
+
 The counts are census population at the historical reference date **15 May 2022**, perturbed using the cell-key method (CKM). They are not current residents or the Einwohnerregister population. Berlin's census total is 3,596,999; the register-based count for 30 June 2022 is 3,725,650. Do not add, mix, or substitute `zensus_grid` and `berlin_population` values. Grid totals also need not equal official totals because of CKM perturbation, unpublished cells, and addresses not represented in the grid.
 
 Query a pinned snapshot with a straight-line circular catchment (not walking time):

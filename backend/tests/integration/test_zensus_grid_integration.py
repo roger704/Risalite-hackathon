@@ -92,6 +92,11 @@ async def test_ingests_zensus_against_lor_supports_catchment_cli_and_rolls_back(
     assert manifest.reference_period == "2022-05-15"
     assert manifest.parent_snapshot_ids == (parent.snapshot_id,)
     assert "berlin_comparison" in manifest.coverage
+    assert manifest.coverage["extract_extent"] == {
+        "crs": "EPSG:3035",
+        "bbox": [4548000, 3270500, 4551000, 3272500],
+        "rule": "cells intersecting bbox",
+    }
     page = service.records("zensus_grid", manifest.snapshot_id, limit=100)
     assert page["records"]
     assert page["records"][0]["record_type"] == "grid_observation"
@@ -118,6 +123,30 @@ async def test_ingests_zensus_against_lor_supports_catchment_cli_and_rolls_back(
     result = json.loads(capsys.readouterr().out)
     assert result["intersected_estimate"]["value_status"] == "estimated"
     assert result["reference_period"] == "2022-05-15"
+
+    outside_exit_code = main(
+        [
+            "--data-dir",
+            str(data_dir),
+            "--config-dir",
+            str(config_dir),
+            "catchment",
+            "zensus_grid",
+            "--snapshot",
+            manifest.snapshot_id,
+            "--lon",
+            "13.355",
+            "--lat",
+            "52.505",
+            "--radius-m",
+            "30000",
+        ]
+    )
+    outside_error = json.loads(capsys.readouterr().err)
+    assert outside_exit_code == 1
+    assert "catchment extends beyond the imported extract extent" in outside_error["error"][
+        "message"
+    ]
 
     corrupted = tmp_path / "corrupt.zip"
     corrupted.write_bytes(b"not a valid ZIP")
