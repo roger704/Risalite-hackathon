@@ -31,6 +31,18 @@ def auth(run: dict) -> dict[str, str]:
     return {"Authorization": f"Bearer {run['run_token']}"}
 
 
+def finish_run(
+    client: TestClient, question="Where is it smart to open a coffee place in Kreuzberg?"
+):
+    run = start_run(client, question)
+    headers = auth(run)
+    approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+    assert approved.status_code == 200
+    result = client.get(f"/runs/{run['run_id']}/result", headers=headers)
+    assert result.status_code == 200
+    return run, headers
+
+
 def test_run_endpoints_hide_missing_invalid_and_unknown_tokens(client):
     run = start_run(client)
     run_id = run["run_id"]
@@ -390,3 +402,111 @@ def test_gap_run_discloses_fixture_notice(client):
 
     assert result.status_code == 200
     assert result.json()["fixture_notice"] == run["plan"]["note"]
+
+
+def test_fixture_exports_require_auth_and_unknown_formats_are_not_found(client):
+    run = start_run(client)
+    path = f"/runs/{run['run_id']}/export/report.md"
+
+    missing = client.get(path)
+    wrong = client.get(path, headers={"Authorization": "Bearer wrong"})
+    unknown_run = client.get("/runs/not-a-run/export/report.md", headers=auth(run))
+    unknown_format = client.get(
+        f"/runs/{run['run_id']}/export/nope",
+        headers=auth(run),
+    )
+
+    assert missing.status_code == wrong.status_code == unknown_run.status_code == 404
+    assert unknown_format.status_code == 404
+    assert unknown_format.json()["error"]["code"] == "UNKNOWN_FORMAT"
+
+
+def test_fixture_export_rejects_runs_before_replay_finishes(client, monkeypatch):
+    run = start_run(client)
+    headers = auth(run)
+    approved = client.post(f"/runs/{run['run_id']}/approve", headers=headers, json={})
+    assert approved.status_code == 200
+    monkeypatch.setenv("RISALITE_REPLAY_DELAY", "1")
+
+    response = client.get(f"/runs/{run['run_id']}/export/report.md", headers=headers)
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "run not finished"}
+
+
+@pytest.mark.parametrize(
+    "fmt,media_type,disposition",
+    [
+        ("report.md", "text/markdown; charset=utf-8", "attachment"),
+        ("report.html", "text/html; charset=utf-8", "inline"),
+        ("sources.csv", "text/csv; charset=utf-8", "attachment"),
+        ("sources.bib", "application/x-bibtex; charset=utf-8", "attachment"),
+    ],
+)
+def test_fixture_exports_return_expected_formats_and_headers(client, fmt, media_type, disposition):
+    run, headers = finish_run(client)
+
+    response = client.get(f"/runs/{run['run_id']}/export/{fmt}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == media_type
+    assert response.headers["content-disposition"] == (
+        f'{disposition}; filename="risalite-{run["run_id"]}-{fmt}"'
+    )
+    if fmt == "sources.csv":
+        assert response.content.startswith(b"\xef\xbb\xbf")
+
+
+def test_fixture_markdown_export_has_question_and_numbered_citations(client):
+    run, headers = finish_run(client)
+
+    response = client.get(
+        f"/runs/{run['run_id']}/export/report.md",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert run["question"] in response.text
+    assert re.search(r"\[\d+\]", response.text)
+    assert not re.search(r"\[e\d+\]", response.text)
+
+
+def test_fixture_export_applies_layer_mix_and_rejects_unknown_layers(client):
+    run, headers = finish_run(client)
+    path = f"/runs/{run['run_id']}/export/report.md"
+
+    changed = client.get(
+        path,
+        headers=headers,
+        params={"layers": "competition_osm", "mode": "future"},
+    )
+    unknown = client.get(
+        path,
+        headers=headers,
+        params={"layers": "not-a-layer"},
+    )
+
+    assert changed.status_code == 200
+    assert "Mix: custom" in changed.text
+    assert unknown.status_code == 422
+    assert unknown.json()["error"]["code"] == "UNKNOWN_LAYER"
+
+
+def test_point_fixture_export_ignores_area_mix(client):
+    run, headers = finish_run(
+        client,
+        "This storefront at Wiener Straße 12 just became available — what is the best use?",
+    )
+
+    response = client.get(
+        f"/runs/{run['run_id']}/export/report.md",
+        headers=headers,
+        params={"layers": "not-a-layer", "mode": "future"},
+    )
+
+    assert run["shape"] == "point"
+    assert response.status_code == 200
+    assert run["question"] in response.text
+    assert "[12]" in response.text
+    assert "[20]" in response.text
+    assert "[22]" not in response.text

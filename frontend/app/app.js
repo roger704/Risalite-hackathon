@@ -13,7 +13,7 @@ let R = null;        // RunResult (merged)
 let TOKEN = null;
 let state = { on: {}, w: {}, mode: 'present' };
 let CITE = {};       // evidence_id -> n
-let map = null, timer = null, doneT = null, STREAM_CTRL = null, GEN = 0;
+let map = null, timer = null, doneT = null, STREAM_CTRL = null, EXPORT_CTRL = null, EXPORT_WINDOW = null, GEN = 0;
 
 $('#mode-badge').textContent = 'LIVE';
 $('#mode-badge').classList.add('live');
@@ -33,6 +33,64 @@ const post = (path, body) => getJSON(path, {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body)
 });
+$$('[data-export]').forEach(button => { button.onclick = () => exportRun(button.dataset.export); });
+
+async function exportRun(fmt) {
+  if (!RUN || !R || !TOKEN) return;
+  const gen = GEN, isHtml = fmt === 'report.html';
+  const reportWindow = isHtml ? window.open('about:blank', '_blank') : null;
+  if (isHtml && !reportWindow) return err('#export-err', 'Allow pop-ups to open the HTML report.');
+  EXPORT_WINDOW = reportWindow;
+  const controller = new AbortController();
+  EXPORT_CTRL = controller;
+  $$('[data-export]').forEach(button => { button.disabled = true; });
+  err('#export-err', '');
+  const query = new URLSearchParams();
+  if (!R.candidates) {
+    query.set('layers', Object.keys(state.on).filter(id => state.on[id]).join(','));
+    query.set('mode', state.mode);
+  }
+  const queryString = query.toString();
+  const path = `/runs/${encodeURIComponent(RUN.run_id)}/export/${encodeURIComponent(fmt)}${queryString ? `?${queryString}` : ''}`;
+  let objectUrl = null;
+  try {
+    const response = await fetch(apiUrl(path), { headers: headers(), signal: controller.signal });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      const detail = payload.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message || detail?.error || payload.error?.message || 'request failed';
+      throw new Error(`HTTP ${response.status}: ${message}`);
+    }
+    if (gen !== GEN) return;
+    const blob = await response.blob();
+    if (gen !== GEN) return;
+    objectUrl = URL.createObjectURL(blob);
+    if (isHtml) {
+      reportWindow.addEventListener('load', () => URL.revokeObjectURL(objectUrl), { once: true });
+      reportWindow.location.href = objectUrl;
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      EXPORT_WINDOW = null;
+    } else {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `risalite-${RUN.run_id}-${fmt}`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
+  } catch (error) {
+    if (gen === GEN && error.name !== 'AbortError') err('#export-err', 'Export failed: ' + error.message);
+    if (reportWindow && !reportWindow.closed) reportWindow.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  } finally {
+    if (gen === GEN) {
+      EXPORT_CTRL = null;
+      EXPORT_WINDOW = null;
+      $$('[data-export]').forEach(button => { button.disabled = false; });
+    }
+  }
+}
 
 /* ---------- 1 · ask ---------- */
 $$('.tpl .t').forEach(t => t.onclick = () => { $('#q').value = t.dataset.q; $('#op').value = t.dataset.op || ''; $('#clar').classList.add('hidden'); });
@@ -173,6 +231,11 @@ function stopLive() {
   clearTimeout(timer); timer = null;
   clearTimeout(doneT); doneT = null;
   if (STREAM_CTRL) { STREAM_CTRL.abort(); STREAM_CTRL = null; }
+  if (EXPORT_CTRL) { EXPORT_CTRL.abort(); EXPORT_CTRL = null; }
+  if (EXPORT_WINDOW && !EXPORT_WINDOW.closed) EXPORT_WINDOW.close();
+  EXPORT_WINDOW = null;
+  $$('[data-export]').forEach(button => { button.disabled = false; });
+  err('#export-err', '');
 }
 function eventStage(event) {
   if (['classify', 'clarify', 'area', 'plan'].includes(event.type)) return 'plan';
