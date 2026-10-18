@@ -1,0 +1,98 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 6,
+  "numberReturned": 3,
+  "timeStamp": "2026-10-18T00:00:00Z",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "1004",
+      "properties": {
+        "adressid": "1004",
+        "hnr": 10,
+        "hnr_zusatz": null,
+        "str_name": "Lindenstraße",
+        "str_nr": "00210",
+        "plz": "12555",
+        "bez_name": "Treptow-Köpenick",
+        "bez_nr": "09",
+        "ort_name": "Köpenick",
+        "ort_nr": "0903",
+        "plr_name": "Synthetic Beta",
+        "plr_nr": "01100102",
+        "blk": "011002",
+        "qualitaet": "Qualitaet A",
+        "typ": "Adresse",
+        "adr_datum": "2026-03-01",
+        "str_datum": "2026-03-12",
+        "hko_id": "H1004"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388030, 5819830]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "1005",
+      "properties": {
+        "adressid": "1005",
+        "hnr": 1,
+        "hnr_zusatz": null,
+        "str_name": "Müllerstraße",
+        "str_nr": "01510",
+        "plz": "13353",
+        "bez_name": "Mitte",
+        "bez_nr": "01",
+        "ort_name": "Wedding",
+        "ort_nr": "0106",
+        "plr_name": "Synthetic Alpha",
+        "plr_nr": "01100101",
+        "blk": "011001",
+        "qualitaet": "Qualitaet A",
+        "typ": "Adresse",
+        "adr_datum": "2026-01-01",
+        "str_datum": "2026-03-10",
+        "hko_id": "H1005"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388040, 5819840]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "S297",
+      "properties": {
+        "adressid": "S297",
+        "hnr": null,
+        "hnr_zusatz": null,
+        "str_name": "Wiener Straße",
+        "str_nr": "04786",
+        "plz": "10999",
+        "bez_name": "Friedrichshain-Kreuzberg",
+        "bez_nr": "02",
+        "ort_name": "Kreuzberg",
+        "ort_nr": "0201",
+        "plr_name": null,
+        "plr_nr": null,
+        "blk": null,
+        "qualitaet": "RBS",
+        "typ": "Platz/Straße ohne HNR",
+        "adr_datum": null,
+        "str_datum": "2026-03-12",
+        "hko_id": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [388050, 5819850]
+      }
+    }
+  ]
+}

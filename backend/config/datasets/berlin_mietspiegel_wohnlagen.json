@@ -1,0 +1,89 @@
+{
+  "dataset_id": "berlin_mietspiegel_wohnlagen",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_wfs_wohnlagen",
+  "landing_url": "https://daten.berlin.de/datensaetze/wohnlagen-nach-adressen-zum-berliner-mietspiegel-2026-wfs-809faebe",
+  "resource_url": "https://gdi.berlin.de/services/wfs/wohnlagenadr2026?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=wohnlagenadr2026:wohnlagenadr2026&OUTPUTFORMAT=application/json&SORTBY=schluessel",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin; Wohnlagen nach Adressen zum Berliner Mietspiegel 2026, WFS wohnlagenadr2026, Datenlizenz Deutschland – Zero – Version 2.0; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2026-05-28",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 8000000,
+  "timeout_seconds": 180.0,
+  "parser_options": {
+    "typename": "wohnlagenadr2026:wohnlagenadr2026",
+    "page_size": 10000,
+    "max_pages": 45,
+    "max_total_bytes": 220000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "schluessel",
+      "bezname",
+      "plz",
+      "strasse",
+      "hnr",
+      "wol",
+      "stadtteil",
+      "plr_name"
+    ],
+    "id_field": "schluessel",
+    "id_pattern": "^\\d{8}[A-Z]{0,2}$",
+    "expected_count_range": [
+      380000,
+      430000
+    ],
+    "record_type": "residential_location_class",
+    "field_map": {},
+    "attribute_fields": [],
+    "hierarchy": "address",
+    "edition": "Berliner Mietspiegel 2026",
+    "edition_year": 2026,
+    "valid_from": "2026-05-28",
+    "valid_to": "2028-05-28",
+    "classes": [
+      "einfach",
+      "mittel",
+      "gut"
+    ],
+    "max_unclassified_share": 0.01,
+    "parent_dataset": "berlin_lor",
+    "parent_check": {
+      "boundary_edition": "2021",
+      "boundary_tolerance_m": 1.0,
+      "max_outside_share": 0.001
+    },
+    "address_dataset": "berlin_addresses",
+    "source_links": [
+      "https://daten.berlin.de/datensaetze/wohnlagen-nach-adressen-zum-berliner-mietspiegel-2026-wfs-809faebe",
+      "https://mietspiegel.berlin.de/berliner-mietspiegel/erlaeuterungen-zum-mietspiegel/wohnlagen/",
+      "https://mietspiegel.berlin.de/berliner-mietspiegel/erlaeuterungen-zum-mietspiegel/geltungsbereich/"
+    ],
+    "limitations": [
+      "Wohnlage is the official Mietspiegel 2026 classification of an address's wider residential surroundings relative to Berlin. Indicators include land values, social-monitoring status, green volume and provision, distance to centres and rail, traffic noise, crime statistics, and Milieuschutz.",
+      "Wohnlage is not household income, purchasing power, commercial suitability, pedestrian footfall, café/shop/commercial rent, or a rent amount; no rent-table values are imported.",
+      "The Mietspiegel applies only to dwellings in its official scope (non-price-controlled flats in multi-family buildings, with listed exclusions). A class exists per address regardless of whether a particular dwelling is in scope.",
+      "Generalized Wohnlagenkarte map colours must never be used to infer an address class. The legally binding assignment is the official Straßenverzeichnis zum Mietspiegel 2026; this WFS is the provider's address dataset.",
+      "Validity is 2026-05-28 through 2028-05-28 per CKAN temporal metadata. Address-count shares are not population-weighted.",
+      "Provider records carry no edition field; the edition is pinned by the service name and this configuration. Raw hashes can differ between downloads because WFS timeStamp metadata changes."
+    ]
+  }
+}

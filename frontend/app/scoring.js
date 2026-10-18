@@ -32,5 +32,5 @@
       .sort((a, b) => a.rankKey - b.rankKey || a.baseIndex - b.baseIndex)
       .map(({ baseIndex, rankKey, ...entry }) => entry);
   }
-  g.RisaliteScoring = { scoreCells, rank };
+  g.SpotWiseScoring = { scoreCells, rank };
 })(window);

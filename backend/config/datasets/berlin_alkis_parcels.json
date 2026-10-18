@@ -1,0 +1,79 @@
+{
+  "dataset_id": "berlin_alkis_parcels",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_alkis_parcels",
+  "landing_url": "https://daten.berlin.de/datensaetze/alkis-berlin-flurstucke-wfs-1bc014d7",
+  "resource_url": "https://gdi.berlin.de/services/wfs/alkis_flurstuecke?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=alkis_flurstuecke:flurstuecke&OUTPUTFORMAT=application/json&SORTBY=uuid&BBOX=387500,5816500,392500,5821500,urn:ogc:def:crs:EPSG::25833",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Geoportal Berlin / ALKIS Berlin Flurstücke (Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin), dl-de/zero-2-0; transformed to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2026-09-22",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 40000000,
+  "timeout_seconds": 120,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "typename": "alkis_flurstuecke:flurstuecke",
+    "page_size": 5000,
+    "max_pages": 10,
+    "max_total_bytes": 40000000,
+    "expected_crs": "EPSG:25833",
+    "extent_bbox": [
+      387500,
+      5816500,
+      392500,
+      5821500
+    ],
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "uuid",
+      "bezeich",
+      "afl",
+      "fsko",
+      "zae",
+      "nen",
+      "gmk",
+      "namgmk",
+      "fln",
+      "gdz",
+      "namgem",
+      "zde",
+      "dst",
+      "beg"
+    ],
+    "id_field": "uuid",
+    "id_pattern": "^DEBE[0-9A-Za-z]{12}$",
+    "parcel_id_pattern": "^11\\d{4}\\d{3}\\d{5}[0-9_]{4}$",
+    "expected_count_range": [
+      10000,
+      14000
+    ],
+    "limitations": [
+      "Bounded candidate-area coverage only: EPSG:25833 extent [387500, 5816500, 392500, 5821500] intersects 11,434 parcels; edge parcels are returned as whole geometries.",
+      "Citywide coverage (403,526 parcels; approximately 420 MB raw) is not imported. It would require tiled extents and streaming normalization; the current pipeline holds all records in memory.",
+      "afl is the official booked ALKIS area. geometry_area_m2 is a derived planar EPSG:25833 geometry area and may differ (observed area ratio p50 0.9995; outliers range from 0.29 to 3.38).",
+      "This is ALKIS state per service revision 2026-09-22 with monthly updates; beg is available per feature, but no per-feature edition is supplied.",
+      "Parcels are cadastral units and provide no evidence about ownership, use, buildability, development permission, availability, tenancy, or sale.",
+      "uuid is the stable ALKIS object ID; fsko may change when parcels are split or merged.",
+      "Relationships to buildings, addresses, and planning are geometric in EPSG:25833, not legal assignments.",
+      "Source access and fields checked 2026-10-18."
+    ]
+  }
+}

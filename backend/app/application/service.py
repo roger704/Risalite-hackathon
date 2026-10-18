@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from app.domain import (
     PUBLIC_REDISTRIBUTION_STATUSES,
@@ -71,6 +72,7 @@ class DataService:
             self.configs[config.dataset_id] = config
         self.connectors = dict(connectors) if connectors is not None else {}
         self._lazy_connectors = connectors is None
+        self._address_indexes = {}
 
     def _connector(self, adapter: str):
         if adapter not in self.connectors:
@@ -189,9 +191,12 @@ class DataService:
                 if parent and config.adapter == "population":
                     coverage.update(self._validate_parent(config, batch.records, parent))
                 elif parent:
-                    coverage.update(
-                        connector.check_parent(config, batch.records, self._load_records(parent))
-                    )
+                    parent_records = self._load_records(parent)
+                    if hasattr(connector, "assign_parent"):
+                        batch = connector.assign_parent(config, batch, parent_records)
+                    coverage.update(connector.check_parent(config, batch.records, parent_records))
+                    if config.adapter == "berlin_wfs_wohnlagen":
+                        coverage["lor_snapshot_id"] = parent.snapshot_id
                 if not (parent and config.adapter == "population"):
                     geometries = [
                         item.geometry for item in batch.records if hasattr(item, "geometry")
@@ -396,6 +401,71 @@ class DataService:
         self._config(dataset_id)
         return manifest_to_dict(self.catalog.get(dataset_id, snapshot_id))
 
+    def legend(self, dataset_id: str) -> dict:
+        config = self._config(dataset_id)
+        layers = config.parser_options.get("layers")
+        if not isinstance(layers, list) or not any(
+            isinstance(layer, dict) and layer.get("indicators") for layer in layers
+        ):
+            raise NotFoundError("Dataset has no legend", "NOT_FOUND")
+        config_hash = _hash(asdict(config))
+        try:
+            active_manifest = self.catalog.get(dataset_id)
+            active_snapshot_id = active_manifest.snapshot_id
+            snapshot_config_matches = active_manifest.parser_config_hash == config_hash
+            latest_snapshot_id = active_snapshot_id if snapshot_config_matches else None
+        except NotFoundError:
+            active_snapshot_id = None
+            snapshot_config_matches = None
+            latest_snapshot_id = None
+        indicators = []
+        for layer in layers:
+            for indicator in layer.get("indicators", []):
+                legend_url = indicator["legend_graphic_url"]
+                parts = urlsplit(legend_url)
+                indicators.append(
+                    {
+                        key: indicator[key]
+                        for key in (
+                            "indicator_code",
+                            "title_de",
+                            "title_en",
+                            "description_en",
+                            "does_not_measure_en",
+                            "reference_period",
+                            "value_status",
+                            "rank_direction",
+                            "data_basis_en",
+                            "method_url",
+                            "data_basis_url",
+                            "wms_layer",
+                        )
+                    }
+                    | {
+                        "source_layer": layer["typename"].split(":")[-1],
+                        "source_field": indicator["source_field"],
+                        "wms_url": urlunsplit((parts.scheme, parts.netloc, parts.path, "", "")),
+                        "legend_graphic_url": legend_url,
+                        "classes": indicator["classes"],
+                        "missing": indicator.get("missing_markers", {}),
+                    }
+                )
+        return {
+            "dataset_id": config.dataset_id,
+            "provider": config.provider,
+            "landing_url": config.landing_url,
+            "license_id": config.license_id,
+            "license_url": config.license_url,
+            "attribution": config.attribution,
+            "source_edition": config.source_edition,
+            "reference_period": config.reference_period,
+            "limitations": config.parser_options.get("limitations", []),
+            "latest_snapshot_id": latest_snapshot_id,
+            "active_snapshot_id": active_snapshot_id,
+            "snapshot_config_matches": snapshot_config_matches,
+            "indicators": indicators,
+        }
+
     def records(
         self,
         dataset_id: str,
@@ -408,7 +478,7 @@ class DataService:
         config = self._config(dataset_id)
         if not 1 <= limit <= 1000:
             raise ConnectorError("INVALID_FILTER", "limit must be between 1 and 1000")
-        if metric_code is not None and config.adapter != "population":
+        if metric_code is not None and config.adapter not in {"population", "households"}:
             raise ConnectorError(
                 "INVALID_FILTER", "metric_code is unsupported for boundary records"
             )
@@ -474,3 +544,151 @@ class DataService:
                 }
             ],
         }
+
+    def search_addresses(
+        self,
+        dataset_id: str,
+        snapshot_id: str,
+        q: str,
+        postcode: str | None = None,
+        district: str | None = None,
+        limit: int = 10,
+        cursor: str | None = None,
+    ):
+        from app.application.address_search import AddressIndex, normalize_street, parse_query
+
+        config = self._config(dataset_id)
+        if config.adapter != "berlin_wfs_addresses":
+            raise ConnectorError(
+                "INVALID_FILTER", "Address search is only available for address datasets"
+            )
+        if not 1 <= limit <= 50:
+            raise ConnectorError("INVALID_FILTER", "limit must be between 1 and 50")
+        try:
+            parsed = parse_query(q)
+        except ValueError as exc:
+            raise ConnectorError(
+                "INVALID_FILTER", "The address query has no searchable street"
+            ) from exc
+        manifest = self.catalog.get(dataset_id, snapshot_id)
+        effective_postcode = postcode if postcode is not None else parsed.postcode
+        query_key = _hash(
+            [
+                dataset_id,
+                snapshot_id,
+                parsed.street_key,
+                parsed.house_number,
+                parsed.house_number_suffix,
+                effective_postcode,
+                normalize_street(district) if district else None,
+            ]
+        )
+        offset = 0
+        if cursor:
+            try:
+                if len(cursor) > 2048:
+                    raise ValueError("oversized cursor")
+                payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+                offset = payload["offset"]
+                if payload["query"] != query_key or type(offset) is not int or offset < 0:
+                    raise ValueError("cursor does not match query")
+            except (ValueError, KeyError, TypeError, UnicodeError) as exc:
+                raise ConnectorError(
+                    "INVALID_CURSOR", "Invalid cursor for this snapshot and query"
+                ) from exc
+        index = self._address_indexes.get(snapshot_id)
+        if index is None:
+            index = AddressIndex.from_parquet(self._snapshot_path(manifest))
+            self._address_indexes[snapshot_id] = index
+            while len(self._address_indexes) > 2:
+                self._address_indexes.pop(next(iter(self._address_indexes)))
+        else:
+            self._address_indexes.pop(snapshot_id)
+            self._address_indexes[snapshot_id] = index
+        total, page, ambiguous, candidates = index.search(
+            parsed,
+            postcode=postcode,
+            district=district,
+            offset=offset,
+            limit=limit,
+        )
+        if offset > total:
+            raise ConnectorError("INVALID_CURSOR", "Cursor is beyond the matching addresses")
+        next_offset = offset + len(page)
+        next_cursor = (
+            base64.urlsafe_b64encode(
+                json.dumps({"query": query_key, "offset": next_offset}).encode()
+            ).decode()
+            if next_offset < total
+            else None
+        )
+        outside_ids = set(manifest.coverage.get("outside_supplied_area_record_ids", ()))
+        parent_snapshot_id = (
+            manifest.parent_snapshot_ids[0] if manifest.parent_snapshot_ids else None
+        )
+        results = []
+        for record, match_type in page:
+            area_link = None
+            if record.area_code is not None and parent_snapshot_id is not None:
+                area_link = {
+                    "area_code": record.area_code,
+                    "area_name": record.area_name,
+                    "hierarchy": config.parser_options.get("hierarchy", "planungsraum"),
+                    "boundary_edition": manifest.boundary_edition,
+                    "lor_snapshot_id": parent_snapshot_id,
+                    "validated": record.record_id not in outside_ids,
+                }
+            results.append(
+                {
+                    "record": record_to_dict(record),
+                    "match_type": match_type,
+                    "point": {
+                        "lon": record.geometry["coordinates"][0],
+                        "lat": record.geometry["coordinates"][1],
+                        "crs": "EPSG:4326",
+                    },
+                    "stable_id": record.record_id,
+                    "source_record_id": record.source_record_id,
+                    "area_link": area_link,
+                }
+            )
+        return {
+            "schema_version": "1.0",
+            "dataset_id": dataset_id,
+            "snapshot_id": snapshot_id,
+            "retrieved_at": manifest.retrieved_at,
+            "source_edition": manifest.source_edition,
+            "reference_period": manifest.reference_period,
+            "query": {
+                "q": q,
+                "street_key": parsed.street_key,
+                "house_number": parsed.house_number,
+                "house_number_suffix": parsed.house_number_suffix,
+                "postcode": effective_postcode,
+                "district": district,
+            },
+            "results": results,
+            "total": total,
+            "count": len(page),
+            "next_cursor": next_cursor,
+            "ambiguous": ambiguous,
+            "candidates": candidates,
+            "notice": (
+                "An address result marks an official address point only; it never implies vacant "
+                "premises, commercial availability, rental terms, or permitted use."
+            ),
+            "warnings": list(manifest.quality_report.warnings),
+            "attribution": [
+                {
+                    "text": manifest.attribution,
+                    "url": manifest.landing_url,
+                    "license_id": manifest.license_id,
+                    "license_url": manifest.license_url,
+                }
+            ],
+        }
+
+    def wohnlage(self, dataset_id: str, snapshot_id: str, **query):
+        from app.application.wohnlage_lookup import lookup_wohnlage
+
+        return lookup_wohnlage(self, dataset_id, snapshot_id, **query)

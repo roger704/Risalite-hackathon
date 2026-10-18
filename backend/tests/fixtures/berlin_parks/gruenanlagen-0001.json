@@ -1,0 +1,60 @@
+{
+ "type": "FeatureCollection",
+ "numberMatched": 3,
+ "numberReturned": 1,
+ "timeStamp": "2026-10-18T12:00:00Z",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "urn:ogc:def:crs:EPSG::25833"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "id": "gruenanlagen.3",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       388454.58,
+       5818644.5
+      ],
+      [
+       388590.31,
+       5818641.41
+      ],
+      [
+       388595.37,
+       5818863.85
+      ],
+      [
+       388459.64,
+       5818866.94
+      ],
+      [
+       388454.58,
+       5818644.5
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "pitid": "0000a001:00000003",
+    "kennzeich": "00003",
+    "bezirkname": "Mitte",
+    "ortstlname": "Synthetic Ort",
+    "objartname": "Grünanlage",
+    "namenr": "Synthetic Platz",
+    "namezusatz": " ",
+    "baujahr": " ",
+    "sanierjahr": null,
+    "katasterfl": null,
+    "widmung": "gewidmet",
+    "plannr": " ",
+    "planname": " "
+   }
+  }
+ ]
+}

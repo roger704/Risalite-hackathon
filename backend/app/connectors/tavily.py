@@ -210,6 +210,14 @@ async def validate_public_url(url: str, resolver: Any = None) -> None:
         raise UnsafeURLError("dns_resolution_failed") from exc
 
 
+@dataclass(frozen=True)
+class ExtractOutcome:
+    kind: str
+    item: dict[str, Any]
+    request_id: Any
+    fetched_at: datetime
+
+
 class TavilyClient:
     def __init__(
         self,
@@ -228,6 +236,7 @@ class TavilyClient:
         self.sleep = sleep
         self.clock = clock
         self._cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
+        self._extract_cache: dict[str, ExtractOutcome] = {}
 
     async def __aenter__(self) -> "TavilyClient":
         return self
@@ -540,133 +549,89 @@ class TavilyClient:
         canonical_url = self._canonical_result_url(url)
         return by_canonical_url.get(canonical_url) if canonical_url is not None else None
 
-    async def _extract_batch(self, request: ResearchExtract, urls: tuple[str, ...]) -> EvidencePage:
-        payload = self._extract_payload(request, urls)
-        key = self._cache_key(payload)
-        cached = key in self._cache
-        if cached:
-            fetched_at, data = self._cache[key]
-        else:
-            data = await self._post("extract", payload, extract=True)
-            fetched_at = self.clock()
-            self._cache[key] = (fetched_at, data)
+    def _extract_cache_key(self, request: ResearchExtract, url: str) -> str:
+        return self._cache_key(self._extract_payload(request, (canonicalize_url(url),)))
+
+    async def _fetch_extract_batch(
+        self, request: ResearchExtract, urls: tuple[str, ...]
+    ) -> tuple[dict[str, ExtractOutcome], float | None]:
+        data = await self._post("extract", self._extract_payload(request, urls), extract=True)
+        fetched_at = self.clock()
+        request_id = data.get("request_id")
         if data.get("__extract_http_400__"):
-            failures: list[dict[str, str]] = []
-            evidence: list[WebEvidence] = []
-            failed_by_url, failed_by_canonical_url = self._index_extract_entries(
-                data["failed_results"], "failed result"
+            results_by_url: dict[str, dict[str, Any]] = {}
+            results_by_canonical_url: dict[str, dict[str, Any]] = {}
+            failed_results = data["failed_results"]
+            credits = None
+        else:
+            failed_results = data.get("failed_results", [])
+            if not isinstance(failed_results, list):
+                raise SchemaError("Tavily failed_results is not a list")
+            results_by_url, results_by_canonical_url = self._index_extract_entries(
+                data["results"], "extraction result"
             )
-            for url in urls:
-                item = self._match_extract_entry(url, failed_by_url, failed_by_canonical_url)
-                reason = (
-                    str(item.get("error", "provider_error"))
-                    if item is not None
-                    else "missing_from_provider_response"
-                )
-                failures.append({"url": url, "reason": reason})
-                failed = self._failed_evidence(
-                    url, reason, request, data.get("request_id"), retrieved_at=fetched_at
-                )
-                if failed is not None:
-                    evidence.append(failed)
-            return EvidencePage(
-                tuple(evidence), "failed", tuple(failures), self._request_id(data), cached, None
-            )
-        provider_results = data["results"]
-        failed_results = data.get("failed_results", [])
-        if not isinstance(failed_results, list):
-            raise SchemaError("Tavily failed_results is not a list")
-        result_by_url, result_by_canonical_url = self._index_extract_entries(
-            provider_results, "extraction result"
-        )
+            credits = self._credits(data)
         failed_by_url, failed_by_canonical_url = self._index_extract_entries(
             failed_results, "failed result"
         )
-        evidence: list[WebEvidence] = []
-        failures: list[dict[str, str]] = []
+        outcomes: dict[str, ExtractOutcome] = {}
         for url in urls:
-            result = result_by_url.get(url)
+            result = results_by_url.get(url)
             failed_result = failed_by_url.get(url)
             if result is None and failed_result is None:
                 canonical_url = self._canonical_result_url(url)
                 if canonical_url is not None:
-                    result = result_by_canonical_url.get(canonical_url)
+                    result = results_by_canonical_url.get(canonical_url)
                     failed_result = failed_by_canonical_url.get(canonical_url)
             if result is not None:
-                raw_content = result.get("raw_content")
-                if not isinstance(raw_content, str):
+                if not isinstance(result.get("raw_content"), str):
                     raise SchemaError("Tavily extraction result is missing raw_content")
-                if not raw_content.strip():
-                    reason = "empty_content"
-                    failures.append({"url": url, "reason": reason})
-                    evidence.append(
-                        self._failed_evidence(
-                            url,
-                            reason,
-                            request,
-                            data.get("request_id"),
-                            retrieved_at=fetched_at,
-                        )
-                    )
-                    continue
+                outcome = ExtractOutcome("result", result, request_id, fetched_at)
+            elif failed_result is not None:
+                outcome = ExtractOutcome("failed", failed_result, request_id, fetched_at)
+            else:
+                outcome = ExtractOutcome("missing", {}, request_id, fetched_at)
+            outcomes[url] = outcome
+            if outcome.kind != "missing":
+                self._extract_cache[self._extract_cache_key(request, url)] = outcome
+        return outcomes, credits
+
+    def _outcome_evidence(
+        self, request: ResearchExtract, url: str, outcome: ExtractOutcome
+    ) -> tuple[WebEvidence, dict[str, str] | None]:
+        if outcome.kind == "result":
+            raw_content = outcome.item["raw_content"]
+            if raw_content.strip():
                 truncated = len(raw_content) > self.config.max_passage_chars
                 passage = raw_content[: self.config.max_passage_chars]
-                evidence.append(
-                    self._evidence(
-                        kind=EvidenceKind.EXTRACTED_PAGE,
-                        url=url,
-                        query=request.query,
-                        candidate_id=request.candidate_id,
-                        analysis_id=request.analysis_id,
-                        data=result | {"request_id": data.get("request_id")},
-                        status=ExtractionStatus.PARTIAL if truncated else ExtractionStatus.OK,
-                        passage=passage,
-                        locator={
-                            "type": "char_range",
-                            "start": 0,
-                            "end": len(passage),
-                            "source_length": len(raw_content),
-                        },
-                        content_hash=hashlib.sha256(raw_content.encode()).hexdigest(),
-                        retrieved_at=fetched_at,
-                    )
+                evidence = self._evidence(
+                    kind=EvidenceKind.EXTRACTED_PAGE,
+                    url=url,
+                    query=request.query,
+                    candidate_id=request.candidate_id,
+                    analysis_id=request.analysis_id,
+                    data=outcome.item | {"request_id": outcome.request_id},
+                    status=ExtractionStatus.PARTIAL if truncated else ExtractionStatus.OK,
+                    passage=passage,
+                    locator={
+                        "type": "char_range",
+                        "start": 0,
+                        "end": len(passage),
+                        "source_length": len(raw_content),
+                    },
+                    content_hash=hashlib.sha256(raw_content.encode()).hexdigest(),
+                    retrieved_at=outcome.fetched_at,
                 )
-            elif failed_result is not None:
-                reason = str(failed_result.get("error", "provider_error"))
-                failures.append({"url": url, "reason": reason})
-                evidence.append(
-                    self._failed_evidence(
-                        url, reason, request, data.get("request_id"), retrieved_at=fetched_at
-                    )  # type: ignore[arg-type]
-                )
-            else:
-                reason = "missing_from_provider_response"
-                failures.append({"url": url, "reason": reason})
-                evidence.append(
-                    self._failed_evidence(
-                        url, reason, request, data.get("request_id"), retrieved_at=fetched_at
-                    )  # type: ignore[arg-type]
-                )
-        successes = sum(
-            item.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}
-            for item in evidence
-        )
-        if not successes:
-            status = "failed"
-        elif successes == len(evidence) and all(
-            item.extraction_status is ExtractionStatus.OK for item in evidence
-        ):
-            status = "complete"
+                return evidence, None
+            reason = "empty_content"
+        elif outcome.kind == "failed":
+            reason = str(outcome.item.get("error", "provider_error"))
         else:
-            status = "partial"
-        return EvidencePage(
-            evidence=tuple(evidence),
-            status=status,
-            failures=tuple(failures),
-            request_ids=self._request_id(data),
-            cached=cached,
-            credits=self._credits(data),
+            reason = "missing_from_provider_response"
+        failed = self._failed_evidence(
+            url, reason, request, outcome.request_id, retrieved_at=outcome.fetched_at
         )
+        return failed, {"url": url, "reason": reason}  # type: ignore[return-value]
 
     async def extract(self, request: ResearchExtract) -> EvidencePage:
         failures: list[dict[str, str]] = []
@@ -687,60 +652,66 @@ class TavilyClient:
             if canonical not in seen:
                 seen.add(canonical)
                 accepted.append(url)
-        batches = [tuple(accepted[start : start + 20]) for start in range(0, len(accepted), 20)]
-        batch_keys = [self._cache_key(self._extract_payload(request, batch)) for batch in batches]
-        uncached_batch_indices = {
-            index for index, key in enumerate(batch_keys) if key not in self._cache
-        }
-        uncached_url_count = sum(
-            len(batch) for index, batch in enumerate(batches) if index in uncached_batch_indices
-        )
-        if uncached_url_count:
-            self.budget.consume_extract_urls(uncached_url_count)
-        uncached_units_not_started = uncached_url_count
-        batch_cached: list[bool] = []
+        if not accepted:
+            if not evidence:
+                return EvidencePage(
+                    (), "failed" if failures else "complete", tuple(failures), (), False, None
+                )
+            return EvidencePage(tuple(evidence), "failed", tuple(failures))
+        uncached = [
+            url
+            for url in accepted
+            if self._extract_cache_key(request, url) not in self._extract_cache
+        ]
+        if uncached:
+            self.budget.consume_extract_urls(len(uncached))
+        reserved_not_sent = len(uncached)
+        outcomes: dict[str, ExtractOutcome] = {}
         request_ids: list[str] = []
         credit_values: list[float] = []
         try:
-            for index, batch in enumerate(batches):
-                if index in uncached_batch_indices:
-                    uncached_units_not_started -= len(batch)
-                    if batch_keys[index] in self._cache:
-                        self.budget.release_extract_urls(len(batch))
-                page = await self._extract_batch(request, batch)
-                evidence.extend(page.evidence)
-                failures.extend(page.failures)
-                batch_cached.append(page.cached)
-                request_ids.extend(page.request_ids)
-                if page.credits is not None:
-                    credit_values.append(page.credits)
+            for start in range(0, len(uncached), 20):
+                batch = uncached[start : start + 20]
+                reserved_not_sent -= len(batch)
+                # Another concurrent extract may have fetched some of these meanwhile.
+                to_send = tuple(
+                    url
+                    for url in batch
+                    if self._extract_cache_key(request, url) not in self._extract_cache
+                )
+                if len(to_send) < len(batch):
+                    self.budget.release_extract_urls(len(batch) - len(to_send))
+                if not to_send:
+                    continue
+                batch_outcomes, credits = await self._fetch_extract_batch(request, to_send)
+                outcomes.update(batch_outcomes)
+                if credits is not None:
+                    credit_values.append(credits)
         except BaseException:
-            if uncached_units_not_started:
-                self.budget.release_extract_urls(uncached_units_not_started)
+            if reserved_not_sent:
+                self.budget.release_extract_urls(reserved_not_sent)
             raise
-        if not accepted and not evidence:
-            return EvidencePage(
-                (), "failed" if failures else "complete", tuple(failures), (), False, None
+        for url in accepted:
+            outcome = (
+                outcomes.get(url) or self._extract_cache[self._extract_cache_key(request, url)]
             )
-        if not accepted:
-            status = (
-                "failed"
-                if all(item.extraction_status is ExtractionStatus.FAILED for item in evidence)
-                else "partial"
-            )
-            return EvidencePage(tuple(evidence), status, tuple(failures))
-        # A provider result marked partial (truncated) also makes the aggregate partial.
+            if outcome.request_id is not None and str(outcome.request_id) not in request_ids:
+                request_ids.append(str(outcome.request_id))
+            item, failure = self._outcome_evidence(request, url, outcome)
+            evidence.append(item)
+            if failure is not None:
+                failures.append(failure)
         okay = sum(
             item.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}
             for item in evidence
         )
+        # A provider result marked partial (truncated) also makes the aggregate partial.
         status = (
             "failed"
             if okay == 0
             else "complete"
-            if okay == len(evidence)
+            if not failures
             and all(item.extraction_status is ExtractionStatus.OK for item in evidence)
-            and not failures
             else "partial"
         )
         return EvidencePage(
@@ -748,6 +719,6 @@ class TavilyClient:
             status=status,
             failures=tuple(failures),
             request_ids=tuple(request_ids),
-            cached=all(batch_cached),
+            cached=not outcomes,
             credits=sum(credit_values) if credit_values else None,
         )

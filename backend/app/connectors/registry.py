@@ -8,10 +8,21 @@ from app.domain import ConfigError
 ADAPTERS: dict[str, str] = {
     "lor": "app.connectors.lor:LORConnector",
     "population": "app.connectors.population:PopulationConnector",
+    "population_forecast": "app.connectors.population_forecast:PopulationForecastConnector",
     "osm": "app.connectors.osm:OSMConnector",
     "ihk": "app.connectors.ihk:IHKConnector",
     "gtfs": "app.connectors.gtfs:GTFSConnector",
     "berlin_wfs": "app.connectors.berlin_wfs:BerlinWFSConnector",
+    "berlin_green_spaces": "app.connectors.berlin_green_spaces:BerlinGreenSpacesConnector",
+    "berlin_centers": "app.connectors.berlin_centers:BerlinCentersConnector",
+    "berlin_wfs_wohnlagen": "app.connectors.berlin_mietspiegel:BerlinWohnlageConnector",
+    "bicycle_counts": "app.connectors.bicycle_counts:BicycleCountsConnector",
+    "berlin_environment": "app.connectors.berlin_environment:BerlinEnvironmentConnector",
+    "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
+    "berlin_wfs_addresses": "app.connectors.berlin_addresses:BerlinAddressConnector",
+    "households": "app.connectors.households:HouseholdsConnector",
+    "berlin_alkis_buildings": "app.connectors.berlin_alkis_buildings:BerlinALKISBuildingsConnector",
+    "berlin_alkis_parcels": "app.connectors.berlin_alkis_parcels:BerlinALKISParcelsConnector",
 }
 
 

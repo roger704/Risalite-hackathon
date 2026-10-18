@@ -1,0 +1,75 @@
+{
+  "dataset_id": "zensus_grid",
+  "provider": "Statistische Ämter des Bundes und der Länder (Zensus 2022)",
+  "adapter": "zensus_grid",
+  "landing_url": "https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/_inhalt.html",
+  "resource_url": "https://www.destatis.de/static/DE/zensus/gitterdaten/Zensus2022_Bevoelkerungszahl.zip",
+  "allowed_hosts": [
+    "www.destatis.de"
+  ],
+  "license_id": "dl-de-by-2.0",
+  "license_url": "https://www.govdata.de/dl-de/by-2-0",
+  "attribution": "© Statistische Ämter des Bundes und der Länder, Zensus 2022, Bevölkerungszahlen in Gitterzellen (Version 2, 30.09.2024), dl-de/by-2-0; 100 m cells extracted for the Berlin extent and transformed from EPSG:3035 to EPSG:4326.",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2024-09-30 (Version 2)",
+  "reference_period": "2022-05-15",
+  "source_crs": "EPSG:3035",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 25000000,
+  "timeout_seconds": 120.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "archive_member": "Zensus2022_Bevoelkerungszahl_100m-Gitter.csv",
+    "description_member": "Datensatzbeschreibung_Bevoelkerungszahl_Gitterzellen.xlsx",
+    "expected_sha256": "1a8428d31eab264c8717bfdcbf40fbd66c217edb2e2a98d0e67741bd8a1a941a",
+    "max_unpacked_bytes": 200000000,
+    "encoding": "ascii",
+    "delimiter": ";",
+    "expected_header": [
+      "GITTER_ID_100m",
+      "x_mp_100m",
+      "y_mp_100m",
+      "Einwohner"
+    ],
+    "expected_texts": [
+      "Version 2: 30.09.2024",
+      "Stichtag 15. Mai 2022",
+      "dl-de/by-2-0"
+    ],
+    "resolution_m": 100,
+    "grid_crs": "EPSG:3035",
+    "metric_code": "population_census",
+    "unit": "persons",
+    "sentinels": {
+      "–": "zero"
+    },
+    "source_bbox": [
+      4527000,
+      3250000,
+      4580000,
+      3294000
+    ],
+    "edge_buffer_m": 2000,
+    "min_expected_cells": 50000,
+    "official_total": {
+      "area": "Berlin (Land, RS 11)",
+      "value": 3596999,
+      "reference_period": "2022-05-15",
+      "source": "Zensus 2022 Regionaltabelle_Bevoelkerung.xlsx, sheet CSV-Einwohnerzahl, column EWZ",
+      "url": "https://www.destatis.de/static/DE/zensus/gitterdaten/Regionaltabelle_Bevoelkerung.xlsx"
+    },
+    "limitations": [
+      "Zensus 2022 census population at reference date 2022-05-15 (publication Version 2, 30.09.2024). It is a historical snapshot, not current population, daytime population or customer demand.",
+      "Census and register definitions differ: Berlin's census total is 3,596,999 while the register-based count for 30.06.2022 in the same table is 3,725,650. Do not add, mix or substitute zensus_grid values with berlin_population (Einwohnerregister) values.",
+      "Values are perturbed by the cell-key method (CKM, §16 BStatG); cell values need not add up to published totals.",
+      "Cells without residents are not in the file, and cells may also be omitted for confidentiality. An absent cell means 'not published', not a measured zero. No published 100 m value below 3 was found in the national file (checked 2026-10-18).",
+      "Legend '–' means exactly zero or changed to zero; it is parsed as 0 with quality flag zero_or_set_to_zero (none occur in this edition's population file).",
+      "Persons are assigned to one cell via their address geocoordinate; 277 addresses (8,766 persons nationally) are not represented at grid level.",
+      "Grid: INSPIRE 100 m cells in ETRS89-LAEA (EPSG:3035); grid IDs encode the lower-left corner. Stored geometry is the cell square transformed to WGS84; metric aggregation rebuilds cells from IDs in EPSG:25833.",
+      "The extract keeps every cell intersecting a Berlin bounding box plus about 2 km, so it includes Brandenburg cells near the border for edge catchments.",
+      "Partial-cell allocations (area weighting) are estimates assuming uniform density inside each cell, not measured population.",
+      "Source access, file structure, edition text and SHA-256 checked 2026-10-18."
+    ]
+  }
+}
