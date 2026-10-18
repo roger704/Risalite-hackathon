@@ -147,6 +147,14 @@ def _address(value: Any) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     raise ValueError("unrecognized DNS address")
 
 
+def _effective_ip(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
+
+
 async def validate_public_url(url: str, resolver: Any = None) -> None:
     """Reject non-public targets before asking Tavily to fetch them.
 
@@ -183,8 +191,7 @@ async def validate_public_url(url: str, resolver: Any = None) -> None:
     except ValueError:
         literal = None
     if literal is not None:
-        literal = literal.ipv4_mapped if isinstance(literal, ipaddress.IPv6Address) else literal
-        if literal is None or not literal.is_global:
+        if not _effective_ip(literal).is_global:
             raise UnsafeURLError("non_public_ip")
         return
     try:
@@ -195,16 +202,7 @@ async def validate_public_url(url: str, resolver: Any = None) -> None:
         addresses = [_address(item) for item in resolved]
         if not addresses:
             raise ValueError("empty DNS response")
-        if any(
-            not (
-                (address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else address)
-                is not None
-                and (
-                    address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else address
-                ).is_global
-            )
-            for address in addresses
-        ):
+        if any(not _effective_ip(address).is_global for address in addresses):
             raise UnsafeURLError("non_public_ip")
     except UnsafeURLError:
         raise

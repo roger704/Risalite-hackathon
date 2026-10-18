@@ -408,6 +408,29 @@ async def test_validate_public_url_only_accepts_default_ports():
 
 
 @pytest.mark.asyncio
+async def test_validate_public_url_accepts_public_ipv6_and_rejects_non_global_mapped_v6():
+    async def resolver(host, port):
+        if host == "www.berlin.de":
+            return ["109.68.230.172", "2a00:13c8:f5::393:8987:143"]
+        if host == "mapped.example":
+            return ["::ffff:10.0.0.1"]
+        return ["93.184.216.34"]
+
+    await validate_public_url("https://www.berlin.de/", resolver)
+    await validate_public_url("https://[2a00:13c8:f5::393:8987:143]/", resolver)
+
+    for url in (
+        "https://[::ffff:10.0.0.1]/",
+        "https://mapped.example/",
+        "https://[fd00::1]/",
+        "https://[::1]/",
+    ):
+        with pytest.raises(UnsafeURLError) as exc:
+            await validate_public_url(url, resolver)
+        assert exc.value.message == "non_public_ip"
+
+
+@pytest.mark.asyncio
 async def test_extract_splits_more_than_twenty_urls_into_provider_batches():
     batches = []
 
