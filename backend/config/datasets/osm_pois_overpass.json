@@ -19,6 +19,7 @@
     "category_mapping": "osm_v1",
     "category_mapping_sha256": "0f97d176f5bd414c5ef7fb350ec99616c15f60f01530fd4ac48a8bba8af99208",
     "allowed_bbox": [13.0, 52.3, 13.9, 52.8],
+    "node_bbox": [13.39, 52.52, 13.42, 52.54],
     "min_expected_counts": {"coffee_shop": 1},
     "max_unlocatable_ratio": 0.01,
     "limitations": [

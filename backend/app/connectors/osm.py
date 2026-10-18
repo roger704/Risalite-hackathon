@@ -30,12 +30,15 @@ _OSM_ID_TYPES = {"node": "node", "way": "way", "relation": "relation"}
 
 
 class OSMConnector(FileConnector):
-    adapter_version = "1.0.0"
+    adapter_version = "1.1.0"
 
     def normalize(self, raw: RawBundle, config: DatasetConfig) -> NormalizedBatch:
         options = config.parser_options
         mapping_data, selectors = self._load_mapping(options)
         bbox = self._bbox(options.get("allowed_bbox"))
+        node_bbox = (
+            self._bbox(options["node_bbox"]) if options.get("node_bbox") is not None else None
+        )
         minimums = self._minimum_counts(options.get("min_expected_counts", {}), mapping_data)
         ratio = options.get("max_unlocatable_ratio", 0.01)
         if isinstance(ratio, bool) or not isinstance(ratio, (int, float)) or not 0 <= ratio <= 1:
@@ -56,6 +59,7 @@ class OSMConnector(FileConnector):
             raise ConfigError("OSM format must explicitly be osm_pbf or overpass_json")
         self._expectations = {
             "allowed_bbox": bbox,
+            "node_bbox": node_bbox,
             "minimums": minimums,
             "max_unlocatable_ratio": float(ratio),
             "unlocatable": unlocatable,
@@ -563,6 +567,7 @@ class OSMConnector(FileConnector):
         counts = Counter()
         geometry_counts = Counter()
         bbox = expectations["allowed_bbox"]
+        node_bbox = expectations["node_bbox"]
         for record in batch.records:
             if not isinstance(record, Place):
                 errors.append("OSM batch contains a non-Place record")
@@ -573,6 +578,15 @@ class OSMConnector(FileConnector):
             point = record.geometry["coordinates"]
             if not bbox[0] <= point[0] <= bbox[2] or not bbox[1] <= point[1] <= bbox[3]:
                 errors.append(f"Place {record.record_id} is outside allowed_bbox")
+            if (
+                record.source_geometry_type == "node"
+                and node_bbox is not None
+                and (
+                    not node_bbox[0] <= point[0] <= node_bbox[2]
+                    or not node_bbox[1] <= point[1] <= node_bbox[3]
+                )
+            ):
+                errors.append(f"Place {record.record_id} is outside node_bbox")
             if record.canonical_category is not None:
                 counts[record.canonical_category] += 1
             geometry_counts[record.source_geometry_type] += 1

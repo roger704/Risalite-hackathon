@@ -266,6 +266,29 @@ def test_overpass_way_center_outside_query_bbox_is_valid(tmp_path):
     assert "way/303" in records
 
 
+def test_overpass_node_outside_node_bbox_is_invalid(tmp_path):
+    config = configuration("osm_pois_overpass")
+    data = json.loads((FIXTURES / "overpass.json").read_text())
+    data["elements"].append(
+        {
+            "type": "node",
+            "id": 404,
+            "lat": 52.6,
+            "lon": 13.5,
+            "tags": {"amenity": "cafe", "name": "Outside node bbox"},
+        }
+    )
+    source = tmp_path / "overpass_node_outside_node_bbox.json"
+    source.write_text(json.dumps(data))
+
+    connector = OSMConnector()
+    batch = connector.normalize(bundle(source), config)
+    report = connector.validate(batch)
+
+    assert not report.valid
+    assert "Place node/404 is outside node_bbox" in report.errors
+
+
 @pytest.mark.asyncio
 async def test_overpass_fetch_uses_the_reviewed_pinned_url(tmp_path):
     config = configuration("osm_pois_overpass")
