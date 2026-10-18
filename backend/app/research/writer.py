@@ -188,6 +188,20 @@ def deterministic_report(result: dict, findings: Sequence[Finding]) -> Report:
     return Report(summary=summary, cells=sections, unknowns=_unknown_sentences(items))
 
 
+def _dimensions(item: dict) -> dict:
+    """T1 scored dimensions with the evidence ids behind each score."""
+    dims = [
+        {
+            k: d.get(k)
+            for k in ("name", "score", "why", "evidence_ids")
+            if d.get(k) not in (None, [])
+        }
+        for d in item.get("dimensions") or []
+        if isinstance(d, dict)
+    ]
+    return {"dimensions": dims} if dims else {}
+
+
 def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> str:
     cells = [
         {
@@ -212,6 +226,7 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
             )
             if item.get(k) not in (None, [], {})
         }
+        | _dimensions(item)
         for item in top_items(result)
     ]
     facts = [

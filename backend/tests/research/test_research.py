@@ -315,7 +315,15 @@ async def test_writer_gets_point_hypotheses_and_operator_profile(tmp_path):
     candidates = {
         "operator": {"budget_eur": 20000},
         "hypotheses": [
-            {"id": "bakery", "name": "Bakery", "score": 7.4, "rank_final": 1},
+            {
+                "id": "bakery",
+                "name": "Bakery",
+                "score": 7.4,
+                "rank_final": 1,
+                "dimensions": [
+                    {"name": "Cost", "score": 8, "why": "rent", "evidence_ids": [good], "x": 1}
+                ],
+            },
             {"id": "cafe", "name": "Café", "score": 6.1, "rank_final": 2},
         ],
     }
@@ -335,6 +343,10 @@ async def test_writer_gets_point_hypotheses_and_operator_profile(tmp_path):
     sent = json.loads(seen[0])
     assert [c["id"] for c in sent["top_cells"]] == ["bakery", "cafe"]
     assert sent["operator_profile"] == {"budget_eur": 20000}
+    assert sent["top_cells"][0]["dimensions"] == [
+        {"name": "Cost", "score": 8, "why": "rent", "evidence_ids": [good]}
+    ]
+    assert f"Rents fit the budget [{good}]." in report
     assert "## Top business hypotheses" in report
     assert "### 1. Bakery (bakery) — score 7.40" in report
     assert report.index("Bakery") < report.index("Café")
