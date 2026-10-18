@@ -158,6 +158,7 @@ def create_app(
 
     @application.get("/api/v1/datasets/{dataset_id}/green-spaces/nearby")
     def green_spaces_nearby(
+        request: Request,
         dataset_id: str,
         data: Annotated[DataService, Depends(get_service)],
         snapshot_id: Annotated[str, Query(min_length=1)],
@@ -167,6 +168,18 @@ def create_app(
         feature_type: Annotated[str | None, Query(min_length=1)] = None,
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
     ):
+        unknown = set(request.query_params) - {
+            "snapshot_id",
+            "lon",
+            "lat",
+            "radius_m",
+            "feature_type",
+            "limit",
+        }
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
         return nearby_green_spaces(
             data, dataset_id, snapshot_id, lon, lat, radius_m, feature_type, limit
         )

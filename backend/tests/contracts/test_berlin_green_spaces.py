@@ -118,6 +118,18 @@ def test_maps_layers_preserves_polygons_and_keeps_missing_values_missing(tmp_pat
     assert record_from_dict(json.loads(json.dumps(record_to_dict(park)))) == park
 
 
+def test_blank_area_values_are_missing(tmp_path):
+    def blank(data):
+        properties = data["spielplaetze-0000"]["features"][0]["properties"]
+        properties.update(nettospfl=" ", katasterfl=" ")
+
+    record = by_id(BerlinGreenSpacesConnector().normalize(pages(tmp_path, blank), configuration()))[
+        "0000b001:00000001"
+    ]
+    assert record.net_play_area_m2 is None and record.source_area_m2 is None
+    assert {"nettospfl_missing", "katasterfl_missing"} <= set(record.quality_flags)
+
+
 def test_rejects_duplicate_ids_across_layers(tmp_path):
     def duplicate(data):
         data["spielplaetze-0000"]["features"][0]["properties"]["pitid"] = "0000a001:00000001"

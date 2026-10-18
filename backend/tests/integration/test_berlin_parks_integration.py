@@ -123,6 +123,17 @@ async def test_ingests_parks_against_pinned_lor_and_serves_records_and_proximity
             params={"snapshot_id": parks.snapshot_id, "lon": 11.0, "lat": 48.0},
         )
         assert outside.status_code == 422
+        misspelled = api.get(
+            "/api/v1/datasets/berlin_parks/green-spaces/nearby",
+            params={
+                "snapshot_id": parks.snapshot_id,
+                "lon": 13.353,
+                "lat": 52.503,
+                "feature_typ": "playground",
+            },
+        )
+        assert misspelled.status_code == 422
+        assert misspelled.json()["error"]["code"] == "UNSUPPORTED_FILTER"
         wrong = api.get(
             "/api/v1/datasets/berlin_lor/green-spaces/nearby",
             params={"snapshot_id": parent.snapshot_id, "lon": 13.353, "lat": 52.503},

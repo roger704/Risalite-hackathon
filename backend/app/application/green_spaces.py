@@ -6,6 +6,7 @@ inside). They are not walking distances or walking times.
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 
@@ -42,22 +43,27 @@ class _Index:
 
 
 _CACHE: OrderedDict[tuple[str, str, str], _Index] = OrderedDict()
+_CACHE_LOCK = threading.Lock()
 
 
 def _index(service, dataset_id: str, manifest) -> _Index:
     # Published snapshots are immutable, so a small per-snapshot cache is safe.
     key = (str(service.root), dataset_id, manifest.snapshot_id)
-    if key in _CACHE:
-        _CACHE.move_to_end(key)
-        return _CACHE[key]
+    with _CACHE_LOCK:
+        cached = _CACHE.get(key)
+        if cached is not None:
+            _CACHE.move_to_end(key)
+            return cached
     records = tuple(
         record for record in service._load_records(manifest) if isinstance(record, GreenSpace)
     )
     geometries = tuple(transform(_TO_METRIC.transform, shape(r.geometry)) for r in records)
     index = _Index(records, geometries, STRtree(geometries))
-    _CACHE[key] = index
-    while len(_CACHE) > 4:
-        _CACHE.popitem(last=False)
+    with _CACHE_LOCK:
+        index = _CACHE.setdefault(key, index)
+        _CACHE.move_to_end(key)
+        while len(_CACHE) > 4:
+            _CACHE.popitem(last=False)
     return index
 
 
@@ -89,7 +95,7 @@ def nearby_green_spaces(
         if feature_type is not None and record.feature_type != feature_type:
             continue
         geometry = index.geometries[int(position)]
-        matches.append((round(geometry.distance(origin), 1), record, geometry.contains(origin)))
+        matches.append((geometry.distance(origin), record, geometry.contains(origin)))
     matches.sort(key=lambda item: (item[0], item[1].record_id))
     counts = {
         kind: sum(record.feature_type == kind for _, record, _ in matches)
@@ -118,7 +124,7 @@ def nearby_green_spaces(
                 "feature_type": record.feature_type,
                 "name": record.name,
                 "area_code": record.area_code,
-                "straight_line_distance_m": distance,
+                "straight_line_distance_m": round(distance, 1),
                 "contains_origin": inside,
                 "geometry_area_m2": record.geometry_area_m2,
                 "display_point": record.display_point,

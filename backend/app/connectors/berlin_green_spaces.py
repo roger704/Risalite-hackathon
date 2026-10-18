@@ -132,7 +132,7 @@ def _area_value(properties: dict, field: str | None, source_id: str, flags: list
     if not field:
         return None
     value = properties[field]
-    if value is None:
+    if _blank(value):
         flags.append(f"{field}_missing")
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
