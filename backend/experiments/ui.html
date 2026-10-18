@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Risalite Research</title>
+<style>
+  :root { color-scheme: light dark; --muted: #6b7280; --border: #d1d5db; --accent: #2563eb; }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.55 system-ui, sans-serif; margin: 0; padding: 2rem 1rem; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); margin: 0 0 1.25rem; }
+  form { display: flex; gap: .5rem; }
+  input { flex: 1; padding: .65rem .8rem; font: inherit; border: 1px solid var(--border); border-radius: 8px; }
+  button { padding: .65rem 1.1rem; font: inherit; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .55; cursor: progress; }
+  #status { margin: 1rem 0 .5rem; font-weight: 600; }
+  #status.ok { color: #16a34a; } #status.fail { color: #dc2626; }
+  details { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .8rem; }
+  #log { font: 12.5px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 260px; overflow: auto; margin: .5rem 0 0; }
+  #report { margin-top: 1.25rem; }
+  #report a { color: var(--accent); word-break: break-word; }
+  #report h1, #report h2, #report h3 { margin: 1.2em 0 .4em; line-height: 1.25; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Risalite Research</h1>
+  <p class="sub">DeepAgents &middot; Nebius Token Factory &middot; Tavily web search</p>
+  <form id="form">
+    <input id="question" required maxlength="2000" autocomplete="off"
+           value="Research specialty coffee competition in Neukölln, Berlin">
+    <button id="run" type="submit">Research</button>
+  </form>
+  <div id="status"></div>
+  <details id="progress" hidden open><summary>Progress</summary><pre id="log"></pre></details>
+  <article id="report"></article>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function inline(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/(?:[^\s()"]|\([^\s()"]*\))+)\)/g,
+    (_, label, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+  html = html.replace(/(^|[\s(])(https?:\/\/[^\s<"]+)/g,
+    (_, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return html;
+}
+
+function renderMarkdown(md) {
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of md.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+      closeList();
+      const level = Math.min(m[1].length + 1, 4);
+      out.push(`<h${level}>${inline(m[2])}</h${level}>`);
+    } else if ((m = line.match(/^\s*[-*+]\s+(.*)$/)) || (m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      const tag = /^\s*\d/.test(line) ? "ol" : "ul";
+      if (list !== tag) { closeList(); out.push(`<${tag}>`); list = tag; }
+      out.push(`<li>${inline(m[1])}</li>`);
+    } else if (!line.trim()) {
+      closeList();
+    } else {
+      closeList();
+      out.push(`<p>${inline(line)}</p>`);
+    }
+  }
+  closeList();
+  return out.join("\n");
+}
+
+function setStatus(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+
+$("form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("run").disabled = true;
+  $("log").textContent = "";
+  $("report").innerHTML = "";
+  $("progress").hidden = false;
+  $("progress").open = true;
+  setStatus("Researching… this usually takes 20–90 seconds.");
+  try {
+    const response = await fetch("/api/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", result = null;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const event = JSON.parse(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
+        if (event.type === "log") {
+          $("log").textContent += event.message + "\n";
+          $("log").scrollTop = $("log").scrollHeight;
+        } else if (event.type === "result") {
+          result = event;
+        }
+      }
+    }
+    if (!result) throw new Error("connection closed before a result was returned");
+    if (result.error) {
+      setStatus(`Error: ${result.error}`, "fail");
+    } else {
+      setStatus(result.ok ? "Verified: Nebius inference, Tavily searches and inline citations"
+                          : "Verification failed: report lacks inline Tavily citations", result.ok ? "ok" : "fail");
+      $("report").innerHTML = renderMarkdown(result.report);
+      $("progress").open = false;
+    }
+  } catch (err) {
+    setStatus(`Error: ${err.message}`, "fail");
+  } finally {
+    $("run").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

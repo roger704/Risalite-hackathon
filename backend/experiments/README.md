@@ -50,6 +50,19 @@ docker run --rm --env-file .env risalite-research \
 
 The image is `python:3.12-slim`, installs only the locked runtime dependencies, runs as a non-root user, and contains no credentials; they are supplied at run time with `--env-file`.
 
+## Web UI
+
+`ui.py` serves a single page, `ui.html`, using the Python standard library HTTP server. You type a question, see the Tavily searches as they run, and get the rendered report along with the same verification result. It uses the same `run_research()` as the CLI and has no extra dependencies.
+
+```sh
+uv run python ui.py                         # http://127.0.0.1:8000
+
+docker run --rm --env-file .env -p 127.0.0.1:8000:8000 \
+  --entrypoint python risalite-research ui.py --host 0.0.0.0
+```
+
+The UI has no authentication and runs one research job at a time; a second request gets `409`. Keep it bound to localhost. On a Nebius VM, use the Docker command above and open it from your machine through an SSH tunnel (`ssh -L 8000:127.0.0.1:8000 <user>@<vm-public-ip>`, then browse to http://127.0.0.1:8000) instead of opening the port to the internet.
+
 ## Deploy on a CPU-only Nebius Cloud VM
 
 Nebius Cloud only hosts this container; the model runs on Token Factory. No GPU, Kubernetes, or extra infrastructure is needed.

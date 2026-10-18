@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -58,6 +59,37 @@ class RunStats:
     result_urls: set[str] = field(default_factory=set)
 
 
+@dataclass
+class ResearchResult:
+    stats: RunStats
+    elapsed_s: float
+    report: str = ""
+    error: str | None = None
+    cited: set[str] = field(default_factory=set)
+    inline: set[str] = field(default_factory=set)
+
+    @property
+    def ok(self) -> bool:
+        return (
+            self.error is None
+            and self.stats.llm_calls > 0
+            and bool(self.stats.searches)
+            and bool(self.inline)
+        )
+
+    def verify_line(self) -> str:
+        s = self.stats
+        return (
+            "[verify] "
+            f"nebius_llm_calls={s.llm_calls} "
+            f"tokens_in={s.input_tokens} tokens_out={s.output_tokens} "
+            f"tavily_searches={len(s.searches)} "
+            f"tavily_urls={len(s.result_urls)} cited_from_tavily={len(self.cited)} "
+            f"inline_cited_from_tavily={len(self.inline)} "
+            f"elapsed_s={self.elapsed_s:.1f}"
+        )
+
+
 class UsageCallback(BaseCallbackHandler):
     def __init__(self, stats: RunStats) -> None:
         self.stats = stats
@@ -83,7 +115,9 @@ def require_env(name: str) -> str:
     return value
 
 
-def build_search_tool(stats: RunStats, max_results: int, max_searches: int):
+def build_search_tool(
+    stats: RunStats, max_results: int, max_searches: int, log: Callable[[str], None] = log
+):
     tavily = TavilySearch(
         max_results=max_results,
         topic="general",
@@ -118,7 +152,9 @@ def build_search_tool(stats: RunStats, max_results: int, max_searches: int):
     return web_search
 
 
-def build_agent(stats: RunStats, max_results: int, max_searches: int):
+def build_agent(
+    stats: RunStats, max_results: int, max_searches: int, log: Callable[[str], None] = log
+):
     model = ChatNebius(
         model=os.environ.get("NEBIUS_MODEL", "").strip() or DEFAULT_MODEL,
         base_url=os.environ.get("NEBIUS_BASE_URL", "").strip() or DEFAULT_BASE_URL,
@@ -129,7 +165,7 @@ def build_agent(stats: RunStats, max_results: int, max_searches: int):
     )
     return create_deep_agent(
         model=model,
-        tools=[build_search_tool(stats, max_results, max_searches)],
+        tools=[build_search_tool(stats, max_results, max_searches, log)],
         system_prompt=SYSTEM_PROMPT.format(max_searches=max_searches),
     )
 
@@ -160,6 +196,35 @@ def cited_urls(report: str, urls: set[str]) -> tuple[set[str], set[str]]:
     return anywhere, inline
 
 
+def run_research(
+    question: str,
+    *,
+    max_results: int = 5,
+    max_searches: int = 12,
+    recursion_limit: int = 150,
+    log: Callable[[str], None] = log,
+) -> ResearchResult:
+    """Run one research question end to end; progress lines go to `log`."""
+    stats = RunStats()
+    agent = build_agent(stats, max_results, max_searches, log)
+    log(f"[agent] model={os.environ.get('NEBIUS_MODEL') or DEFAULT_MODEL}")
+    started = time.monotonic()
+    try:
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": question}]},
+            config={"recursion_limit": recursion_limit, "callbacks": [UsageCallback(stats)]},
+        )
+    except GraphRecursionError:
+        error = f"agent did not finish within {recursion_limit} steps"
+        return ResearchResult(stats, time.monotonic() - started, error=error)
+    except Exception as exc:  # surface provider errors without a traceback
+        error = f"{type(exc).__name__}: {redact(str(exc))}"
+        return ResearchResult(stats, time.monotonic() - started, error=error)
+    report = message_text(result["messages"][-1])
+    cited, inline = cited_urls(report, stats.result_urls)
+    return ResearchResult(stats, time.monotonic() - started, report, None, cited, inline)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("question", help="research question")
@@ -170,36 +235,18 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    stats = RunStats()
-    agent = build_agent(stats, args.max_results, args.max_searches)
-    log(f"[agent] model={os.environ.get('NEBIUS_MODEL') or DEFAULT_MODEL}")
-    started = time.monotonic()
-    try:
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": args.question}]},
-            config={"recursion_limit": args.recursion_limit, "callbacks": [UsageCallback(stats)]},
-        )
-    except GraphRecursionError:
-        log(f"error: agent did not finish within {args.recursion_limit} steps")
-        return 1
-    except Exception as exc:  # surface provider errors without a traceback
-        log(f"error: {type(exc).__name__}: {redact(str(exc))}")
-        return 1
-    report = message_text(result["messages"][-1])
-
-    cited, inline = cited_urls(report, stats.result_urls)
-
-    print(report)
-    log(
-        "\n[verify] "
-        f"nebius_llm_calls={stats.llm_calls} "
-        f"tokens_in={stats.input_tokens} tokens_out={stats.output_tokens} "
-        f"tavily_searches={len(stats.searches)} "
-        f"tavily_urls={len(stats.result_urls)} cited_from_tavily={len(cited)} "
-        f"inline_cited_from_tavily={len(inline)} "
-        f"elapsed_s={time.monotonic() - started:.1f}"
+    result = run_research(
+        args.question,
+        max_results=args.max_results,
+        max_searches=args.max_searches,
+        recursion_limit=args.recursion_limit,
     )
-    if stats.llm_calls == 0 or not stats.searches or not inline:
+    if result.error:
+        log(f"error: {result.error}")
+        return 1
+    print(result.report)
+    log("\n" + result.verify_line())
+    if not result.ok:
         log(
             "[verify] FAILED: expected Nebius inference, Tavily searches and inline Tavily citations"
         )
