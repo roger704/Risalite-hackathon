@@ -89,6 +89,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
+| `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
 
@@ -124,6 +125,28 @@ Categories come from the versioned mapping [`config/categories/ihk_v1.json`](con
 Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `Place` (mapped POIs), `Business` (registered businesses), `TransitStop`, and `StopService` (scheduled departures in an explicit window). Point geometries are WGS84 GeoJSON points, and snapshots of point records are stored as GeoParquet.
 
 Register an adapter name in `app/connectors/registry.py`; modules load lazily, so a planned adapter that has no module yet fails with `Adapter is not implemented`. A dataset that must be pinned to another snapshot sets `parser_options.parent_dataset`, and its connector implements `check_parent(config, records, parent_records) -> dict`. The returned dict is merged into the manifest coverage. Use `--lor-snapshot` to pin an explicit parent.
+
+## Official LOR names (`berlin_lor_names`, `berlin_wfs`)
+
+`berlin_lor_names` emits 542 `Area` records (hierarchy `planungsraum`, boundary edition `2021`) with `name = plr_name`. The `bzr_id/bzr_name/pgr_id/pgr_name/bez/stadtraum_id/stadtraum_name/stand` values go in `Area.attributes`. `berlin_lor` remains the canonical geometry. Scoring and the UI should take names from this dataset. The import is pinned to a `berlin_lor` snapshot and needs an identical PLR code set:
+
+```sh
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
+uv run location-data ingest berlin_lor_names --file /absolute/path/to/combined-wfs-feature-collection.json --lor-snapshot "$LOR_SNAPSHOT_ID"
+NAMES_SNAPSHOT_ID='replace-with-names-snapshot_id'
+uv run location-data records berlin_lor_names --snapshot "$NAMES_SNAPSHOT_ID" --area-code 01100101
+```
+
+Python callers can use `app.application.area_names.area_names(service, snapshot_id)`, which returns a pinned `{area_code: {"name": ..., **attributes}}` lookup.
+
+In a provider download, each WFS page is stored as a separate raw asset, copied in response order to `raw/<dataset>/<snapshot>/<index>-page-NNNN.json` with its own SHA-256 hash. `--file` accepts one combined FeatureCollection. Geometry differences from the parent snapshot are measured in EPSG:25833 and reported in the manifest coverage as `geometry_comparison`; they never cause a failure.
+
+The provider includes a changing `timeStamp` in every response, so a fresh provider download changes the raw hashes and does not hit the snapshot cache. This is deliberate: raw bytes and their hashes are stored exactly as received. Reimporting the same local files does reuse the cache.
+
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type` (currently `area` only), `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Next links must keep the reviewed query parameters, apart from `COUNT`/`STARTINDEX`. Once a record type has a normalizer, other gdi.berlin layers such as Kitas or schools need only configuration.
+
+Opt-in live check (requests one feature): `uv run pytest -m live tests/live/test_berlin_wfs_live.py`.
 
 ## Development checks
 

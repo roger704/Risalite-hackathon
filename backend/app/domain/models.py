@@ -196,6 +196,7 @@ class Area(Record):
     name: str
     hierarchy: str
     boundary_edition: str
+    attributes: dict[str, str] = field(default_factory=dict)
     record_type: str = field(default="area", init=False)
 
     def __post_init__(self) -> None:
@@ -209,6 +210,11 @@ class Area(Record):
             raise ValidationError("Area geometry must preserve a Polygon or MultiPolygon")
         if not self.geometry.get("coordinates"):
             raise ValidationError("Area geometry must have coordinates")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
 
 
 @dataclass(frozen=True, kw_only=True)

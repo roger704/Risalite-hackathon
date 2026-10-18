@@ -1,0 +1,34 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 3,
+  "numberReturned": 1,
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::25833"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "synthetic.01011103",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[390500, 5818000], [390700, 5818000], [390700, 5818200], [390500, 5818200], [390500, 5818000]]]
+      },
+      "properties": {
+        "plr_id": "01011103",
+        "plr_name": "Synthetic Park",
+        "bzr_id": "010111",
+        "bzr_name": "Synthetic Süd",
+        "pgr_id": "0101",
+        "pgr_name": "Synthetic Mitte",
+        "bez": "01 - Mitte",
+        "finhalt": 40000.0,
+        "stadtraum_id": "1",
+        "stadtraum_name": "Innere Stadt",
+        "stand": "01.01.2021"
+      }
+    }
+  ]
+}
