@@ -34,7 +34,7 @@ Hard rules:
 | S1–S11 | Scoring engine | `scoring v2` (§5.8): new engine re-using the structure of PR #14; values via #36 (S2); saturation + agglomeration instead of café counts; IHK cross-check only; percentile normalization; area **and** Berlin reference; signed graded future modifiers; rule-based confidence; tiers, stability, `rank()`; one rule for S2/S3 with golden vectors; engine logic owned by S1 | confirmed, 2026-10-18 |
 | D4 | Future modifiers | Structured first (B-Pläne, forecast), web supplements | confirmed (B) |
 | D5 | T3 | Second template `kita_gap_v1` if #38 exposes approved places, otherwise mockup preview only | confirmed (B, conditional) |
-| D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data); no designated owner (Eraldo = runtime/hosting), scope check in progress | confirmed (B) |
+| D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data); hypotheses only from `t1_catalog_v1` (§6); owner pending: S1 or demo preview only (Eraldo = runtime/hosting) | confirmed (B) |
 | D7 | T1 dimension scores | Data-backed dimensions deterministic; operator/space fit by LLM with mandatory evidence ids; weak-tier-only dimensions capped | confirmed (B) |
 | D8 | Score rule | One rule in Python (S2) and JS (S3), guarded by shared golden test vectors | confirmed (C) |
 | D9 | Events | `events.ResearchEvent` (PR #19) + `replan`, `skip`, `rescore`, `role` | confirmed (C) |
@@ -300,6 +300,22 @@ Start `high`; one step down per reason (floor `low`): optional layer missing · 
 WGS84 stops against EPSG:25833 polygons; incompatible snapshots rejected; OSM and IHK never summed; minimum-population exclusion; `locate`/T1 and `cells` use the same eligible set and reference; golden vectors (§9.7) incl. missing layer, tie, demotion, negative T3 bonus, cap, a high-scoring `incomplete` cell (must stay out of the top-3), and a 100-place Kita opening (medium, −0.06).
 
 ## 6. T1 / T3
+
+- **T1 hypothesis catalog (`t1_catalog_v1`, confirmed 2026-10-18).** The planner picks the 3 hypotheses **only from this catalog** (operator profile × gaps), so competition and gap are always computable from data; free LLM ideas are not scored. Competitors and complements are counted within the catchment (500 m or isochrone, F4) and normalized per 10,000 catchment residents against the Berlin reference (§5.8). `osm_v1` = mapped in `backend/config/categories/osm_v1.json` on `main` today; `ext` = needs an `osm_v1` extension by S2 (F1) before the type is offered; until then the planner skips it.
+
+  | id | Business type | Competitors (OSM) | Complements (OSM, footfall) | Demand drivers (data dims) | Space / operator checks (web + operator profile) | Mapping |
+  |---|---|---|---|---|---|---|
+  | `cafe` | Café | `amenity=cafe` (`coffee_shop`) | `bakery`, `restaurant`, `fast_food`, `coworking` | residents, 18–45 share, transit | seating area, barista experience | osm_v1 |
+  | `bakery_cafe` | Bakery-café | `shop=bakery` + `amenity=cafe` | `restaurant`, `fast_food` | residents, transit (morning window) | oven/ventilation, baking experience | osm_v1 |
+  | `fast_food` | Imbiss / takeaway | `amenity=fast_food` | `restaurant`, `cafe` | transit (both windows), centre proximity | kitchen exhaust, street frontage | osm_v1 |
+  | `restaurant` | Restaurant | `amenity=restaurant` | `cafe`, `fast_food` | residents, centre proximity | kitchen exhaust, size ≥ ~80 m², kitchen experience | osm_v1 |
+  | `coworking` | Coworking | `amenity=coworking_space`, `office=coworking` | `cafe` | 18–45 share, transit | floor area, fit-out budget | osm_v1 |
+  | `convenience` | Späti / convenience | `shop=convenience`, `shop=kiosk` | `fast_food` | residents, transit (evening window) | opening-hours rules (web) | ext |
+  | `hairdresser` | Hairdresser / barber | `shop=hairdresser` | `cafe`, `shop=beauty` | residents | water connections, trade qualification (operator) | ext |
+  | `fitness` | Fitness / yoga studio | `leisure=fitness_centre`, `sport=yoga` | `cafe` | residents, 18–45 share | floor area, ceiling height | ext |
+  | `bicycle` | Bike shop / repair | `shop=bicycle` | – | residents, 18–45 share | workshop space | ext |
+
+  Dimension mapping per hypothesis (D7): **Demand** = catchment residents × type demand drivers (code); **Competition gap** = 1 − percentile of competitors per 10k residents (code); **Footfall/Transit** = complements + transit (code); **Cost** = web only (rent evidence or `unknown`, capped like other weak-tier dimensions); **Operator fit** and **Space fit** = LLM with mandatory evidence ids or operator-profile fields. IHK categories per type are a cross-check only (confidence −1 on deviation, §5.8.2). The catalog lives as a template config next to `coffee_v2`; adding a type is a config change plus an `osm_v1` mapping, no code change.
 
 - **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): `future_effects` defines **direction only**; the magnitude always follows the size classes and cap of §5.8.4 (±0.03/±0.06/±0.10, sum ±0.15). In `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → negative (gap shrinks; size class from the number of places per the Kita thresholds in §5.8.4), closures → positive, forecast growth of children 0–6 → positive (forecast thresholds in §5.8.4); in `coffee_v2` housing/population growth → positive, announced café openings → negative. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
 - **T1 (point, LocalLens, D6/D7)** reuses ledger, tools, events, approval and API; result is `candidates.json` (PR #19 contract):
