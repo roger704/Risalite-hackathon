@@ -161,7 +161,7 @@ def test_research_config_defaults_model_roles_to_nemotron(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
     cfg = ResearchConfig()
-    expected = "nvidia/nemotron-3-super-120b-a12b"
+    expected = "nvidia/Nemotron-3.5-Super-VL"
     assert cfg.model == cfg.writer_model == cfg.skeptic_model == expected
 
 
@@ -228,7 +228,7 @@ async def test_t1_hypotheses_are_ranked_in_fake_and_model_reports(tmp_path, fake
     ledger = EvidenceLedger(tmp_path)
     fake_report = await write_report("q", result, [], ledger, Recorder(), fake_cfg)
 
-    assert "## Top locations" in fake_report
+    assert "## Top business hypotheses" in fake_report
     assert "### 1. Café am Platz (h1)" in fake_report
     assert "### 2. Café am Park (h2)" in fake_report
 
@@ -248,7 +248,7 @@ async def test_t1_hypotheses_are_ranked_in_fake_and_model_reports(tmp_path, fake
     )
     model_report = await write_report("q", result, [], ledger, Recorder(), cfg_with(model, None))
 
-    assert "## Top locations" in model_report
+    assert "## Top business hypotheses" in model_report
     assert "### 1. Café am Platz (h1)" in model_report
     assert "### 2. Café am Park (h2)" in model_report
 
@@ -290,6 +290,109 @@ async def test_writer_strips_unknown_ids_and_uncited_sentences(tmp_path):
     report = await write_report("q", {"cells": [CELL]}, [finding], ledger, Recorder(), cfg)
     assert f"[{good}]" in report
     assert "bogus" not in report and "Invented" not in report and "Uncited" not in report
+
+
+async def test_writer_renders_spotwise_sections_with_citations(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.add_web_evidence(web_evidence("https://www.berlin.de/a", snippet=PASSAGE))
+    good = ledger.entries()[0]["evidence_id"]
+    reply = json.dumps(
+        {
+            "summary": [{"text": "Moritzplatz fits best.", "evidence_ids": [good]}],
+            "recommendation": [
+                {"text": "Open the café at Moritzplatz.", "evidence_ids": [good]},
+                {"text": "Uncited recommendation.", "evidence_ids": []},
+            ],
+            "cells": [],
+            "what_could_change": [
+                {"text": "Rents rising faster than expected.", "evidence_ids": [good]},
+                {"text": "Unsourced change.", "evidence_ids": ["ev_nothere"]},
+            ],
+            "unknowns": [],
+        }
+    )
+    finding = Finding(
+        finding_id="f_1",
+        claim="c",
+        quote="q",
+        evidence_ids=[good],
+        claim_type="fact",
+        localization="02010101",
+        agent="a",
+        status="accepted",
+    )
+    cfg = cfg_with(ScriptedModel(script=[reply]), None)
+    report = await write_report("q", {"cells": [CELL]}, [finding], ledger, Recorder(), cfg)
+    assert f"## Recommendation\n\nOpen the café at Moritzplatz [{good}]." in report
+    assert "## What could change the recommendation" in report
+    assert report.index("## Recommendation") < report.index("## Top locations")
+    assert "Uncited" not in report and "ev_nothere" not in report
+    assert "- Unsourced change." in report  # forward-looking, like unknowns: no citation needed
+
+
+async def test_writer_gets_point_hypotheses_and_operator_profile(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.add_web_evidence(web_evidence("https://www.berlin.de/a", snippet=PASSAGE))
+    good = ledger.entries()[0]["evidence_id"]
+    seen: list[str] = []
+
+    def script(messages, _n):
+        seen.append(messages[-1].content)
+        return json.dumps(
+            {
+                "recommendation": [{"text": "Open the bakery.", "evidence_ids": [good]}],
+                "cells": [
+                    {
+                        "cell_id": "bakery",
+                        "reasons": [{"text": "Rents fit the budget.", "evidence_ids": [good]}],
+                    }
+                ],
+            }
+        )
+
+    candidates = {
+        "operator": {"budget_eur": 20000},
+        "hypotheses": [
+            {
+                "id": "bakery",
+                "name": "Bakery",
+                "score": 7.4,
+                "rank_final": 1,
+                "dimensions": [
+                    {"name": "Cost", "score": 8, "why": "rent", "evidence_ids": [good], "x": 1}
+                ],
+            },
+            {"id": "cafe", "name": "Café", "score": 6.1, "rank_final": 2},
+        ],
+    }
+    finding = Finding(
+        finding_id="f_1",
+        claim="c",
+        quote="q",
+        evidence_ids=[good],
+        claim_type="fact",
+        localization="area",
+        agent="a",
+        status="accepted",
+    )
+    cfg = cfg_with(ScriptedModel(script=script), None)
+    result = {"space": {"address": "Wiener Straße 12"}, "candidates": candidates}
+    report = await write_report("q", result, [finding], ledger, Recorder(), cfg)
+    sent = json.loads(seen[0])
+    assert [c["id"] for c in sent["top_cells"]] == ["bakery", "cafe"]
+    assert sent["operator_profile"] == {"budget_eur": 20000}
+    assert sent["top_cells"][0]["dimensions"] == [
+        {"name": "Cost", "score": 8, "why": "rent", "evidence_ids": [good]}
+    ]
+    assert f"Rents fit the budget [{good}]." in report
+    assert "## Top business hypotheses" in report
+    assert "### 1. Bakery (bakery) — score 7.40" in report
+    assert report.index("Bakery") < report.index("Café")
+
+    seen.clear()
+    area = {"cells": [CELL], "operator": "Budget €20,000; no restaurant experience"}
+    await write_report("q", area, [finding], ledger, Recorder(), cfg)
+    assert json.loads(seen[0])["operator_profile"].startswith("Budget €20,000")
 
 
 # -- record_finding --------------------------------------------------------------------------

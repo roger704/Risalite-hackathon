@@ -35,7 +35,9 @@ class CellSection(BaseModel):
 
 class Report(BaseModel):
     summary: list[Sentence] = Field(default_factory=list)
+    recommendation: list[Sentence] = Field(default_factory=list)
     cells: list[CellSection] = Field(default_factory=list)
+    what_could_change: list[Sentence] = Field(default_factory=list)
     unknowns: list[Sentence] = Field(default_factory=list)
 
 
@@ -62,6 +64,12 @@ def top_items(result: dict, limit: int = 3) -> list[dict]:
     return [c for c in items if not c.get("incomplete")][:limit]
 
 
+def operator_profile(result: dict) -> Any:
+    candidates = result.get("candidates")
+    parsed = candidates.get("operator") if isinstance(candidates, dict) else None
+    return parsed or result.get("operator") or None
+
+
 def _cited_ids(value: Any) -> set[str]:
     return set(_IDS.findall(json.dumps(value, ensure_ascii=False, default=str)))
 
@@ -85,7 +93,10 @@ def _sentence(sentence: Sentence, allowed: set[str], *, required: bool = True) -
 
 def _score(item: dict) -> str:
     parts = []
-    for key, label in (("score_present", "score"), ("score_future", "with future")):
+    keys = [("score_present", "score"), ("score_future", "with future")]
+    if not isinstance(item.get("score_present"), (int, float)):
+        keys.insert(0, ("score", "score"))
+    for key, label in keys:
         if isinstance(item.get(key), (int, float)):
             parts.append(f"{label} {item[key]:.2f}")
     if item.get("confidence"):
@@ -98,11 +109,15 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
     summary = [s for s in (_sentence(x, allowed) for x in report.summary) if s]
     if summary:
         lines += [" ".join(summary), ""]
+    recommendation = [s for s in (_sentence(x, allowed) for x in report.recommendation) if s]
+    if recommendation:
+        lines += ["## Recommendation", "", " ".join(recommendation), ""]
     items = {str(c.get("id")): c for c in top_items(result)}
     sections = {s.cell_id: s for s in report.cells}
     order = list(items) or [s.cell_id for s in report.cells]
     if order:
-        lines += ["## Top locations", ""]
+        point = isinstance(result.get("candidates"), dict)
+        lines += ["## Top business hypotheses" if point else "## Top locations", ""]
     for rank, cell_id in enumerate(order, 1):
         item = items.get(cell_id, {})
         section = sections.get(cell_id) or CellSection(cell_id=cell_id)
@@ -114,6 +129,11 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
             lines += ["**Why**", "", *(f"- {r}" for r in reasons), ""]
         if risks:
             lines += ["**Risks**", "", *(f"- {r}" for r in risks), ""]
+    changes = [
+        s for s in (_sentence(x, allowed, required=False) for x in report.what_could_change) if s
+    ]
+    if changes:
+        lines += ["## What could change the recommendation", "", *(f"- {c}" for c in changes), ""]
     unknowns = [s for s in (_sentence(x, allowed, required=False) for x in report.unknowns) if s]
     if unknowns:
         lines += ["## Unknowns", "", *(f"- {u}" for u in unknowns), ""]
@@ -172,6 +192,20 @@ def deterministic_report(result: dict, findings: Sequence[Finding]) -> Report:
     return Report(summary=summary, cells=sections, unknowns=_unknown_sentences(items))
 
 
+def _dimensions(item: dict) -> dict:
+    """T1 scored dimensions with the evidence ids behind each score."""
+    dims = [
+        {
+            k: d.get(k)
+            for k in ("name", "score", "why", "evidence_ids")
+            if d.get(k) not in (None, [])
+        }
+        for d in item.get("dimensions") or []
+        if isinstance(d, dict)
+    ]
+    return {"dimensions": dims} if dims else {}
+
+
 def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> str:
     cells = [
         {
@@ -180,8 +214,13 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
                 "id",
                 "name",
                 "parent_name",
+                "rank_final",
+                "score",
                 "score_present",
                 "score_future",
+                "why",
+                "for",
+                "against",
                 "confidence",
                 "confidence_reasons",
                 "modifiers",
@@ -191,6 +230,7 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
             )
             if item.get(k) not in (None, [], {})
         }
+        | _dimensions(item)
         for item in top_items(result)
     ]
     facts = [
@@ -204,8 +244,12 @@ def _writer_input(question: str, result: dict, findings: Sequence[Finding]) -> s
         for f in findings
         if f.status != "rejected" and f.verification != "unsupported"
     ]
+    payload: dict[str, Any] = {"question": question, "top_cells": cells, "findings": facts}
+    operator = operator_profile(result)
+    if operator:
+        payload["operator_profile"] = operator
     return json.dumps(
-        {"question": question, "top_cells": cells, "findings": facts},
+        payload,
         ensure_ascii=False,
         indent=1,
         default=str,
