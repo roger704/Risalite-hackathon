@@ -193,13 +193,9 @@ def create_app(
 
     @application.exception_handler(ConnectorError)
     async def connector_error(request: Request, exc: ConnectorError):
-        status = _error_status(exc.code)
-        if (
-            exc.code == "INVALID_FILTER"
-            and request.url.path == "/api/v1/datasets/berlin_alkis_buildings/by-address"
-        ):
-            status = 400
-        return error_response(request, exc.code, exc.message, exc.retryable, status)
+        return error_response(
+            request, exc.code, exc.message, exc.retryable, _error_status(exc.code)
+        )
 
     @application.exception_handler(RequestValidationError)
     async def request_error(request: Request, exc: RequestValidationError):
@@ -261,6 +257,64 @@ def create_app(
             metric_code=metric_code,
             limit=limit,
             cursor=cursor,
+        )
+
+    @application.get("/api/v1/datasets/{dataset_id}/wohnlage")
+    def wohnlage(
+        request: Request,
+        dataset_id: str,
+        data: Annotated[DataService, Depends(get_service)],
+    ):
+        allowed = {
+            "snapshot_id",
+            "address_key",
+            "street_code",
+            "house_number",
+            "house_number_suffix",
+            "address_snapshot_id",
+            "address_id",
+        }
+        unknown = set(request.query_params) - allowed
+        if unknown:
+            raise ConnectorError(
+                "INVALID_REQUEST", "Unsupported query parameters: " + ", ".join(sorted(unknown))
+            )
+        if any(len(request.query_params.getlist(name)) != 1 for name in request.query_params):
+            raise ConnectorError("INVALID_REQUEST", "Query parameters must be supplied once")
+        values = {name: request.query_params.get(name) for name in allowed}
+        if not values["snapshot_id"]:
+            raise ConnectorError("INVALID_REQUEST", "snapshot_id is required")
+        address_key_mode = values["address_key"] is not None
+        street_mode = any(
+            values[name] is not None
+            for name in ("street_code", "house_number", "house_number_suffix")
+        )
+        address_mode = any(
+            values[name] is not None for name in ("address_snapshot_id", "address_id")
+        )
+        if sum((address_key_mode, street_mode, address_mode)) != 1:
+            raise ConnectorError(
+                "INVALID_REQUEST",
+                "Supply exactly one of address_key, street_code/house_number, or "
+                "address_snapshot_id/address_id",
+            )
+        if street_mode and (values["street_code"] is None or values["house_number"] is None):
+            raise ConnectorError(
+                "INVALID_REQUEST", "street_code and house_number must be supplied together"
+            )
+        if address_mode and (not values["address_snapshot_id"] or not values["address_id"]):
+            raise ConnectorError(
+                "INVALID_REQUEST", "address_snapshot_id and address_id must be supplied together"
+            )
+        return data.wohnlage(
+            dataset_id,
+            values["snapshot_id"],
+            address_key=values["address_key"],
+            street_code=values["street_code"],
+            house_number=values["house_number"],
+            house_number_suffix=values["house_number_suffix"],
+            address_snapshot_id=values["address_snapshot_id"],
+            address_id=values["address_id"],
         )
 
     @application.get("/api/v1/datasets/{dataset_id}/layers/counters")

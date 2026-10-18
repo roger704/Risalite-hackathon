@@ -165,7 +165,7 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
                 "house_number": "abc",
             },
         )
-        assert invalid_number.status_code == 400
+        assert invalid_number.status_code == 422
         assert invalid_number.json()["error"]["code"] == "INVALID_FILTER"
         invalid_suffix = client.get(
             "/api/v1/datasets/berlin_alkis_buildings/by-address",
@@ -176,7 +176,7 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
                 "house_number_suffix": "!",
             },
         )
-        assert invalid_suffix.status_code == 400
+        assert invalid_suffix.status_code == 422
         assert invalid_suffix.json()["error"]["code"] == "INVALID_FILTER"
 
         unsupported = client.get(
@@ -194,7 +194,7 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
                 "lon": lon,
             },
         )
-        assert unpaired.status_code == 400
+        assert unpaired.status_code == 422
 
         outside = client.get(
             "/api/v1/datasets/berlin_alkis_buildings/at",
