@@ -40,14 +40,15 @@ flowchart TB
 
   subgraph P4["4 · Synthesis and verification"]
     direction LR
-    M["Merge<br/>modifiers · risks · unknowns"]
+    FC["Fact-check (1)<br/>re-extract · ratio ≥ 0.85"]
+    M["Merge — verified only<br/>modifiers · risks · unknowns"]
     SK["Skeptic subagent<br/>counter-evidence for #1–#2"]
-    FC["Fact-check<br/>re-extract · ratio ≥ 0.85"]
+    FC2["Fact-check (2)<br/>risk findings"]
     RV["Severity review<br/>verified risks only"]
-    RS["Rescore<br/>high risk → demote"]
+    RS["Rescore<br/>demoted_by + shared rank()"]
     WR["Writer<br/>verified findings only"]
     OUT["report.md · cells.json<br/>trace.jsonl → SSE"]
-    M --> SK --> FC --> RV --> RS --> WR --> OUT
+    FC --> M --> SK --> FC2 --> RV --> RS --> WR --> OUT
   end
 
   AP --> P2
@@ -55,6 +56,6 @@ flowchart TB
   SC -- "top-3 profile" --> W2
   W1 -. "district findings" .-> W2
   LV -. "layer evidence" .-> L
-  L --> M
+  L --> FC
   SC --> M
   SK -. "risk findings" .-> RF

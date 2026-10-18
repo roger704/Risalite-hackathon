@@ -58,14 +58,14 @@ flowchart TB
     RF --> L[("Evidence ledger")]
   end
   subgraph P4["4 · Synthesis and verification"]
-    M["Merge"] --> SK["Skeptic"] --> FC["Fact-check"] --> RV["Severity review"] --> RS["Rescore"] --> WR["Writer"] --> OUT["report.md · cells.json · trace"]
+    FC1["Fact-check findings"] --> M["Merge (verified only)"] --> SK["Skeptic"] --> FC2["Fact-check risks"] --> RV["Severity review"] --> RS["Rescore"] --> WR["Writer"] --> OUT["report.md · cells.json · trace"]
   end
   AP --> P2
   AP --> W1
   SC -- "top-3 profile" --> W2
   W1 -. "district findings" .-> W2
   LV -. "layer evidence" .-> L
-  L --> M
+  L --> FC1
   SC --> M
   SK -. "risk findings" .-> RF
 ```
@@ -83,29 +83,32 @@ flowchart TB
 | 5 Data stage | S2 snapshots | layer values per PLR, normalization, score v0, OSM↔IHK cross-check | top-3 profiles → wave 2; layers → ledger; `cells.json` | no |
 | 6a Wave 1 | sub-questions + PLR list | search → extract → `record_finding` | future / risk / fact findings → merge, wave 2 | yes, agent |
 | 6b Wave 2 | top-3 profile + wave-1 findings | targeted neighbourhood research | confirms / contradicts data → merge | yes, agent |
-| 7 Merge | findings + cell values | modifiers, risks, unknowns (rules §7) | `score_future`, skeptic target | no |
-| 8 Skeptic | #1–#2 with evidence | counter-evidence search | risk findings → fact-check | yes, agent |
-| 9 Fact-check | all findings | re-extract, quote ratio ≥ 0.85; recompute layers from snapshot | only `verified` → review, writer | no |
-| 10 Severity review | verified risks | severity high/medium/low with ledger ids | rescore | yes, structured |
-| 11 Rescore | severities | high → demote one place | final ranking, `rescore` event | no |
-| 12 Writer | verified findings + cells | summary + per-cell reasons | `report.md`, dashboard | yes, structured |
+| 7 Fact-check (1) | wave-1/2 findings + dataset entries | re-extract, quote ratio ≥ 0.85; recompute layers from snapshot | only `verified` → merge | no |
+| 8 Merge | **verified** findings + cell values | modifiers, risks, unknowns (rules §5.4); `build_cells` | `cells.json` v1, skeptic target | no |
+| 9 Skeptic | #1–#2 of v1 with evidence | counter-evidence search | risk findings → fact-check (2) | yes, agent |
+| 10 Fact-check (2) | skeptic risk findings | same as (1) | verified risks → review | no |
+| 11 Severity review | verified risks | severity high/medium/low with ledger ids | rescore | yes, structured |
+| 12 Rescore | severities | `demoted_by` on the cell, deterministic rank rule (§5.5) | `cells.json` final, `rescore` event | no |
+| 13 Writer | verified findings + final cells | summary + per-cell reasons | `report.md`, dashboard | yes, structured |
 
 ## 4. Run lifecycle and HTTP API
 
 ```text
 created → classifying → (needs_clarification ↺) → planning → awaiting_approval
-        → approved → researching{data, wave1, wave2} → reviewing{merge, skeptic, factcheck, review, rescore}
+        → approved → researching{data, wave1, wave2} → reviewing{factcheck, merge, skeptic, factcheck_risks, review, rescore}
         → writing → done
 any state → failed (error event with reason) | cancelled
 ```
 
 | Endpoint | Request | Response |
 |---|---|---|
-| `POST /research` | `{question, role?, template_hint?}` | `{run_id, status}`; status is `needs_clarification` (with `clarify_question`) or `awaiting_approval` (with `plan`) |
+| `POST /research` | `{question, role?, template_hint?}` | `{run_id, run_token, status}`; status is `needs_clarification` (with `clarify_question`) or `awaiting_approval` (with `plan`) |
 | `POST /runs/{id}/clarify` | `{answer}` | same as above (re-classify with the answer) |
-| `POST /runs/{id}/approve` | `{subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions) |
+| `POST /runs/{id}/approve` | `{area?: {name}, subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; if `area` differs from the resolved area: re-resolve, regenerate the plan and return `{status: "awaiting_approval", plan}` (a second approve is needed); 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions, unresolvable area) |
 | `GET /runs/{id}/events` | — | SSE stream of events (§9.1); replays from `trace.jsonl`, supports `Last-Event-ID` = `seq` |
 | `GET /runs/{id}/result` | — | `{status, report_md, cells, evidence, findings, metrics}` once `done`; 202 before |
+
+**Access:** `run_id` is a random UUID4 and is not a credential. `POST /research` also returns a random `run_token`; every `/runs/{id}/…` endpoint requires it as `Authorization: Bearer <run_token>` (SSE: `?token=` query parameter, since `EventSource` cannot set headers) and answers 404 on a missing or wrong token, so run ids neither grant access nor reveal that a run exists. The token is stored hashed in the run directory. There are no user accounts in the hackathon scope; the token binds a run to the client that created it.
 
 `/clarify` is new compared to `Execution_Plan.md` (the clarify step needs a way back in). Runs are stored in `runs/<run_id>/`; a run is restartable from any completed stage because every stage writes its artifact before the next one starts.
 
@@ -114,7 +117,7 @@ any state → failed (error event with reason) | cancelled
 ### 5.1 Classify, clarify, resolve area, plan
 
 - One `NebiusGateway.plan` call each for classify and plan, with Pydantic output models (`research_outputs.py`). Each output carries a `why` that is emitted as an event.
-- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan shows what was resolved so the user can correct it at approval.
+- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan shows what was resolved (name, level, PLR count) so the user can correct it via `approve.area`, which re-resolves the area and regenerates the plan before research starts.
 - The plan only proposes layers for which `DataPort.available_layers` returns a snapshot. Template layer catalog for T2 coffee:
 
 | Layer id | Source (S2) | Computation per PLR | Direction | Default weight |
@@ -154,8 +157,13 @@ Each researcher gets the PLR list (`id`, `name`, Ortsteil) to localize findings.
 | Tool | Contract |
 |---|---|
 | `web_search(query, why, include_domains?, topic?)` | Tavily search via PR #6 client; stores every result as `WebEvidence`; returns compact JSON `[{evidence_id, title, url, snippet, published_date}]` |
-| `extract_page(evidence_id, why)` | Tavily extract for a known evidence id; stores passage; returns the passage (truncated) |
+| `extract_page(evidence_id, why)` | Tavily extract for a known evidence id only (the agent cannot pass arbitrary URLs); stores passage; returns the passage (truncated, wrapped as untrusted content, see below) |
 | `record_finding(claim, quote, evidence_ids, claim_type, localization?, why)` | accepts only if every id exists and the quote is in the stored text (exact after whitespace normalization, or fuzzy ratio ≥ 0.85 on a bounded window); returns `{finding_id}` or an error string with the reason |
+
+**Untrusted content.**
+- *URLs:* every URL (search result, extract, fact-check re-extract) goes through the PR #6 `TavilyClient` URL policy: http(s) only, no credentials in URLs, hostname resolved and rejected if any address is private, loopback, link-local, multicast, reserved or unspecified (IPv4-mapped IPv6 included). The fetch itself is done by Tavily, not by our backend; the check also protects any later direct fetch.
+- *Page text:* extracted text is data, never instructions. Tools return it inside `<untrusted_source evidence_id="…">…</untrusted_source>` with tag-like sequences escaped. The system prompts state that instructions inside sources are ignored.
+- *Blast radius:* agents have no tools beyond search, extract and record, all budgeted. No secrets or file system access are in the agent context. A finding only survives if its quote is verbatim in the source. The writer never sees raw page text, only verified findings (claim + quote + ids).
 
 `claim_type ∈ {fact, estimate, opinion, future, risk}`. `localization ∈ {plr:<id>, ortsteil:<name>, address:<text>, district}`; `address` only if the page states it.
 
@@ -167,30 +175,41 @@ Each researcher gets the PLR list (`id`, `name`, Ortsteil) to localize findings.
 
 ### 5.4 Merge (deterministic)
 
+Merge runs **after** fact-check (1) and only reads findings with `verification = verified` (for `partial`, only the matching evidence ids). Unverified claims therefore never reach modifiers, risks, unknowns or scores.
+
 - `future` findings localized to a PLR → modifier `{type: "future", bonus: 0.10, magnitude?}` on that cell; `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
 - `risk` findings → `risks[]` on the cell (severity assigned later).
 - A web finding that contradicts a layer (e.g. "café scene saturated" for a low-competition cell) → `unknowns[]` with a validation suggestion.
-- `score_future` is recomputed by S2 `build_cells`.
+- `score_future` is recomputed by S2 `build_cells` → `cells.json` v1. Final `cells.json` is rebuilt after rescore from verified findings only.
 
 ### 5.5 Skeptic (E4 = C, pending confirmation)
 
 1. **Collect**: skeptic subagent with an adversarial prompt, run for #1 and #2: closures, rent jumps, saturation, construction sites, new chains, policy restrictions. Same tools, budget 3 searches per cell, findings with `claim_type="risk"`.
-2. **Verify**: risk findings go through the fact-check like all others.
+2. **Verify**: fact-check (2) runs on the risk findings with the same rules as fact-check (1).
 3. **Judge**: one `NebiusGateway.review` call over the verified risks per cell → `[{finding_id, severity: high|medium|low, rationale}]`. Only ledger ids of verified findings are allowed; others are dropped.
-4. **Rescore**: a cell with ≥ 1 verified `high` risk drops one place; emits `rescore` with the reason. At most one demotion per cell.
+4. **Rescore**: a cell with ≥ 1 verified `high` risk gets `"demoted_by": ["f_…"]` in `cells.json`; emits `rescore` with the reason. Scores stay unchanged, so the demotion is a persistent rank rule rather than a one-off reorder:
+   ```text
+   rank(cells):  order = sort by score desc (score_present or score_future per mode)
+                 for cell in order (top to bottom, original positions):
+                     if cell.demoted_by and cell is not last: swap cell with its current successor
+   ```
+   Each demoted cell moves down at most one place; two adjacent demoted cells keep their relative order. S2 implements `rank()` next to `build_cells`; S3 applies the same function after every layer/weight/mode change, so writer, report and dashboard always show the same ranking. The heatmap colour still uses the raw score; the top-3 list shows a "risk" badge linking to the finding.
 
 The skeptic should use a different model family than the researchers. Fallback (`SKEPTIC_MODE=review`): skip step 1, run step 3 over existing risk findings.
 
 ### 5.6 Fact-check (deterministic)
 
+Runs twice: (1) on all research findings and dataset entries before merge, (2) on skeptic risk findings before the severity review.
+
 - For every finding: re-extract each cited URL (Tavily extract, cached per run), match the quote with the same matcher as `record_finding`. Status: `verified` (all ids match), `partial` (some match), `unsupported` (none).
 - `unsupported` findings are excluded from writer input and listed in the report appendix "Could not verify". `partial` findings keep only the matching evidence ids.
 - Dataset ledger entries are verified by recomputing the layer from the snapshot.
 - Output: `factcheck.json`, `fact_check` events.
+- Re-extract results are cached per URL and run, so fact-check (2) only fetches new URLs.
 
 ### 5.7 Writer
 
-- One `NebiusGateway.synthesize` call. Input: verified findings, final cells (top-3 with values, modifiers, risks, unknowns), the plan. Output model: summary (3–6 sentences), per top-3 cell 2–4 reasons, risks, unknowns, each sentence with `claim_type` and `evidence_ids`.
+- One `NebiusGateway.synthesize` call. Input: verified findings (no raw page text), final cells (top-3 with values, modifiers, risks, unknowns), the plan. Output model: summary (3–6 sentences), per top-3 cell 2–4 reasons, risks, unknowns, each sentence with `claim_type` and `evidence_ids`.
 - Post-processing: drop any sentence whose ids are not in the verified set; render `report.md` with `[n]` citations mapped to ledger ids.
 
 ## 6. T1 / T3
@@ -292,7 +311,7 @@ Token volume (0.8–1.5 M per run) is dominated by researchers re-reading extrac
 2. OSM↔IHK cross-check threshold (`max/min > 2`, both ≥ 3).
 3. Default layer weights for T2 (§5.1) — S2 may want to own them.
 4. Wave-2 trigger: top-3 by score v0 or by `score_future` after wave 1?
-5. `POST /runs/{id}/clarify` as an addition to the frozen API.
+5. `POST /runs/{id}/clarify`, `approve.area`, `run_token` and `cells[].demoted_by` + shared `rank()` as additions to the frozen contracts (the last one needs S2 and S3 sign-off).
 6. Budgets (§5.3) vs. the demo time slot.
 
 ## 12. Risks
