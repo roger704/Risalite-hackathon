@@ -82,7 +82,6 @@ def _trace_summary(bundle: RunBundle) -> tuple[list[dict[str, Any]], list[dict[s
         event_type = _text(event.get("type")).lower()
         if "reject" in event_type:
             rejected.append(event)
-            continue
         model = event.get("model")
         tokens = _integer(event.get("tokens"))
         if not _text(model).strip() and tokens <= 0 and event_type not in {"llm_call", "tool_call"}:
@@ -308,7 +307,9 @@ def render_markdown(bundle: RunBundle, mix: Mix | None = None, share_url: str | 
         f"- Role: {_text(run.get('role'))}",
         f"- Created at: {_text(run.get('created_at'))}",
     ]
-    lines.extend(f"- {label}: {_text(value)}" for label, value in _point_meta(bundle))
+    lines.extend(
+        f"- {label}: {' '.join(_text(value).split())}" for label, value in _point_meta(bundle)
+    )
     lines.append(f"- {_mix_line(bundle, mix)}")
     if share_url:
         lines.append(f"- Share: {share_url}")

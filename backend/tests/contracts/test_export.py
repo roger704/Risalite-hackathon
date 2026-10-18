@@ -238,7 +238,7 @@ def test_point_markdown_sorts_final_rank_and_shows_for_against_unknowns():
     assert "<dt>Operator Concept</dt><dd>independent café</dd>" in html
 
 
-def test_trace_summary_excludes_rejection_events_from_usage_counts():
+def test_trace_summary_counts_measured_rejections_but_not_bare_notifications():
     bundle = RunBundle(
         run={"models": {}},
         cells=None,
@@ -247,12 +247,13 @@ def test_trace_summary_excludes_rejection_events_from_usage_counts():
         evidence=[],
         trace=[
             {"role": "analyst", "model": "model-a", "tokens": 12, "seconds": 1.5},
+            {"role": "analyst", "type": "claim_reject", "text": "Bare notification."},
             {
-                "role": "analyst",
+                "role": "fact_checker",
                 "type": "claim_reject",
                 "model": "model-b",
-                "tokens": 99,
-                "seconds": 30,
+                "tokens": 40,
+                "seconds": 0.5,
                 "text": "Rejected claim.",
             },
         ],
@@ -260,7 +261,18 @@ def test_trace_summary_excludes_rejection_events_from_usage_counts():
 
     roles, rejected = _trace_summary(bundle)
 
-    assert roles == [
-        {"role": "analyst", "model": "model-a", "calls": 1, "tokens": 12, "seconds": 1.5}
+    assert sorted(roles, key=lambda r: r["role"]) == [
+        {"role": "analyst", "model": "model-a", "calls": 1, "tokens": 12, "seconds": 1.5},
+        {"role": "fact_checker", "model": "model-b", "calls": 1, "tokens": 40, "seconds": 0.5},
     ]
-    assert len(rejected) == 1
+    assert len(rejected) == 2
+
+
+def test_markdown_point_meta_keeps_multiline_values_inside_bullet():
+    bundle = load_run(RUNS / "demo-point")
+    bundle.candidates["operator"]["concept"] = "Coffee shop\n\n## 5. Sources"
+
+    report = render_markdown(bundle)
+
+    assert "- Operator Concept: Coffee shop ## 5. Sources" in report
+    assert report.count("\n## 5. Sources") == 1
