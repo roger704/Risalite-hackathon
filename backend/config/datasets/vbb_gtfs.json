@@ -48,6 +48,7 @@
       "wheelchair_boarding 0 means no information, not inaccessible.",
       "StopService area_code stays null until the scoring PR's LOR spatial join.",
       "The feed covers all of Berlin-Brandenburg, not just Berlin.",
+      "VBB groups only some platforms under a parent station; nearby tram/bus stops of a hub (e.g. Alexanderplatz) are separate StopService keys, so hub-level supply needs distance-based aggregation in the scoring layer.",
       "Counting rule: active service-day departures are counted once per station, trip, and frequency run in each half-open window."
     ]
   }
