@@ -58,6 +58,7 @@ REQUERY_METHODS = {"wfs", "wfs-cached", "overpass"}
 DEFAULT_REQUERY_HOSTS = ("gdi.berlin.de", "fbinter.stadt-berlin.de", "overpass-api.de")
 MAX_REDIRECTS = 5
 FETCH_TIMEOUT_S = 10.0
+PREFETCH_BATCH_TIMEOUT_S = float(os.environ.get("RISALITE_FACTCHECK_BATCH_TIMEOUT_S", "90"))
 DEFAULT_FACTCHECK_CONCURRENCY = 8
 FACTCHECK_FILE = "factcheck.json"
 FINDINGS_FILE = "findings.jsonl"
@@ -271,32 +272,34 @@ class FactChecker:
         )
         if not urls:
             return
-        try:
-            async with asyncio.timeout(FETCH_TIMEOUT_S):
-                page = await self.research.extract(ResearchExtract(urls=urls))
-        except Exception as exc:  # provider down, budget exhausted, ...
-            reason = self._refetch_failure_reason(type(exc).__name__)
-            for url in urls:
-                self._cache[url] = Fetched(None, "tavily-extract", reason)
-            return
-        failures = {
-            f.get("url"): self._refetch_failure_reason(f.get("reason", "failed"))
-            for f in page.failures
-        }
-        for evidence in page.evidence:
-            if evidence.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}:
-                text = evidence.passage or evidence.snippet or ""
-                for url in (evidence.original_url, evidence.canonical_url):
-                    self._cache.setdefault(url, Fetched(text, "tavily-extract"))
-        for url in urls:
-            self._cache.setdefault(
-                url,
-                Fetched(
-                    None,
-                    "tavily-extract",
-                    failures.get(url, self._refetch_failure_reason("no content returned")),
-                ),
-            )
+        for start in range(0, len(urls), 20):
+            batch = urls[start : start + 20]
+            try:
+                async with asyncio.timeout(PREFETCH_BATCH_TIMEOUT_S):
+                    page = await self.research.extract(ResearchExtract(urls=batch))
+            except Exception as exc:  # provider down, budget exhausted, ...
+                reason = self._refetch_failure_reason(type(exc).__name__)
+                for url in batch:
+                    self._cache[url] = Fetched(None, "tavily-extract", reason)
+                continue
+            failures = {
+                f.get("url"): self._refetch_failure_reason(f.get("reason", "failed"))
+                for f in page.failures
+            }
+            for evidence in page.evidence:
+                if evidence.extraction_status in {ExtractionStatus.OK, ExtractionStatus.PARTIAL}:
+                    text = evidence.passage or evidence.snippet or ""
+                    for url in (evidence.original_url, evidence.canonical_url):
+                        self._cache.setdefault(url, Fetched(text, "tavily-extract"))
+            for url in batch:
+                self._cache.setdefault(
+                    url,
+                    Fetched(
+                        None,
+                        "tavily-extract",
+                        failures.get(url, self._refetch_failure_reason("no content returned")),
+                    ),
+                )
 
     async def fetch(self, entry: dict[str, Any]) -> Fetched:
         url = entry_url(entry)

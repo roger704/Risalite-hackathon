@@ -2,6 +2,7 @@
 
 Every function returns what was recorded, also when a budget, the recursion limit or the
 timeout stops the agent. Returned findings carry ``status`` "accepted" or "rejected".
+The live web research orchestration is available from ``app.research.live``.
 """
 
 from __future__ import annotations

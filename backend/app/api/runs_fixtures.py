@@ -22,11 +22,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.contracts.api import ApproveRequest, ResearchRequest
 from app.domain import ConnectorError, NotFoundError
+from app.evidence.ledger import entry_status
 from app.export import EXPORT_FORMATS, Mix, RunBundle, normalize_evidence
 
 router = APIRouter()
 RUNS: dict[str, dict] = {}
 RUNS_LOCK = RLock()
+LIVE_TASKS: set[asyncio.Task] = set()
 MAX_RUNS = 500
 IDLE_TTL = 3600
 SUPPORTED_AREAS = {
@@ -309,7 +311,7 @@ def _response(run: dict) -> dict:
         "status": run["status"],
         "clarify_question": run.get("clarify_question"),
         "plan": run.get("plan"),
-        "mode": "fixtures",
+        "mode": run.get("mode", "fixtures"),
         "question": run["question"],
         "role": run["role"],
         "profile": run["profile"],
@@ -320,13 +322,13 @@ def _response(run: dict) -> dict:
 
 def _make_room_for_run() -> bool:
     while len(RUNS) >= MAX_RUNS:
-        oldest_done = min(
-            (run_id for run_id, run in RUNS.items() if run["status"] == "done"),
+        oldest_terminal = min(
+            (run_id for run_id, run in RUNS.items() if run["status"] in {"done", "failed"}),
             key=lambda run_id: RUNS[run_id].get("created_at", 0),
             default=None,
         )
-        if oldest_done is not None:
-            RUNS.pop(oldest_done)
+        if oldest_terminal is not None:
+            RUNS.pop(oldest_terminal)
             continue
 
         now = time.monotonic()
@@ -370,12 +372,259 @@ def _store_run(run: dict) -> bool:
 
 
 def _run_locked(function):
+    if asyncio.iscoroutinefunction(function):
+
+        @wraps(function)
+        async def async_wrapper(*args, **kwargs):
+            with RUNS_LOCK:
+                return await function(*args, **kwargs)
+
+        return async_wrapper
+
     @wraps(function)
     def wrapper(*args, **kwargs):
         with RUNS_LOCK:
             return function(*args, **kwargs)
 
     return wrapper
+
+
+def _live_enabled() -> bool:
+    return (
+        os.environ.get("RISALITE_LIVE") == "1"
+        and bool(os.environ.get("NEBIUS_API_KEY"))
+        and bool(os.environ.get("TAVILY_API_KEY"))
+    )
+
+
+async def _execute_live_run(run: dict, run_dir: Path) -> None:
+    gateway = tavily = verify_tavily = checker = None
+    try:
+        from app.connectors.nebius import NebiusConfig, NebiusGateway
+        from app.connectors.tavily import TavilyClient, TavilyConfig
+        from app.domain.research import ResearchBudget
+        from app.evidence.factcheck import FactChecker
+        from app.research.live import run_live
+
+        budget = ResearchBudget(6, 6, 14, 200_000)
+        verify_budget = ResearchBudget(0, 100, 0, 200_000)
+        gateway = NebiusGateway(
+            NebiusConfig.from_env(
+                model=os.environ.get("NEBIUS_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+            ),
+            budget,
+        )
+        tavily = TavilyClient(TavilyConfig.from_env(), budget)
+        verify_tavily = TavilyClient(TavilyConfig.from_env(), verify_budget)
+        checker = FactChecker(research=verify_tavily)
+        result = await run_live(
+            run_dir,
+            run_id=run["run_id"],
+            question=run["question"],
+            area_name=((run.get("plan") or {}).get("area") or {}).get("name"),
+            role=run.get("role"),
+            gateway=gateway,
+            tavily=tavily,
+            checker=checker,
+        )
+    except Exception as exc:
+        message = str(exc) or type(exc).__name__
+        for key in ("NEBIUS_API_KEY", "TAVILY_API_KEY"):
+            secret = os.environ.get(key)
+            if secret:
+                message = message.replace(secret, "[redacted]")
+        result = {"run_id": run["run_id"], "status": "failed", "error": message[:1000]}
+    finally:
+        if checker is not None:
+            try:
+                await checker.aclose()
+            except Exception:
+                pass
+        if verify_tavily is not None:
+            try:
+                await verify_tavily.aclose()
+            except Exception:
+                pass
+        if tavily is not None:
+            try:
+                await tavily.aclose()
+            except Exception:
+                pass
+        if gateway is not None:
+            try:
+                await gateway.aclose()
+            except Exception:
+                pass
+    run_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = run_dir / "result.json"
+    if not marker_path.exists():
+        from app.evidence.trace import TraceWriter
+
+        trace = TraceWriter(run_dir, run["run_id"])
+        trace.emit("error", "orchestrator", result.get("error", "Live run failed."))
+        trace.emit(
+            "status",
+            "orchestrator",
+            "Research run failed.",
+            detail={"summary": "error", "status": "failed"},
+        )
+        marker_path.write_text(json.dumps(result, ensure_ascii=False) + "\n", encoding="utf-8")
+    with RUNS_LOCK:
+        if run["run_id"] in RUNS:
+            run["status"] = result.get("status", "failed")
+            run["live_error"] = result.get("error")
+
+
+def _path_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _live_trace(run: dict, run_dir: Path) -> list[dict]:
+    approved = {
+        "run_id": run["run_id"],
+        "seq": 0,
+        "ts": datetime.now(UTC).isoformat(),
+        "type": "approved",
+        "agent": "orchestrator",
+        "why": "The user approved the research plan.",
+        "detail": run.get("approval", {}),
+        "model": None,
+        "tokens_in": None,
+        "tokens_out": None,
+        "seconds": 0.0,
+    }
+    events = [approved]
+    for item in _path_jsonl(run_dir / "trace.jsonl"):
+        events.append({**item, "seq": int(item.get("seq", len(events) - 1)) + 1})
+    return events
+
+
+def _apply_layer_approvals(cells: dict, approved_layers: list[dict]) -> dict:
+    for layer in cells["layers"]:
+        layer["enabled"] = True
+    for approved_layer in approved_layers:
+        for layer in cells["layers"]:
+            if layer["id"] == approved_layer["id"]:
+                layer["enabled"] = approved_layer["enabled"]
+                layer["weight_default"] = approved_layer["weight"]
+    return cells
+
+
+def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
+    marker_path = run_dir / "result.json"
+    if not marker_path.exists():
+        return None
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    status = marker.get("status", "failed")
+    shape = run["shape"]
+    area_id = ((run.get("plan") or {}).get("area") or {}).get("area_id")
+    supported = area_id in SUPPORTED_AREAS.get(shape, set())
+    result_doc = _read_json(_shape_fixture(shape, "result"))
+    latest_entries = {}
+    for entry in _path_jsonl(run_dir / "evidence.jsonl"):
+        latest_entries[entry.get("evidence_id")] = entry
+    web_entries = list(latest_entries.values())
+    findings = _path_jsonl(run_dir / "findings.jsonl")
+    for entry in web_entries:
+        evidence_id = entry.get("evidence_id")
+        passage = entry.get("passage") or ""
+        snippet = entry.get("snippet") or ""
+        quote = next(
+            (
+                finding.get("quote")
+                for finding in findings
+                if finding.get("status") == "accepted"
+                and finding.get("verification") in {"verified", "partial"}
+                and evidence_id in (finding.get("evidence_ids") or [])
+                and finding.get("quote")
+                and any(finding["quote"] in source for source in (passage, snippet))
+            ),
+            None,
+        )
+        if quote is None:
+            entry["quote"] = (passage or snippet).strip()[:300]
+            entry["quote_source"] = "snippet"
+        else:
+            entry["quote"] = quote
+    citable = [entry for entry in web_entries if entry_status(entry) != "unsupported"]
+    unsupported = [entry for entry in web_entries if entry_status(entry) == "unsupported"]
+    fixture_evidence = (
+        [
+            entry
+            for entry in _read_jsonl(_shape_fixture(shape, "evidence"))
+            if entry.get("method") not in {"web", "tavily", "tavily-search", "tavily-extract"}
+            and "example-" not in entry_url_for_fixture(entry)
+        ]
+        if supported
+        else []
+    )
+    evidence = citable + unsupported + fixture_evidence
+    evidence_ids = {entry.get("evidence_id") for entry in evidence}
+    result_doc.pop("synthetic", None)
+    cells = (
+        _apply_layer_approvals(
+            _read_json(_shape_fixture(shape, "cells")),
+            run.get("approval", {}).get("layers", []),
+        )
+        if supported
+        else None
+    )
+    if cells is not None:
+        for cell in cells.get("cells", []):
+            for key in ("modifiers", "risks"):
+                cell[key] = [
+                    item
+                    for item in cell.get(key, [])
+                    if isinstance(item, dict) and item.get("evidence_id") in evidence_ids
+                ]
+    trace = _live_trace(run, run_dir)
+    result_doc.update(
+        {
+            "run_id": run["run_id"],
+            "status": status,
+            "report_md": (run_dir / "report.md").read_text(encoding="utf-8")
+            if (run_dir / "report.md").exists()
+            else "",
+            "evidence": evidence,
+            "findings": findings,
+            "trace": trace,
+            "metrics": json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+            if (run_dir / "metrics.json").exists()
+            else {},
+            "cells": cells,
+            "cells_geojson": _read_json(_shape_fixture(shape, "cells_geojson"))
+            if supported
+            else None,
+            "candidates": None,
+            "fixture_notice": (
+                "The heatmap layers are demo fixtures; the web research, citations and trace are live."
+            ),
+            "question": run["question"],
+            "role": run.get("role"),
+            "shape": shape,
+            "plan": run.get("plan"),
+            "mode": "live",
+        }
+    )
+    if status == "failed":
+        result_doc["error"] = marker.get("error") or run.get("live_error") or "Research run failed."
+    return result_doc
+
+
+def entry_url_for_fixture(entry: dict) -> str:
+    return entry.get("url") or entry.get("source_url") or ""
 
 
 def _get_run(run_id: str, authorization: str | None) -> dict:
@@ -409,6 +658,7 @@ def research(body: ResearchRequest):
             "question": question,
             "role": body.role,
             "profile": body.profile,
+            "mode": "live" if _live_enabled() else "fixtures",
             "shape": shape,
             "area_matches": matches,
             "classification": {
@@ -475,19 +725,20 @@ def search_areas(
 
 @router.post("/runs/{run_id}/approve")
 @_run_locked
-def approve(
+async def approve(
     run_id: str,
     payload: dict,
+    http_request: Request,
     authorization: str | None = Header(default=None),
 ):
     run = _get_run(run_id, authorization)
     if run["status"] != "awaiting_approval":
         raise HTTPException(status_code=409, detail="Run is not awaiting approval")
     try:
-        request = ApproveRequest.model_validate(payload)
+        approval_request = ApproveRequest.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="Invalid approval payload") from exc
-    body = request.model_dump(exclude_none=True)
+    body = approval_request.model_dump(exclude_none=True)
     max_subquestions = 5 if run["shape"] == "gap" else 3
     if len(body.get("subquestions", [])) > max_subquestions:
         raise HTTPException(
@@ -542,6 +793,15 @@ def approve(
     run["approval"] = body
     run["status"] = "approved"
     run["approved_at"] = time.monotonic()
+    if run.get("mode") == "live":
+        run["status"] = "running"
+        area_id = area_id or (plan.get("area") or {}).get("area_id")
+        run["live_area_id"] = area_id
+        run_dir = (Path(http_request.app.state.runs_dir) / run_id).resolve()
+        run["live_run_dir"] = str(run_dir)
+        task = asyncio.create_task(_execute_live_run(run, run_dir))
+        LIVE_TASKS.add(task)
+        task.add_done_callback(LIVE_TASKS.discard)
     return {"status": "approved"}
 
 
@@ -636,14 +896,42 @@ def _events(run: dict) -> list[dict]:
 @router.get("/runs/{run_id}/events")
 async def events(
     run_id: str,
+    request: Request,
     authorization: str | None = Header(default=None),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ):
     run = _get_run(run_id, authorization)
+    after = int(last_event_id) if last_event_id and last_event_id.isdigit() else -1
+    if run.get("mode") == "live":
+        if run["status"] not in {"approved", "running", "done", "failed"}:
+            raise HTTPException(status_code=409, detail="Run has not been approved")
+        run_dir = Path(run["live_run_dir"])
+
+        async def live_stream():
+            last_sent = after
+            while True:
+                trace = _live_trace(run, run_dir)
+                for event in trace:
+                    if event["seq"] <= last_sent:
+                        continue
+                    yield f"id: {event['seq']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    last_sent = event["seq"]
+                terminal = any(
+                    event.get("type") == "status"
+                    and (
+                        (event.get("detail") or {}).get("summary") in {"done", "error"}
+                        or (event.get("detail") or {}).get("status") == "failed"
+                    )
+                    for event in trace
+                )
+                if terminal:
+                    break
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(live_stream(), media_type="text/event-stream")
     if run["status"] not in {"approved", "running"}:
         raise HTTPException(status_code=409, detail="Run has not been approved")
     trace = _events(run)
-    after = int(last_event_id) if last_event_id and last_event_id.isdigit() else -1
     delay = max(0.0, float(os.environ.get("RISALITE_REPLAY_DELAY", "0.25")))
 
     async def stream():
@@ -660,6 +948,15 @@ async def events(
 @router.get("/runs/{run_id}/result")
 def result(run_id: str, authorization: str | None = Header(default=None)):
     run = _get_run(run_id, authorization)
+    if run.get("mode") == "live":
+        if run["status"] not in {"approved", "running", "done", "failed"}:
+            return JSONResponse(status_code=202, content={"status": run["status"]})
+        payload = _live_result_payload(run, Path(run["live_run_dir"]))
+        if payload is None:
+            return JSONResponse(status_code=202, content={"status": "running"})
+        run["status"] = payload["status"]
+        run["result"] = payload
+        return payload
     if run["status"] == "done":
         return run["result"]
     if run["status"] not in {"approved", "running"}:
@@ -682,15 +979,14 @@ def _result_payload(run: dict) -> dict:
     area_id = area.get("area_id")
     fixture_notice = _fixture_notice(shape, area_id)
     result_doc = _read_json(_shape_fixture(shape, "result"))
-    cells = _read_json(_shape_fixture(shape, "cells")) if shape != "point" else None
-    if cells is not None:
-        for layer in cells["layers"]:
-            layer["enabled"] = True
-        for approved_layer in run.get("approval", {}).get("layers", []):
-            for layer in cells["layers"]:
-                if layer["id"] == approved_layer["id"]:
-                    layer["enabled"] = approved_layer["enabled"]
-                    layer["weight_default"] = approved_layer["weight"]
+    cells = (
+        _apply_layer_approvals(
+            _read_json(_shape_fixture(shape, "cells")),
+            run.get("approval", {}).get("layers", []),
+        )
+        if shape != "point"
+        else None
+    )
     findings_name = _shape_fixture(shape, "findings")
     findings_path = _fixture_dir() / findings_name
     findings = _read_jsonl(findings_name) if findings_path.exists() else []
@@ -789,7 +1085,15 @@ def export_run(
         else None
     )
 
-    if run["status"] == "done":
+    if run.get("mode") == "live":
+        if run["status"] not in {"approved", "running", "done", "failed"}:
+            raise HTTPException(status_code=409, detail="run not finished")
+        payload = _live_result_payload(run, Path(run["live_run_dir"]))
+        if payload is None:
+            raise HTTPException(status_code=409, detail="run not finished")
+        run["status"] = payload["status"]
+        run["result"] = payload
+    elif run["status"] == "done":
         payload = run["result"]
     else:
         if run["status"] not in {"approved", "running"}:
@@ -807,7 +1111,7 @@ def export_run(
     summary = payload.get("report_md", "")
     if run["shape"] == "point":
         summary = _renumber_fixture_citations(summary, evidence)
-    if payload.get("fixture_notice"):
+    if payload.get("fixture_notice") and run.get("mode") != "live":
         summary = (
             f"> **Demo fixture, not a computed answer:** {payload['fixture_notice']}\n\n" + summary
         )
@@ -839,6 +1143,14 @@ def export_run(
             "created_at": run.get("created_at_utc") or datetime.now(UTC).isoformat(),
             "plan": plan,
             "summary": summary,
+            **(
+                {
+                    "report_md": payload.get("report_md", ""),
+                    "findings": payload.get("findings") or [],
+                }
+                if run.get("mode") == "live"
+                else {}
+            ),
             "models": {
                 role: value.get("model")
                 for role, value in metrics.items()

@@ -8,7 +8,8 @@ import httpx
 import pytest
 
 from app.domain.errors import ValidationError
-from app.evidence.citations import citable, strip_unknown_citations
+from app.domain.research import ExtractionStatus
+from app.evidence.citations import citable, render_citations, strip_unknown_citations
 from app.evidence.factcheck import CheckResult, FactChecker, fact_check_run
 from app.evidence.judge import judge_run
 from app.evidence.ledger import EvidenceLedger, dataset_entry
@@ -86,6 +87,24 @@ def test_strip_unknown_citations_uses_export_numbering():
     result = strip_unknown_citations("A [1]. B [ev_bad]. C [2, 9]. [link](https://x) [^1]", entries)
     assert result.text == "A [1]. B. C [2]. [link](https://x) [^1]"
     assert result.stripped == ("ev_bad", "9")
+
+
+def test_render_citations_drops_marked_sentences_and_keeps_supported_neighbor():
+    entries = [
+        web("ev_drop", "https://example.org/drop", status="verified"),
+        web("ev_keep", "https://example.org/keep", status="verified"),
+    ]
+
+    result = render_citations(
+        "Before-period marker [ev_drop].\n"
+        "After-period marker. [ev_drop]\n"
+        "Dropped sentence [ev_drop]. Kept sentence [ev_keep].",
+        entries,
+        exclude={"ev_drop"},
+    )
+
+    assert result.text == "Kept sentence [2]."
+    assert result.stripped == ("ev_drop", "ev_drop", "ev_drop")
 
 
 async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
@@ -170,6 +189,66 @@ async def test_fact_check_run_verifies_partial_and_drops(tmp_path):
     async with checker(snapshot_reader=lambda entry: {"population": 12}) as fc:
         await fact_check_run(tmp_path, fc, recheck=True)
     assert (tmp_path / "report.md").read_text().count("## Could not verify") == 1
+
+
+async def test_prefetch_batches_more_than_thirty_web_entries():
+    entries = [web(f"ev_{index}", f"https://example.org/{index}") for index in range(45)]
+
+    class FakeResearch:
+        def __init__(self):
+            self.calls = []
+            self.fetched = []
+
+        async def extract(self, request):
+            self.calls.append(request.urls)
+            if len(request.urls) > 20:
+                raise RuntimeError("too many URLs")
+            self.fetched.extend(request.urls)
+            evidence = tuple(
+                SimpleNamespace(
+                    extraction_status=ExtractionStatus.OK,
+                    passage=f"Fetched {url}",
+                    snippet="",
+                    original_url=url,
+                    canonical_url=url,
+                )
+                for url in request.urls
+            )
+            return SimpleNamespace(evidence=evidence, failures=())
+
+    research = FakeResearch()
+    async with FactChecker(research=research) as fact_checker:
+        await fact_checker.prefetch(entries)
+        fetched = [await fact_checker.fetch(entry) for entry in entries]
+
+    assert [len(batch) for batch in research.calls] == [20, 20, 5]
+    assert research.fetched == [entry["url"] for entry in entries]
+    assert [item.text for item in fetched] == [f"Fetched {entry['url']}" for entry in entries]
+
+
+async def test_prefetch_batch_uses_timeout_longer_than_single_fetch_timeout(monkeypatch):
+    monkeypatch.setattr("app.evidence.factcheck.FETCH_TIMEOUT_S", 0.01)
+    monkeypatch.setattr("app.evidence.factcheck.PREFETCH_BATCH_TIMEOUT_S", 1.0)
+    entry = web("ev_slow", "https://example.org/slow")
+
+    class SlowResearch:
+        async def extract(self, request):
+            await asyncio.sleep(0.03)
+            evidence = SimpleNamespace(
+                extraction_status=ExtractionStatus.OK,
+                passage="Slow but valid batch",
+                snippet="",
+                original_url=request.urls[0],
+                canonical_url=request.urls[0],
+            )
+            return SimpleNamespace(evidence=(evidence,), failures=())
+
+    async with FactChecker(research=SlowResearch()) as fact_checker:
+        await fact_checker.prefetch([entry])
+        fetched = await fact_checker.fetch(entry)
+
+    assert fetched.text == "Slow but valid batch"
+    assert fetched.reason == ""
 
 
 async def test_fact_check_only_checks_and_prefetches_selected_ids(tmp_path):
