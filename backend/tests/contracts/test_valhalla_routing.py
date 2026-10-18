@@ -363,6 +363,8 @@ def test_routing_budget_renews_after_its_fixed_window():
         "used": 1,
         "window_seconds": 3600,
     }
+    now[0] += 3600
+    assert budget.to_dict()["used"] == 0
 
 
 @pytest.mark.asyncio

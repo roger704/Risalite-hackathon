@@ -185,6 +185,7 @@ def test_routing_api_default_budget_renews_after_window():
             params={"origin": "13.4132,52.5219", "destination": "13.38,52.5163"},
         )
         fake_time[0] += 3600
+        status = client.get("/api/v1/routing/walking/status")
         renewed = client.get(
             "/api/v1/routing/walking/route",
             params={"origin": "13.4132,52.5219", "destination": "13.39,52.5163"},
@@ -192,6 +193,8 @@ def test_routing_api_default_budget_renews_after_window():
     assert first.status_code == 200
     assert exhausted.status_code == 429
     assert exhausted.json()["error"]["code"] == "ROUTING_BUDGET_EXCEEDED"
+    assert status.status_code == 200
+    assert status.json()["budget"]["used"] == 0
     assert renewed.status_code == 200
     asyncio.run(transport.aclose())
 

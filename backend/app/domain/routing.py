@@ -417,12 +417,16 @@ class RoutingBudget:
         value = self.clock()
         return value.timestamp() if isinstance(value, datetime) else float(value)
 
+    def _refresh_window(self) -> None:
+        if self.window_seconds is None:
+            return
+        now = self._clock_seconds()
+        if now - self.window_start >= self.window_seconds:
+            self.used = 0
+            self.window_start = now
+
     def consume(self) -> None:
-        if self.window_seconds is not None:
-            now = self._clock_seconds()
-            if now - self.window_start >= self.window_seconds:
-                self.used = 0
-                self.window_start = now
+        self._refresh_window()
         if self.used >= self.max_requests:
             raise ConnectorError(
                 "ROUTING_BUDGET_EXCEEDED",
@@ -432,6 +436,7 @@ class RoutingBudget:
         self.used += 1
 
     def to_dict(self) -> dict[str, int | float | None]:
+        self._refresh_window()
         return {
             "max_requests": self.max_requests,
             "used": self.used,
