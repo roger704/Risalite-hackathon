@@ -90,9 +90,33 @@ class ResearchResult:
         )
 
 
+class ResearchCancelled(Exception):
+    pass
+
+
 class UsageCallback(BaseCallbackHandler):
-    def __init__(self, stats: RunStats) -> None:
+    raise_error = True  # let ResearchCancelled abort the agent run
+
+    def __init__(
+        self,
+        stats: RunStats,
+        log: Callable[[str], None] = print,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> None:
         self.stats = stats
+        self.log = log
+        self.should_stop = should_stop
+
+    def _check_stop(self) -> None:
+        if self.should_stop and self.should_stop():
+            raise ResearchCancelled
+
+    def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> None:
+        self.log(f"[nebius] model call #{self.stats.llm_calls + 1}")
+        self._check_stop()
+
+    def on_tool_start(self, serialized: Any, input_str: str, **kwargs: Any) -> None:
+        self._check_stop()
 
     def on_llm_end(self, response: Any, **kwargs: Any) -> None:
         self.stats.llm_calls += 1
@@ -203,6 +227,7 @@ def run_research(
     max_searches: int = 12,
     recursion_limit: int = 150,
     log: Callable[[str], None] = log,
+    should_stop: Callable[[], bool] | None = None,
 ) -> ResearchResult:
     """Run one research question end to end; progress lines go to `log`."""
     stats = RunStats()
@@ -212,8 +237,13 @@ def run_research(
     try:
         result = agent.invoke(
             {"messages": [{"role": "user", "content": question}]},
-            config={"recursion_limit": recursion_limit, "callbacks": [UsageCallback(stats)]},
+            config={
+                "recursion_limit": recursion_limit,
+                "callbacks": [UsageCallback(stats, log, should_stop)],
+            },
         )
+    except ResearchCancelled:
+        return ResearchResult(stats, time.monotonic() - started, error="cancelled")
     except GraphRecursionError:
         error = f"agent did not finish within {recursion_limit} steps"
         return ResearchResult(stats, time.monotonic() - started, error=error)

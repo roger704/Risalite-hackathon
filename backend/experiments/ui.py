@@ -14,16 +14,19 @@ import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from deep_research import redact, run_research
 
 INDEX_HTML = (Path(__file__).parent / "ui.html").read_bytes()
 MAX_QUESTION_CHARS = 2000
+MAX_BODY_BYTES = 16 * 1024
 run_lock = threading.Lock()
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "risalite-research"
+    timeout = 60  # drop clients that stall while sending a request
 
     def do_GET(self) -> None:
         if self.path not in ("/", "/index.html"):
@@ -39,9 +42,19 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/api/research":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
+        if not self.same_origin_json():
+            self.send_error(HTTPStatus.FORBIDDEN, "same-origin application/json requests only")
+            return
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            question = str(json.loads(self.rfile.read(length) or b"{}").get("question", "")).strip()
+        except ValueError:
+            length = -1
+        if not 0 < length <= MAX_BODY_BYTES:
+            self.send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "body must be 1-16384 bytes")
+            self.close_connection = True
+            return
+        try:
+            question = str(json.loads(self.rfile.read(length)).get("question", "")).strip()
         except (ValueError, AttributeError):
             question = ""
         if not question or len(question) > MAX_QUESTION_CHARS:
@@ -58,6 +71,16 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_research(question)
         finally:
             run_lock.release()
+
+    def same_origin_json(self) -> bool:
+        """Block cross-site form posts: require JSON and, if sent, an Origin matching Host."""
+        content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if content_type != "application/json":
+            return False
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True
+        return urlsplit(origin).netloc == (self.headers.get("Host") or "")
 
     def stream_research(self, question: str) -> None:
         connected = True
@@ -77,9 +100,12 @@ class Handler(BaseHTTPRequestHandler):
             emit({"type": "log", "message": redact(message)})
 
         try:
-            result = run_research(question, log=log)
+            result = run_research(question, log=log, should_stop=lambda: not connected)
         except SystemExit as exc:  # missing env var
             emit({"type": "result", "ok": False, "error": str(exc)})
+            return
+        if not connected:
+            print("[ui] client disconnected; research cancelled", flush=True)
             return
         log(result.verify_line())
         emit(
