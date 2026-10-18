@@ -19,7 +19,7 @@
   --glass-b:rgba(255,255,255,.7);--blur:saturate(180%) blur(28px);--shadow:0 1px 1px rgba(0,0,0,.03),0 8px 32px rgba(31,38,135,.08);--ease:cubic-bezier(.22,.9,.24,1);--r:22px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;min-height:100vh;font:14px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,sans-serif;letter-spacing:-.005em;color:var(--ink);-webkit-font-smoothing:antialiased;
+body{margin:0;min-height:100vh;font:14px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Segoe UI",Roboto,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji";letter-spacing:-.005em;color:var(--ink);-webkit-font-smoothing:antialiased;
   background:radial-gradient(1200px 800px at 10% -10%,#dbe4ff 0,transparent 60%),radial-gradient(900px 700px at 100% 0,#fde2f3 0,transparent 55%),radial-gradient(900px 900px at 80% 110%,#d4f4ff 0,transparent 60%),var(--bg);background-attachment:fixed}
 body::before,body::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(70px);opacity:.55;pointer-events:none;will-change:transform}
 body::before{width:520px;height:520px;left:-120px;top:30vh;background:radial-gradient(circle,#a5b4fc,transparent 70%);animation:drift1 26s ease-in-out infinite alternate}
@@ -41,7 +41,7 @@ main{max-width:1320px;margin:0 auto;padding:28px 24px 60px}
 .card{background:var(--card);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);border-radius:var(--r);padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.8)}
 /* view transitions */
 .view{--dir:1}
-.view .card{animation:cardIn .6s var(--ease) both;animation-delay:calc(var(--i,0)*45ms)}
+.view .card,.view .anim{animation:cardIn .6s var(--ease) both;animation-delay:calc(var(--i,0)*45ms)}
 .view.leave{animation:viewOut .28s cubic-bezier(.4,0,1,1) both;pointer-events:none}
 @keyframes cardIn{from{opacity:0;transform:translate3d(calc(var(--dir)*28px),14px,0) scale(.985);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 @keyframes viewOut{to{opacity:0;transform:translate3d(calc(var(--dir)*-32px),0,0) scale(.98);filter:blur(10px)}}
@@ -58,7 +58,7 @@ select,input[type=text],input[type=password]{font:inherit;padding:8px 12px;borde
 textarea:focus,select:focus,input:focus{outline:0;border-color:rgba(0,122,255,.6);background:rgba(255,255,255,.9);box-shadow:0 0 0 4px rgba(0,122,255,.15)}
 input:disabled{opacity:.55}
 input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px}
-.btn{font:inherit;font-weight:600;background:linear-gradient(180deg,#1a8cff,#007aff);color:#fff;border:0;border-radius:999px;padding:10px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,.3),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .2s var(--ease),box-shadow .3s var(--ease),filter .2s}
+.btn{font:inherit;font-weight:600;white-space:nowrap;background:linear-gradient(180deg,#1a8cff,#007aff);color:#fff;border:0;border-radius:999px;padding:10px 22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,122,255,.3),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .2s var(--ease),box-shadow .3s var(--ease),filter .2s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,122,255,.38)}
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:rgba(255,255,255,.7);color:var(--ink);border:1px solid var(--line);box-shadow:none}
@@ -191,98 +191,153 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .bd.rs{background:#fff7ed;color:var(--warn)}.bd.uk{background:#f1f5f9;color:#475569}
 .maplibregl-popup-content{border-radius:10px;font-size:12px;padding:10px 12px;max-width:290px}
 .maplibregl-ctrl-attrib{font-size:10px}
+.center{text-align:center}.grow{flex:1;min-width:0}
+.hero{text-align:center;margin:30px 0 22px}
+.hero-ico{font-size:50px;line-height:1;margin-bottom:12px;display:inline-block;animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-7px)}}
+.hero h1{font-size:36px}.hero p{margin:6px 0 0;font-size:15px}
+#s-ask{max-width:880px;margin:0 auto}
+.search{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:20px;padding:8px 8px 8px 18px;transition:box-shadow .3s var(--ease),border-color .3s}
+.search:focus-within{border-color:rgba(0,122,255,.5);box-shadow:0 0 0 4px rgba(0,122,255,.14)}
+.search .s-ico{font-size:20px}
+.search textarea{border:0;background:transparent!important;min-height:0;padding:8px 0;resize:none;box-shadow:none!important}
+.opts{margin-top:12px;gap:10px}
+.field{display:flex;align-items:center;gap:6px;font-size:15px}
+.field select,.field input{border-radius:999px!important;padding:7px 14px!important;font-size:13px}
+.field.grow input{width:100%}
+.tpl-h{text-align:center;margin:28px 0 0}
+.tpl .t{text-align:center;padding:22px 16px}
+.tpl .t .emo{display:block;width:auto;font-size:36px;line-height:1;transition:transform .45s var(--ease)}
+.tpl .t:hover .emo{transform:scale(1.18) rotate(-5deg)}
+.eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line)}
+.c-point{background:rgba(175,82,222,.12);color:#8e3dbd;border-color:transparent}.c-location{background:rgba(0,122,255,.11);color:#0062cc;border-color:transparent}.c-gap{background:rgba(255,149,0,.14);color:#b25000;border-color:transparent}
+table.list td{border:0;padding:8px 6px;vertical-align:middle}
+table.list td:first-child{width:28px}
+table.list td.r{text-align:right;white-space:nowrap;font-size:15px}
+.wbar{display:inline-block;width:54px;height:5px;border-radius:999px;background:var(--chip);vertical-align:middle;overflow:hidden}.wbar i{display:block;height:100%;background:var(--acc);border-radius:999px}
+.dirr{display:inline-block;width:18px;text-align:center;font-weight:700;color:var(--mut)}
+.emo{display:inline-block;width:1.4em;text-align:center}
+.actionbar{position:sticky;bottom:18px;z-index:10;display:flex;gap:10px;padding:8px;margin:4px 0 0 auto;width:max-content;border-radius:999px;background:rgba(255,255,255,.62);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:var(--shadow)}
+.live{max-width:880px;margin:0 auto}
+.live-top{display:flex;align-items:center;gap:18px}
+.orb{width:76px;height:76px;flex:0 0 76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;background:radial-gradient(circle at 30% 30%,#fff,rgba(255,255,255,.45));border:1px solid var(--glass-b);animation:ring 2s ease-out infinite}
+.orb.pulse{animation:orbPop .55s var(--ease),ring 2s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(0,122,255,.35)}100%{box-shadow:0 0 0 24px rgba(0,122,255,0)}}
+@keyframes orbPop{0%{transform:scale(.55) rotate(-14deg)}100%{transform:none}}
+.now-t{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.feed{margin-top:16px;display:flex;flex-direction:column;gap:6px;min-height:182px}
+.fi{display:flex;gap:10px;align-items:baseline;padding:9px 13px;border-radius:14px;background:rgba(255,255,255,.6);border:1px solid var(--glass-b);font-size:13px;animation:evIn .45s var(--ease) both;transition:opacity .4s}
+.fi .fe{font-size:16px}.fi b{white-space:nowrap;font-weight:600}.fi .ft{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi.rej{background:rgba(255,59,48,.09)}.fi.re{background:rgba(255,204,0,.14)}
+.fi:not(:last-child){opacity:.55}
+details.log{margin-top:14px}
+details.sect{border-top:1px solid var(--line);padding:12px 0 2px}
+details.sect:first-of-type{border-top:0}
+details.sect>summary{font-size:15px}
+details.sect>div,details.sect>table{margin-top:8px}
+.top-h{display:flex;align-items:center;gap:10px}
+.medal{font-size:28px;line-height:1}
+.hemo{font-size:22px}
+.top .sc small{font-size:12px;color:var(--mut);-webkit-text-fill-color:var(--mut)}
+.lbars{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px 14px;margin:12px 0 4px}
+.lb{display:flex;align-items:center;gap:6px;font-size:14px;transition:opacity .3s;cursor:help}.lb .mini{flex:1;margin:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12px;padding:4px 10px;border-radius:999px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help}
+.t-fut{background:rgba(0,122,255,.1);color:#0057b8}.t-risk{background:rgba(255,149,0,.14);color:#9a4a00}.t-unk{background:var(--chip);color:var(--mut)}
+.top details{margin-top:10px}.top details summary{font-weight:500}
+.clamp p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.linkbtn{font:inherit;font-size:13px;font-weight:600;color:var(--acc);background:none;border:0;padding:6px 0 0;cursor:pointer}
+.info{font-size:13px;color:var(--mut);cursor:help;font-weight:400}
+.layer{grid-template-columns:26px 1fr auto 44px}
+.layer .emo{font-size:16px}
+input.switch{appearance:none;-webkit-appearance:none;width:40px;height:24px;border-radius:999px;background:rgba(120,120,128,.24);position:relative;cursor:pointer;transition:background .3s var(--ease);margin:0}
+input.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .3s var(--ease)}
+input.switch:checked{background:#34c759}input.switch:checked::after{transform:translateX(16px)}
+.qtitle{font-size:21px;letter-spacing:-.015em}
 @media(max-width:960px){.dash,.grid2,.tpl,.fa{grid-template-columns:1fr}header .tag,.steps{display:none}}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">Risal<span>ite</span></div>
-  <div class="tag">Don't just research a location. Discover where opportunity exists.</div>
   <nav class="steps" id="steps" aria-label="Workflow"><i class="pill"></i><span data-v="s-ask">Ask</span><span data-v="s-plan">Plan</span><span data-v="s-live">Research</span><span data-v="s-dash">Results</span></nav>
-  <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">MOCKUP · synthetic data</div>
-  <button id="restart">New question</button>
+  <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">🧪 Mockup · synthetic data</div>
+  <button id="restart">+ New question</button>
 </header>
 <main>
 
 <!-- 1 · ASK -->
 <section id="s-ask" class="view">
+  <div class="hero anim">
+    <div class="hero-ico">📍</div>
+    <h1>What do you want to know about Berlin?</h1>
+    <p class="mut">Ask a question → approve the plan → get a cited answer.</p>
+  </div>
   <div class="card">
-    <h1>Ask a question about a place in Berlin</h1>
-    <p class="mut" style="margin:0 0 12px">Risalite classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web — every claim is fact-checked and cited.</p>
-    <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
-    <div class="row" style="margin-top:10px">
-      <label class="mut">Role (optional)
-        <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
-      </label>
-      <label class="mut" id="opwrap">Operator profile (point questions)
-        <input type="text" id="op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
-      </label>
-      <button class="btn" id="go" style="margin-left:auto">Research ›</button>
+    <div class="search"><span class="s-ico">🔎</span><textarea id="q" rows="2" placeholder="Where is it smart to open a coffee place in Kreuzberg?"></textarea><button class="btn" id="go">Research ›</button></div>
+    <div class="row opts">
+      <label class="field" title="Optional: who is asking">👤 <select id="role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></label>
+      <label class="field grow" id="opwrap" title="Optional, used for storefront questions">🧑‍🍳 <input type="text" id="op" placeholder="Your experience &amp; budget (optional)"></label>
     </div>
     <div id="clar" class="clar hidden">
-      <b>Clarifying question from the planner</b>
-      <p style="margin:4px 0 8px">Your question doesn't name an area. <b>Which district or neighbourhood?</b> <span class="mut small">(Risalite never guesses an area.)</span></p>
-      <div class="row"><button class="btn ghost" data-area="Kreuzberg">Kreuzberg</button><button class="btn ghost" data-area="Neukölln">Neukölln</button></div>
+      <div style="font-size:16px;margin-bottom:10px">🤔 <b>Which area?</b> <span class="mut small">Risalite never guesses.</span></div>
+      <div class="row"><button class="btn ghost" data-area="Kreuzberg">📍 Kreuzberg</button><button class="btn ghost" data-area="Neukölln">📍 Neukölln</button></div>
     </div>
-    <div class="tpl">
-      <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="badge b-point">T1 · point</span><b>Property / storefront</b><span class="mut small">"This storefront at Wiener Straße 12 just became available — what is the best use?"</span></div>
-      <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="badge b-location">T2 · location</span><b>Business location</b><span class="mut small">"Where is it smart to open a coffee place in Kreuzberg?"</span></div>
-      <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="badge b-gap">T3 · gap</span><b>Kita gap</b><span class="mut small">"Where are Kitas missing in Neukölln?"</span></div>
-    </div>
-    <p class="small mut" style="margin:12px 0 0">Try a question without an area (e.g. "Where should I open a bike repair shop?") to see the clarifying step.</p>
   </div>
+  <div class="tpl-h mut small anim">✨ Or try an example</div>
+  <div class="tpl anim">
+    <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="emo">🏬</span><b>Best use for a storefront</b><span class="mut small">Wiener Straße 12</span></div>
+    <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="emo">☕</span><b>Where to open a café</b><span class="mut small">Kreuzberg</span></div>
+    <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="emo">🧸</span><b>Where Kitas are missing</b><span class="mut small">Neukölln</span></div>
+  </div>
+  <p class="small mut center anim" style="margin-top:18px">💡 Leave out the area and Risalite will ask.</p>
 </section>
 
 <!-- 2 · PLAN -->
 <section id="s-plan" class="view hidden">
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <div><div class="mut small">Question</div><h1 id="p-q"></h1></div>
-    </div>
+    <div class="eyebrow">Your question</div>
+    <h1 id="p-q"></h1>
+    <div class="chips" style="margin-top:10px"><span id="p-class"></span><span id="p-area" class="chips"></span></div>
+    <div id="p-why" class="why small" style="margin-top:8px"></div>
     <div id="p-note" class="demo-note hidden"></div>
-    <div class="grid2" style="margin-top:12px">
-      <div><h3>Classification</h3><div id="p-class"></div></div>
-      <div><h3>Derived area</h3><div id="p-area"></div></div>
-    </div>
   </div>
-  <div class="card">
-    <h2>Research plan <span class="badge">awaiting approval</span></h2>
-    <table id="p-sub"><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody></tbody></table>
-    <div id="p-layers-wrap" style="margin-top:16px"><h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody></tbody></table></div>
-    <div style="margin-top:16px"><h3>Optional paid sources</h3><table id="p-paid"><thead><tr><th>Source</th><th>Used for</th><th>Status</th><th>API key</th></tr></thead><tbody></tbody></table></div>
-    <div class="row" style="margin-top:16px">
-      <button class="btn" id="approve">Approve & start research</button>
-      <button class="btn ghost" id="back">Edit question</button>
-      <span class="mut small">Untick a sub-question or layer to edit the plan before approving.</span>
-    </div>
+  <div class="grid2">
+    <div class="card"><h2>🧭 What we'll research <span class="mut small" style="font-weight:400">untick to skip</span></h2>
+      <table id="p-sub" class="list"><tbody></tbody></table>
+      <div class="chips small mut" style="margin-top:10px">🏛️ open geodata · 🗺️ OSM · 🌐 web <span id="p-paid"></span></div></div>
+    <div class="card"><div id="p-layers-wrap"></div></div>
   </div>
+  <div class="actionbar anim"><button class="btn ghost" id="back">← Edit</button><button class="btn" id="approve">✅ Approve &amp; research</button></div>
 </section>
 
 <!-- 3 · LIVE -->
 <section id="s-live" class="view hidden">
-  <div class="card">
-    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Live investigation</h2><button class="btn ghost" id="skip">Skip to result ›</button></div>
-    <div class="stages" id="stages"></div>
+  <div class="card live">
+    <div class="live-top"><div class="orb" id="l-orb">🧭</div><div class="grow"><div class="eyebrow">Researching</div><div class="now-t" id="l-stage">Understanding your question</div><div class="small mut" id="l-stat"></div></div><button class="btn ghost" id="skip">Skip ›</button></div>
+    <div class="stages" id="stages" style="margin-top:16px"></div>
     <div class="prog"><div id="bar"></div></div>
-    <div class="row small mut" style="margin:8px 0"><span id="l-stat"></span></div>
-    <div class="trace" id="l-trace"></div>
+    <div class="feed" id="l-feed"></div>
+    <details class="log"><summary class="small mut">📜 Full agent log</summary><div class="trace" id="l-trace" style="margin-top:8px"></div></details>
   </div>
 </section>
 
 <!-- 4 · DASHBOARD -->
 <section id="s-dash" class="view hidden">
   <div class="card">
-    <h2><span class="n">1</span> Question & approved plan</h2>
-    <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
-    <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
+    <div class="eyebrow">Your question</div>
+    <div class="row"><b id="d-q" class="qtitle"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
     <div id="d-note" class="demo-note hidden"></div>
+    <details style="margin-top:10px"><summary class="small mut">📋 Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
   </div>
-  <div class="card"><h2><span class="n">4</span> Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
+  <div class="card"><h2>🗺️ Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
     <div class="mapwrap" id="mapwrap">
       <div id="map3d" class="hidden"></div>
       <div class="map" id="map"></div>
       <div class="glass lpanel" id="layer-card">
-        <div class="lhead"><b><span class="n">5</span> Layers</b><button class="ico" id="lmin" title="Collapse panel">–</button></div>
+        <div class="lhead"><b>🎛️ Layers</b><button class="ico" id="lmin" title="Collapse panel">–</button></div>
         <div class="lbody">
           <div class="row" style="margin:8px 4px;gap:8px"><div class="seg" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="lnk" id="reset">Reset default mix</button></div>
           <div class="lsub">Scoring layers · hover to preview</div>
@@ -303,18 +358,18 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
   </div>
   <div class="dash">
     <div>
-      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
+      <div class="card"><h2>✨ Answer <span id="d-mix" class="badge"></span></h2><div id="d-sum" class="clamp"></div><button class="linkbtn" id="d-more">Read more</button></div>
       <div class="card" id="battle-card"><h2 id="battle-title"></h2><div id="d-battle"></div></div>
     </div>
     <div>
-      <div class="card"><h2><span class="n">3</span> <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
+      <div class="card"><h2>🏆 <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
     </div>
   </div>
-  <div class="card"><h2><span class="n">6</span> Sources <span class="mut small" style="font-weight:400">— generated from evidence.jsonl only</span></h2><div id="d-src"></div>
-    <details style="margin-top:10px" open><summary>Could not verify (dropped by the fact-checker)</summary><div id="d-nover" style="margin-top:6px"></div></details></div>
-  <div class="grid2">
-    <div class="card"><h2><span class="n">7</span> Trace</h2><div id="d-models" style="margin-bottom:10px"></div><div class="trace" id="d-trace"></div></div>
-    <div class="card"><h2>Self-grade</h2><table class="grade" id="d-grade"></table></div>
+  <div class="card"><h2>🔎 Evidence &amp; transparency</h2>
+    <details class="sect" id="ev-src"><summary>📚 Sources <span class="badge" id="n-src"></span></summary><div id="d-src"></div></details>
+    <details class="sect"><summary>🚫 Could not verify <span class="badge b-bad" id="n-rej"></span></summary><div id="d-nover"></div></details>
+    <details class="sect"><summary>🧠 Agent trace &amp; models</summary><div id="d-models"></div><div class="trace" id="d-trace"></div></details>
+    <details class="sect"><summary>🎓 Self-grade</summary><table class="grade" id="d-grade"></table></details>
   </div>
 </section>
 </main>
@@ -324,6 +379,16 @@ const GEO = {"kreuzberg":{"w":600,"h":308,"bbox":[13.36821531,52.4827705,13.4533
 /* PLR boundaries in WGS84 for the 3D map: same source as GEO, simplified (~4 m), with a representative point p */
 const GEO_LL = {"kreuzberg":[{"id":"02100101","g":{"type":"Polygon","coordinates":[[[13.38919,52.50074],[13.38887,52.50069],[13.38915,52.49859],[13.38932,52.49789],[13.38453,52.49897],[13.38362,52.49907],[13.38116,52.49899],[13.37932,52.49931],[13.37851,52.49968],[13.37814,52.49997],[13.37775,52.50046],[13.37725,52.50129],[13.37677,52.50178],[13.37606,52.50225],[13.37471,52.50299],[13.37479,52.50326],[13.37498,52.50338],[13.37765,52.50797],[13.37894,52.50693],[13.38576,52.50733],[13.38919,52.50074]]]},"p":[13.3818,52.50262]},{"id":"02100102","g":{"type":"Polygon","coordinates":[[[13.39446,52.49802],[13.39103,52.49767],[13.39041,52.4977],[13.38932,52.49789],[13.38915,52.49859],[13.38887,52.50069],[13.38919,52.50074],[13.38576,52.50733],[13.39877,52.50811],[13.39923,52.50808],[13.39536,52.50272],[13.39527,52.50275],[13.39471,52.50197],[13.39465,52.50153],[13.39473,52.50106],[13.39612,52.4987],[13.39601,52.49855],[13.39613,52.49846],[13.39615,52.49825],[13.39609,52.49796],[13.39446,52.49802]]]},"p":[13.39199,52.50504]},{"id":"02100103","g":{"type":"Polygon","coordinates":[[[13.40225,52.50645],[13.40171,52.50601],[13.40503,52.5051],[13.40259,52.5023],[13.40174,52.50237],[13.40112,52.50231],[13.39835,52.50156],[13.39792,52.50156],[13.39776,52.50126],[13.39717,52.50016],[13.40022,52.49942],[13.3993,52.49821],[13.39753,52.49817],[13.39685,52.49809],[13.39628,52.49794],[13.39609,52.49796],[13.39615,52.49825],[13.39613,52.49846],[13.39601,52.49855],[13.39612,52.4987],[13.39472,52.5011],[13.39465,52.50158],[13.39472,52.50201],[13.39527,52.50275],[13.39536,52.50272],[13.39724,52.50539],[13.40019,52.50938],[13.40275,52.50854],[13.40443,52.50777],[13.40225,52.50645]]]},"p":[13.40011,52.50392]},{"id":"02100104","g":{"type":"Polygon","coordinates":[[[13.40503,52.5051],[13.40171,52.50601],[13.40225,52.50645],[13.40365,52.50726],[13.40463,52.50792],[13.40528,52.50821],[13.40803,52.50618],[13.40997,52.50693],[13.41152,52.50489],[13.41407,52.50404],[13.41461,52.50468],[13.41466,52.50437],[13.41522,52.50311],[13.41433,52.50186],[13.41475,52.50174],[13.41446,52.50134],[13.41454,52.50128],[13.41382,52.50029],[13.40349,52.50333],[13.40503,52.5051]]]},"p":[13.40891,52.5042]},{"id":"02100105","g":{"type":"Polygon","coordinates":[[[13.40022,52.49942],[13.39717,52.50016],[13.39792,52.50156],[13.39832,52.50155],[13.40126,52.50234],[13.40224,52.50236],[13.40257,52.50229],[13.40349,52.50333],[13.41382,52.50029],[13.41396,52.50047],[13.41773,52.49936],[13.41795,52.49967],[13.41891,52.49924],[13.41399,52.49869],[13.41276,52.49877],[13.4082,52.49855],[13.39951,52.49848],[13.40022,52.49942]]]},"p":[13.4045,52.50101]},{"id":"02100106","g":{"type":"Polygon","coordinates":[[[13.4082,52.49855],[13.41276,52.49877],[13.41399,52.49869],[13.41891,52.49924],[13.41873,52.49876],[13.42023,52.49616],[13.41956,52.49619],[13.41819,52.49608],[13.41677,52.49561],[13.41624,52.4955],[13.41433,52.49534],[13.4134,52.49537],[13.41248,52.49548],[13.40751,52.49639],[13.40549,52.49663],[13.4023,52.49686],[13.40075,52.49705],[13.39941,52.49729],[13.39792,52.4977],[13.39628,52.49794],[13.39743,52.49816],[13.3993,52.49821],[13.39951,52.49848],[13.4082,52.49855]]]},"p":[13.40906,52.4975]},{"id":"02200207","g":{"type":"Polygon","coordinates":[[[13.36858,52.49396],[13.36841,52.49448],[13.36868,52.49739],[13.3696,52.49811],[13.36973,52.49878],[13.36953,52.49887],[13.37085,52.4999],[13.37138,52.50157],[13.37303,52.50336],[13.37361,52.50416],[13.37425,52.50349],[13.37468,52.50323],[13.37479,52.50326],[13.37471,52.50299],[13.37611,52.50222],[13.37692,52.50165],[13.37727,52.50127],[13.37788,52.50027],[13.37831,52.49982],[13.37908,52.4994],[13.38023,52.49912],[13.37971,52.4975],[13.37928,52.49204],[13.37697,52.49131],[13.37658,52.49133],[13.3764,52.49143],[13.37643,52.49168],[13.37107,52.49276],[13.37108,52.49291],[13.36924,52.49328],[13.36916,52.49314],[13.36822,52.49333],[13.36858,52.49396]]]},"p":[13.37451,52.4978]},{"id":"02200208","g":{"type":"Polygon","coordinates":[[[13.37971,52.4975],[13.38023,52.49912],[13.38131,52.49898],[13.38362,52.49907],[13.38442,52.49899],[13.38932,52.49789],[13.38973,52.49618],[13.38978,52.49617],[13.38981,52.4958],[13.39033,52.49574],[13.3889,52.49424],[13.38882,52.494],[13.38791,52.49258],[13.38363,52.4934],[13.37928,52.49204],[13.37971,52.4975]]]},"p":[13.38456,52.49499]},{"id":"02200209","g":{"type":"Polygon","coordinates":[[[13.38713,52.49077],[13.38666,52.48914],[13.38644,52.48772],[13.38637,52.48595],[13.38629,52.48583],[13.38627,52.48486],[13.37157,52.48495],[13.37164,52.48518],[13.37402,52.48517],[13.37416,52.48771],[13.3735,52.48775],[13.37354,52.48798],[13.37473,52.48938],[13.3754,52.48943],[13.37548,52.49046],[13.3764,52.49143],[13.37658,52.49133],[13.37697,52.49131],[13.38363,52.4934],[13.38791,52.49258],[13.38713,52.49077]]]},"p":[13.3803,52.48856]},{"id":"02200210","g":{"type":"Polygon","coordinates":[[[13.38791,52.49258],[13.38882,52.494],[13.3889,52.49424],[13.39033,52.49574],[13.38981,52.4958],[13.38978,52.49617],[13.38973,52.49618],[13.38932,52.49789],[13.39041,52.4977],[13.39103,52.49767],[13.39446,52.49802],[13.39603,52.49797],[13.39792,52.4977],[13.39941,52.49729],[13.40095,52.49702],[13.40543,52.49661],[13.40529,52.49644],[13.4053,52.49626],[13.40678,52.49507],[13.40692,52.49485],[13.40586,52.49332],[13.40923,52.49272],[13.40708,52.48971],[13.40632,52.49003],[13.4059,52.4903],[13.40542,52.4896],[13.40526,52.4891],[13.38791,52.49258]]]},"p":[13.39735,52.49366]},{"id":"02200211","g":{"type":"Polygon","coordinates":[[[13.40329,52.48342],[13.40046,52.48381],[13.40023,52.48391],[13.39464,52.48403],[13.39452,52.48411],[13.39424,52.4841],[13.39425,52.48577],[13.38629,52.48583],[13.38637,52.48595],[13.38646,52.48797],[13.38669,52.48928],[13.38713,52.49077],[13.38791,52.49258],[13.40526,52.4891],[13.40524,52.48866],[13.40738,52.48863],[13.40772,52.48875],[13.40784,52.48849],[13.40791,52.48848],[13.40853,52.48714],[13.40711,52.48582],[13.40686,52.48548],[13.40675,52.48513],[13.4064,52.48277],[13.40329,52.48342]]]},"p":[13.39739,52.48756]},{"id":"02200212","g":{"type":"Polygon","coordinates":[[[13.40524,52.48866],[13.40526,52.4891],[13.40542,52.4896],[13.4059,52.4903],[13.40632,52.49003],[13.40708,52.48971],[13.40923,52.49272],[13.41951,52.48988],[13.42494,52.48778],[13.42402,52.48668],[13.42368,52.48636],[13.42084,52.48717],[13.40789,52.48886],[13.40738,52.48863],[13.40524,52.48866]]]},"p":[13.41311,52.48935]},{"id":"02200213","g":{"type":"Polygon","coordinates":[[[13.40789,52.49634],[13.41248,52.49548],[13.41385,52.49534],[13.4164,52.49553],[13.41781,52.49599],[13.41836,52.4961],[13.41967,52.49619],[13.42023,52.49616],[13.42036,52.49591],[13.42079,52.49548],[13.42541,52.48809],[13.42494,52.48778],[13.41951,52.48988],[13.40963,52.49263],[13.40819,52.49294],[13.40586,52.49332],[13.40692,52.49485],[13.40678,52.49507],[13.4053,52.49626],[13.40529,52.49644],[13.40543,52.49661],[13.40789,52.49634]]]},"p":[13.419,52.49125]},{"id":"02300314","g":{"type":"Polygon","coordinates":[[[13.41454,52.50128],[13.41446,52.50134],[13.41475,52.50174],[13.41433,52.50186],[13.41522,52.50311],[13.41466,52.50437],[13.41459,52.50479],[13.41491,52.50492],[13.4176,52.50417],[13.41821,52.50502],[13.41853,52.50497],[13.41894,52.50506],[13.41943,52.50565],[13.42154,52.50508],[13.42286,52.50498],[13.42395,52.50503],[13.42495,52.50518],[13.42582,52.50542],[13.42671,52.5058],[13.4272,52.50567],[13.42729,52.50552],[13.42726,52.50528],[13.42499,52.50193],[13.42467,52.50173],[13.4242,52.5017],[13.42342,52.50055],[13.42366,52.50017],[13.42355,52.50002],[13.42296,52.49987],[13.42256,52.49928],[13.42252,52.49895],[13.41983,52.49892],[13.41876,52.49877],[13.41891,52.49924],[13.41822,52.49958],[13.41795,52.49967],[13.41773,52.49936],[13.41396,52.50047],[13.41454,52.50128]]]},"p":[13.42009,52.50252]},{"id":"02300315","g":{"type":"Polygon","coordinates":[[[13.43718,52.50044],[13.43775,52.5],[13.43055,52.49895],[13.42984,52.49922],[13.42673,52.49899],[13.42643,52.49864],[13.42535,52.49899],[13.42252,52.49895],[13.42256,52.49928],[13.42296,52.49987],[13.42355,52.50002],[13.42366,52.50017],[13.42342,52.50055],[13.4242,52.5017],[13.42464,52.50173],[13.42498,52.50192],[13.42685,52.50468],[13.43718,52.50044]]]},"p":[13.42966,52.50113]},{"id":"02300316","g":{"type":"Polygon","coordinates":[[[13.43206,52.50735],[13.43397,52.50638],[13.4344,52.5061],[13.43548,52.50565],[13.43612,52.50528],[13.43612,52.50521],[13.43713,52.50456],[13.43847,52.50398],[13.44147,52.50291],[13.44516,52.50113],[13.44475,52.50076],[13.44423,52.50069],[13.44276,52.50095],[13.44202,52.50074],[13.44152,52.50025],[13.44092,52.50046],[13.43775,52.5],[13.43718,52.50044],[13.42685,52.50468],[13.42729,52.50534],[13.4273,52.50549],[13.4272,52.50567],[13.42882,52.50798],[13.42903,52.50804],[13.4294,52.50857],[13.43206,52.50735]]]},"p":[13.43282,52.50427]},{"id":"02300417","g":{"type":"Polygon","coordinates":[[[13.43151,52.49866],[13.43092,52.49803],[13.43244,52.49751],[13.42846,52.49351],[13.42249,52.49545],[13.42139,52.49571],[13.4204,52.49586],[13.41873,52.49876],[13.41983,52.49892],[13.42535,52.49899],[13.42643,52.49864],[13.42673,52.49899],[13.42803,52.4991],[13.42984,52.49922],[13.43055,52.49895],[13.43132,52.49906],[13.43151,52.49866]]]},"p":[13.42577,52.49668]},{"id":"02300418","g":{"type":"Polygon","coordinates":[[[13.44469,52.49507],[13.44395,52.4945],[13.44472,52.49422],[13.44078,52.49117],[13.44004,52.49073],[13.43989,52.4906],[13.43976,52.49035],[13.43963,52.48966],[13.43926,52.48961],[13.43827,52.49038],[13.42846,52.49351],[13.43244,52.49751],[13.43092,52.49803],[13.43151,52.49866],[13.43132,52.49906],[13.43207,52.49917],[13.44469,52.49507]]]},"p":[13.43682,52.49436]},{"id":"02300419","g":{"type":"Polygon","coordinates":[[[13.45271,52.49758],[13.45224,52.49751],[13.45151,52.49735],[13.45091,52.49711],[13.44766,52.49472],[13.44701,52.49463],[13.44625,52.49473],[13.44577,52.49471],[13.4451,52.49449],[13.44472,52.49422],[13.44395,52.4945],[13.44469,52.49507],[13.43207,52.49917],[13.44092,52.50046],[13.44152,52.50025],[13.44202,52.50074],[13.44276,52.50095],[13.44423,52.50069],[13.44475,52.50076],[13.44516,52.50113],[13.44651,52.50051],[13.44844,52.49988],[13.4484,52.49984],[13.44891,52.49964],[13.44899,52.4997],[13.44964,52.49948],[13.45027,52.49913],[13.45033,52.49905],[13.45031,52.49893],[13.45021,52.49885],[13.45059,52.49868],[13.45084,52.49886],[13.45111,52.49891],[13.45146,52.49892],[13.45165,52.49884],[13.45219,52.49844],[13.45226,52.49846],[13.45271,52.49822],[13.45276,52.49809],[13.4527,52.49801],[13.45335,52.49753],[13.45271,52.49758]]]},"p":[13.44465,52.49779]}],"neukoelln":[{"id":"08100101","g":{"type":"Polygon","coordinates":[[[13.40789,52.48886],[13.42084,52.48717],[13.42394,52.48628],[13.42389,52.48561],[13.42394,52.4856],[13.42428,52.48447],[13.42457,52.48376],[13.42463,52.48188],[13.42469,52.48128],[13.42483,52.48087],[13.41987,52.48032],[13.41932,52.48021],[13.41831,52.48023],[13.4064,52.48277],[13.40675,52.48513],[13.40686,52.48548],[13.40711,52.48582],[13.40853,52.48714],[13.40791,52.48848],[13.40784,52.48849],[13.40772,52.48875],[13.40789,52.48886]]]},"p":[13.41544,52.4848]},{"id":"08100102","g":{"type":"Polygon","coordinates":[[[13.41932,52.48021],[13.41987,52.48032],[13.42483,52.48087],[13.42512,52.47997],[13.42554,52.48001],[13.42608,52.47828],[13.42623,52.4781],[13.4269,52.47652],[13.42683,52.47651],[13.42697,52.47619],[13.4271,52.47606],[13.41894,52.47511],[13.41856,52.4765],[13.41825,52.47675],[13.41796,52.4778],[13.41764,52.47789],[13.41642,52.47776],[13.41622,52.47849],[13.41362,52.47905],[13.41349,52.47871],[13.41094,52.4779],[13.41088,52.47772],[13.40662,52.47823],[13.4068,52.47886],[13.40624,52.48016],[13.40606,52.48099],[13.40615,52.48123],[13.4064,52.48277],[13.41803,52.48027],[13.41932,52.48021]]]},"p":[13.41997,52.47895]},{"id":"08100103","g":{"type":"Polygon","coordinates":[[[13.42011,52.47198],[13.4203,52.4718],[13.42053,52.47107],[13.42032,52.47088],[13.42012,52.47078],[13.41754,52.47036],[13.41731,52.47021],[13.41725,52.47009],[13.4162,52.46943],[13.41604,52.46915],[13.41578,52.47031],[13.41349,52.47871],[13.41362,52.47905],[13.41622,52.47849],[13.41642,52.47776],[13.41764,52.47789],[13.41796,52.4778],[13.41825,52.47675],[13.41856,52.4765],[13.41894,52.47511],[13.4271,52.47606],[13.42729,52.47563],[13.42727,52.47548],[13.42852,52.47303],[13.41989,52.47208],[13.42011,52.47198]]]},"p":[13.42137,52.47407]},{"id":"08100104","g":{"type":"Polygon","coordinates":[[[13.41688,52.4654],[13.41604,52.46915],[13.4162,52.46943],[13.41725,52.47009],[13.41731,52.47021],[13.41754,52.47036],[13.42012,52.47078],[13.42032,52.47088],[13.42053,52.47107],[13.4203,52.4718],[13.42011,52.47198],[13.41989,52.47208],[13.42852,52.47303],[13.43132,52.46779],[13.42106,52.46664],[13.42127,52.46581],[13.41688,52.4654]]]},"p":[13.42332,52.46929]},{"id":"08100105","g":{"type":"Polygon","coordinates":[[[13.43137,52.4678],[13.43211,52.46654],[13.43299,52.4649],[13.43308,52.46462],[13.43343,52.46413],[13.43454,52.46286],[13.43174,52.46233],[13.42636,52.46167],[13.42301,52.46132],[13.42197,52.46152],[13.42203,52.46161],[13.42214,52.46251],[13.4221,52.46272],[13.4219,52.46287],[13.42171,52.4635],[13.42154,52.46584],[13.42127,52.46581],[13.42106,52.46664],[13.43137,52.4678]]]},"p":[13.42745,52.46437]},{"id":"08100206","g":{"type":"Polygon","coordinates":[[[13.42453,52.48609],[13.43325,52.4821],[13.43696,52.47947],[13.43729,52.47904],[13.42902,52.47806],[13.42893,52.4781],[13.42875,52.47861],[13.42608,52.47828],[13.42554,52.48001],[13.42512,52.47997],[13.42469,52.48128],[13.42457,52.48376],[13.42428,52.48447],[13.42394,52.4856],[13.42389,52.48561],[13.42394,52.48628],[13.42453,52.48609]]]},"p":[13.42802,52.48293]},{"id":"08100207","g":{"type":"Polygon","coordinates":[[[13.4378,52.47883],[13.43937,52.47667],[13.43968,52.47596],[13.43982,52.47583],[13.44,52.47535],[13.43995,52.47524],[13.44013,52.47482],[13.44071,52.4739],[13.44009,52.47383],[13.43785,52.47449],[13.43639,52.47431],[13.43488,52.47439],[13.43129,52.47517],[13.42766,52.47472],[13.42727,52.47548],[13.42729,52.47563],[13.4271,52.47606],[13.42697,52.47619],[13.42683,52.47651],[13.4269,52.47652],[13.42623,52.4781],[13.42608,52.47828],[13.42875,52.47861],[13.42893,52.4781],[13.42902,52.47806],[13.43796,52.47912],[13.43819,52.47895],[13.4378,52.47883]]]},"p":[13.4332,52.47635]},{"id":"08100208","g":{"type":"Polygon","coordinates":[[[13.43852,52.4688],[13.43132,52.46779],[13.42766,52.47472],[13.43129,52.47517],[13.43488,52.47439],[13.43639,52.47431],[13.43785,52.47449],[13.44009,52.47383],[13.44071,52.4739],[13.44127,52.4728],[13.44191,52.46934],[13.43852,52.4688]]]},"p":[13.43559,52.47107]},{"id":"08100209","g":{"type":"Polygon","coordinates":[[[13.4479,52.46926],[13.44817,52.46828],[13.44463,52.46791],[13.44543,52.4671],[13.44617,52.46654],[13.4479,52.46483],[13.4482,52.46436],[13.44452,52.46368],[13.44418,52.46385],[13.44116,52.46339],[13.43454,52.46286],[13.43343,52.46413],[13.43308,52.46462],[13.43299,52.4649],[13.43211,52.46654],[13.43137,52.4678],[13.43852,52.4688],[13.44191,52.46934],[13.44198,52.46891],[13.44812,52.46966],[13.4479,52.46926]]]},"p":[13.43977,52.46572]},{"id":"08100310","g":{"type":"Polygon","coordinates":[[[13.43398,52.48972],[13.43036,52.49103],[13.42927,52.49124],[13.42761,52.4914],[13.42359,52.49102],[13.42079,52.49548],[13.4204,52.49586],[13.42139,52.49571],[13.42249,52.49545],[13.43543,52.49128],[13.43398,52.48972]]]},"p":[13.42543,52.49343]},{"id":"08100311","g":{"type":"Polygon","coordinates":[[[13.42541,52.48809],[13.42359,52.49102],[13.42761,52.4914],[13.42927,52.49124],[13.43036,52.49103],[13.43398,52.48972],[13.43053,52.48616],[13.43023,52.48592],[13.42542,52.48762],[13.42542,52.48768],[13.42526,52.48774],[13.42515,52.48771],[13.42494,52.48778],[13.42541,52.48809]]]},"p":[13.42905,52.48891]},{"id":"08100312","g":{"type":"Polygon","coordinates":[[[13.43345,52.48478],[13.43023,52.48592],[13.43053,52.48616],[13.43543,52.49128],[13.43827,52.49038],[13.43926,52.48961],[13.43962,52.48966],[13.44031,52.48776],[13.44058,52.48732],[13.44087,52.48703],[13.44157,52.48657],[13.44467,52.48499],[13.4401,52.4815],[13.43345,52.48478]]]},"p":[13.43635,52.48636]},{"id":"08100313","g":{"type":"Polygon","coordinates":[[[13.44444,52.48746],[13.44676,52.48896],[13.44866,52.48798],[13.44873,52.48803],[13.44884,52.48796],[13.44635,52.48626],[13.44467,52.48499],[13.44142,52.48665],[13.44064,52.48726],[13.44039,52.48761],[13.44022,52.488],[13.43962,52.48966],[13.43966,52.48991],[13.44444,52.48746]]]},"p":[13.44426,52.48736]},{"id":"08100314","g":{"type":"Polygon","coordinates":[[[13.42402,52.48668],[13.42494,52.48778],[13.42515,52.48771],[13.42525,52.48775],[13.42542,52.48768],[13.42542,52.48762],[13.43345,52.48478],[13.4401,52.4815],[13.43514,52.48076],[13.43325,52.4821],[13.42453,52.48609],[13.42368,52.48636],[13.42402,52.48668]]]},"p":[13.43324,52.48344]},{"id":"08100415","g":{"type":"Polygon","coordinates":[[[13.44864,52.47562],[13.44793,52.47596],[13.44539,52.47643],[13.4433,52.47766],[13.44166,52.47872],[13.44164,52.47868],[13.43926,52.47821],[13.43796,52.47912],[13.43729,52.47904],[13.43696,52.47947],[13.43514,52.48076],[13.4401,52.4815],[13.44038,52.48175],[13.45039,52.4768],[13.44953,52.47595],[13.44876,52.47549],[13.44864,52.47562]]]},"p":[13.44457,52.47844]},{"id":"08100416","g":{"type":"Polygon","coordinates":[[[13.44933,52.47448],[13.44903,52.47362],[13.44813,52.47286],[13.44732,52.47264],[13.44571,52.47244],[13.44582,52.47208],[13.44307,52.47176],[13.443,52.47178],[13.44284,52.47227],[13.44242,52.47243],[13.44171,52.47178],[13.44147,52.47179],[13.44127,52.4728],[13.44068,52.47396],[13.44013,52.47482],[13.43995,52.47524],[13.44,52.47535],[13.43982,52.47583],[13.43968,52.47596],[13.4393,52.47679],[13.4378,52.47883],[13.43819,52.47895],[13.43926,52.47821],[13.44164,52.47868],[13.44166,52.47872],[13.4433,52.47766],[13.44539,52.47643],[13.44793,52.47596],[13.44864,52.47562],[13.44922,52.47503],[13.44933,52.47448]]]},"p":[13.44436,52.47548]},{"id":"08100417","g":{"type":"Polygon","coordinates":[[[13.44953,52.47595],[13.45039,52.4768],[13.45656,52.47372],[13.4565,52.4734],[13.45633,52.47346],[13.45605,52.47282],[13.45575,52.47251],[13.45511,52.47196],[13.45435,52.47145],[13.45457,52.47114],[13.45327,52.47107],[13.45327,52.47091],[13.4523,52.47056],[13.45185,52.47044],[13.44917,52.47006],[13.44833,52.46983],[13.44812,52.46966],[13.44198,52.46891],[13.44147,52.47179],[13.44171,52.47178],[13.44242,52.47243],[13.44284,52.47227],[13.443,52.47178],[13.44307,52.47176],[13.44582,52.47208],[13.44571,52.47244],[13.44732,52.47264],[13.44813,52.47286],[13.44903,52.47362],[13.44933,52.47448],[13.44922,52.47503],[13.44876,52.47549],[13.44953,52.47595]]]},"p":[13.45206,52.47284]},{"id":"08100418","g":{"type":"Polygon","coordinates":[[[13.44467,52.48499],[13.45226,52.48109],[13.45246,52.48125],[13.45764,52.47864],[13.4576,52.47834],[13.45878,52.47777],[13.45885,52.47768],[13.4579,52.47308],[13.44038,52.48175],[13.44467,52.48499]]]},"p":[13.4497,52.47987]},{"id":"08100419","g":{"type":"Polygon","coordinates":[[[13.45033,52.48709],[13.45044,52.48715],[13.45607,52.48425],[13.45813,52.48582],[13.45856,52.48552],[13.45843,52.48543],[13.45715,52.47896],[13.45707,52.47889],[13.45246,52.48125],[13.45226,52.48109],[13.44467,52.48499],[13.44635,52.48626],[13.44884,52.48796],[13.45033,52.48709]]]},"p":[13.45346,52.48275]},{"id":"08100520","g":{"type":"Polygon","coordinates":[[[13.46118,52.4837],[13.46116,52.48354],[13.47057,52.47691],[13.47029,52.47573],[13.46961,52.47399],[13.46962,52.47367],[13.4698,52.47333],[13.47013,52.47293],[13.47241,52.47065],[13.47176,52.47031],[13.46607,52.46959],[13.46614,52.46947],[13.46566,52.46941],[13.46547,52.46949],[13.46384,52.46926],[13.46302,52.46922],[13.46284,52.46914],[13.46243,52.46917],[13.46254,52.46926],[13.46109,52.46942],[13.45762,52.47038],[13.45752,52.47025],[13.4572,52.47034],[13.45739,52.47057],[13.45885,52.47768],[13.45878,52.47777],[13.4576,52.47834],[13.45764,52.47864],[13.45707,52.47889],[13.45715,52.47896],[13.45843,52.48543],[13.45856,52.48552],[13.46118,52.4837]]]},"p":[13.4644,52.47729]},{"id":"08100521","g":{"type":"Polygon","coordinates":[[[13.45727,52.45921],[13.45723,52.45926],[13.45704,52.45923],[13.45698,52.45911],[13.45662,52.45964],[13.4563,52.45979],[13.45543,52.46079],[13.45518,52.46099],[13.45475,52.46089],[13.4529,52.46282],[13.45251,52.46344],[13.45237,52.46407],[13.45247,52.46473],[13.45275,52.46514],[13.45132,52.465],[13.4482,52.46436],[13.4479,52.46483],[13.44617,52.46654],[13.44543,52.4671],[13.44463,52.46791],[13.44817,52.46828],[13.4479,52.46926],[13.44799,52.46949],[13.44833,52.46983],[13.44917,52.47006],[13.45185,52.47044],[13.45327,52.47091],[13.45327,52.47107],[13.45457,52.47114],[13.45435,52.47145],[13.45511,52.47196],[13.45575,52.47251],[13.45605,52.47282],[13.45633,52.47346],[13.4565,52.4734],[13.45656,52.47372],[13.4579,52.47308],[13.45739,52.47057],[13.4572,52.47034],[13.45752,52.47025],[13.45762,52.47038],[13.46009,52.46967],[13.46136,52.46937],[13.46254,52.46926],[13.46243,52.46917],[13.46284,52.46914],[13.46302,52.46922],[13.46384,52.46926],[13.46547,52.46949],[13.46566,52.46941],[13.46614,52.46947],[13.46607,52.46959],[13.47176,52.47031],[13.47241,52.47065],[13.47504,52.46813],[13.47635,52.46713],[13.47834,52.46523],[13.47848,52.46499],[13.47855,52.46398],[13.4772,52.46199],[13.4758,52.46091],[13.47517,52.45991],[13.47498,52.45947],[13.47497,52.45876],[13.45727,52.45921]]]},"p":[13.46224,52.46589]}]};
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const at=s=>String(s).replace(/<[^>]+>/g,'').replace(/\[\d+\]/g,'').replace(/"/g,'&quot;');
+const EMO=[[/bakery/i,'🥐'],[/café|cafe|coffee/i,'☕'],[/density|population|resident/i,'👥'],[/aged 18|young/i,'🧑'],[/under 6|children/i,'👶'],[/kita/i,'🧸'],[/transit/i,'🚇'],[/land value|rent|cost/i,'💶'],[/social/i,'🏘️'],[/wine/i,'🍷'],[/zero-waste|grocery/i,'🌱'],[/demand/i,'📈'],[/competit/i,'🥊'],[/operator/i,'🧑‍🍳'],[/space/i,'📐'],[/regulation|risk/i,'📜']];
+const emo=s=>(EMO.find(([r])=>r.test(s))||[0,'•'])[1];
+const srcIco=s=>((/geodata/.test(s)?'🏛️':'')+(/OSM/.test(s)?'🗺️':'')+(/web|Tavily/.test(s)?'🌐':''))||'📄';
+const MEDAL=['🥇','🥈','🥉'];
+const SHAPE={point:['🏬','Property'],location:['📍','Location'],gap:['🕳️','Gap']};
+const shapeChip=()=>`<span class="chip c-${C.shape}">${SHAPE[C.shape][0]} ${SHAPE[C.shape][1]}</span>`;
+const STG={classify:'🧭',plan:'📝',approve:'✅',research:'🔬',skeptic:'🤨','fact-check':'🔍',write:'✍️'};
+const STGL={classify:'Understanding your question',plan:'Planning',research:'Collecting data',skeptic:'Challenging the findings','fact-check':'Fact-checking every claim',write:'Writing the answer'};
+const ROLE={Classifier:'🧭',Planner:'📝','Data researcher':'📊','Web researcher':'🌐',Scorer:'🧮',Skeptic:'🤨','Fact-checker':'🔍',Writer:'✍️'};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return ((h>>>0)%10000)/10000}
 const WFS = l => `https://gdi.berlin.de/services/wfs/${l}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${l}`;
@@ -506,7 +571,7 @@ function show(id){
   const from=$('#'+curView),to=$('#'+id),dir=VIEWS.indexOf(id)>=VIEWS.indexOf(curView)?1:-1;
   clearTimeout(viewT);VIEWS.forEach(v=>$('#'+v).classList.remove('leave'));steps(id);
   const enter=()=>{VIEWS.forEach(s=>$('#'+s).classList.toggle('hidden',s!==id));to.style.setProperty('--dir',dir);
-    to.querySelectorAll('.card').forEach((c,i)=>c.style.setProperty('--i',Math.min(i,6)));window.scrollTo({top:0,behavior:'instant'})};
+    to.querySelectorAll('.card,.anim').forEach((c,i)=>c.style.setProperty('--i',Math.min(i,6)));window.scrollTo({top:0,behavior:'instant'})};
   curView=id;
   if(from===to||from.classList.contains('hidden')||reduceMotion()){enter();return}
   from.style.setProperty('--dir',dir);from.classList.add('leave');viewT=setTimeout(()=>{from.classList.remove('leave');enter()},260);
@@ -526,22 +591,23 @@ $('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return
 $$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
 $('#restart').onclick=()=>{show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
+$('#d-more').onclick=()=>{const c=$('#d-sum').classList.toggle('clamp');$('#d-more').textContent=c?'Read more':'Show less'};
 
 function plan(){
   SC=C.shape==='point'?pointScenario(C):scenario(C);
   $('#p-q').textContent=C.q;
-  $('#p-class').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span> <span class="why">${C.why}</span>`;
+  $('#p-class').innerHTML=shapeChip();$('#p-why').innerHTML=`💬 ${C.why}`;
   if(C.shape==='point'){
-    $('#p-area').innerHTML=`<b>Wiener Straße 12</b> → parcel + ~100 m neighbourhood, inside PLR <b>Lausitzer Platz</b> (02300315)<div class="small mut" style="margin-top:4px">Operator profile: ${esc(C.op||'— none given (operator-fit scored neutral)')}</div>`;
+    $('#p-area').innerHTML=`<span class="chip">🗺️ Wiener Straße 12 · Lausitzer Platz</span><span class="chip" title="Operator profile">🧑‍🍳 ${esc(C.op||'no profile · fit neutral')}</span>`;
     const sq=[['Where exactly is the space, and which PLR is it in?','official geodata','adressen_berlin, lor_2021'],['Which competitors are within 500 m, per hypothesis?','official geodata + OSM','gewerbedaten (NACE), Overpass'],['What is the land value / Wohnlage?','official geodata','brw2026, wohnlagenadr2026'],...SC.H.map(h=>[`FOR / AGAINST: ${h.name}`,'web (Tavily)','competitor sites, menus, IHK, local press']),['Which rules apply (Außengastronomie, hours)?','web (Tavily)','berlin.de']];
-    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h3>Business hypotheses (planner)</h3><table><tbody>${SC.H.map((h,i)=>`<tr><td><input type="checkbox" checked data-h="${i}"></td><td><b>${h.name}</b></td><td class="why">${h.dw[2]}; ${h.dw[1].replace(/\[\d+\]/g,'')}</td></tr>`).join('')}</tbody></table>`;
-    $('#p-paid tbody').innerHTML='<tr><td colspan=4 class="mut">none for this template</td></tr>';
+    SC.nSub=sq.length;$('#p-sub tbody').innerHTML=sq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"${i>=3&&i<3+SC.H.length?` data-sh="${i-3}"`:''}></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h2>💡 Business ideas to test</h2><table class="list"><tbody>${SC.H.map((h,i)=>`<tr title="${at(h.dw[2]+'; '+h.dw[1])}"><td><input type="checkbox" checked data-h="${i}"></td><td><span class="emo">${emo(h.name)}</span> ${h.name}</td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid').innerHTML='';
   } else {
-    $('#p-area').innerHTML=`<b>${SC.aname}</b> (Bezirk ${SC.bez}) → <b>${SC.cells.length} PLR cells</b><div class="small mut" style="margin-top:4px">Granularity: PLR (decision A2) — demographics + MSS native per cell.</div>`;
-    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td><span class="badge">${s[1]}</span></td><td class="small mut">${s[2]}</td></tr>`).join('');
-    $('#p-layers-wrap').innerHTML=`<h3>Scoring layers & default weights</h3><table id="p-layers"><thead><tr><th></th><th>Layer</th><th>Dir.</th><th>Weight</th><th>Source</th><th>Why</th></tr></thead><tbody>${SC.layers.map(l=>`<tr><td><input type="checkbox" checked data-l="${l.id}"></td><td>${l.label}</td><td>${l.dir}</td><td>${l.w.toFixed(2)}</td><td><span class="badge b-${SC.sources[l.src-1].method}">${SC.sources[l.src-1].method}</span></td><td class="why">${l.why.replace(/\[\d+\]/,'')}</td></tr>`).join('')}</tbody></table>`;
-    $('#p-paid tbody').innerHTML=SC.paid.length?SC.paid.map((p,i)=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td><span class="badge b-skip">key not provided — skipped</span></td><td><input type="password" disabled placeholder="not available in the offline mockup" title="The mockup makes no provider calls"></td></tr>`).join(''):'<tr><td colspan=4 class="mut">none for this template</td></tr>';
+    $('#p-area').innerHTML=`<span class="chip" title="Bezirk ${SC.bez} · PLR granularity">🗺️ ${SC.aname} · ${SC.cells.length} areas</span>`;
+    SC.nSub=SC.subq.length;$('#p-sub tbody').innerHTML=SC.subq.map((s,i)=>`<tr class="planrow"><td><input type="checkbox" checked data-s="${i}"></td><td>${s[0]}</td><td class="r" title="${at(s[1]+' · '+s[2])}">${srcIco(s[1])}</td></tr>`).join('');
+    $('#p-layers-wrap').innerHTML=`<h2>⚖️ How we'll score</h2><table id="p-layers" class="list"><tbody>${SC.layers.map(l=>`<tr title="${at(l.why)}"><td><input type="checkbox" checked data-l="${l.id}"></td><td><span class="emo">${emo(l.label)}</span> ${l.label}</td><td class="r"><span class="dirr" title="${l.dir==='+'?'more is better':'less is better'}">${l.dir==='+'?'↑':'↓'}</span> <span class="wbar" title="weight ${l.w.toFixed(2)}"><i style="width:${Math.min(100,l.w/.3*100)}%"></i></span></td></tr>`).join('')}</tbody></table>`;
+    $('#p-paid').innerHTML=SC.paid.length?` · <span title="Paid sources need an API key; the offline mockup makes no provider calls">🔒 ${SC.paid.map(p=>p[0]).join(', ')} skipped (no key)</span>`:'';
   }
   // keep sub-questions in sync with the layers / hypotheses they feed
   $$('#p-sub input').forEach(i=>i.onchange=()=>{const s=C.shape==='point'?null:SC.subq[+i.dataset.s];
@@ -581,9 +647,9 @@ $('#approve').onclick=()=>{
 
 let timer=null;
 function live(){
-  show('s-live');const box=$('#l-trace');box.innerHTML='';
+  show('s-live');const box=$('#l-trace');box.innerHTML='';const feed=$('#l-feed');feed.innerHTML='';$('#l-orb').dataset.s='';
   const stages=['classify','plan','approve','research','skeptic','fact-check','write'];
-  $('#stages').innerHTML=stages.map(s=>`<span data-s="${s}">${s}</span>`).join('');
+  $('#stages').innerHTML=stages.map(s=>`<span data-s="${s}">${STG[s]} ${s}</span>`).join('');
   const stageOf=ev=>({Classifier:'classify',Planner:ev.type==='replan'?'fact-check':'plan','Data researcher':'research','Web researcher':'research',Scorer:'research',Skeptic:'skeptic','Fact-checker':'fact-check',Writer:'write'}[ev.role]);
   let i=0,tok=0,sec=0;
   const step=()=>{
@@ -591,9 +657,11 @@ function live(){
     const ev=TR[i++];tok+=ev.tok;sec+=+ev.sec;
     box.insertAdjacentHTML('beforeend',`<div class="ev ${ev.cls||''}"><span class="w">+${sec.toFixed(1)}s</span><span class="role">${ev.role}</span><span>${esc(ev.type)} · ${esc(ev.text)}<br><span class="w">why: ${esc(ev.why)}</span></span><span class="meta">${MODELS[ev.role]||''}${ev.tok?' · '+ev.tok+' tok':''}</span></div>`);
     box.scrollTop=box.scrollHeight;
+    feed.insertAdjacentHTML('beforeend',`<div class="fi ${ev.cls||''}"><span class="fe">${ROLE[ev.role]||'•'}</span><b>${ev.role}</b><span class="ft">${esc(ev.text)}</span></div>`);while(feed.children.length>4)feed.firstElementChild.remove();
     const st=stageOf(ev);let hit=false;$$('#stages span').forEach(s=>{if(s.dataset.s==='approve')s.className='done';if(s.dataset.s===st){s.className='on';hit=true}else if(!hit&&s.className!=='done'&&stages.indexOf(s.dataset.s)<stages.indexOf(st))s.className='done'});
+    {const o=$('#l-orb');if(st&&o.dataset.s!==st){o.dataset.s=st;o.textContent=STG[st];o.classList.remove('pulse');void o.offsetWidth;o.classList.add('pulse');$('#l-stage').textContent=STGL[st]}}
     $('#bar').style.width=(i/TR.length*100)+'%';
-    $('#l-stat').textContent=`${i}/${TR.length} events · ${tok.toLocaleString()} tokens · ${sec.toFixed(1)} s`;
+    $('#l-stat').textContent=`⏱ ${sec.toFixed(1)} s · 🪙 ${tok.toLocaleString()} tokens · step ${i} of ${TR.length}`;
   };
   clearInterval(timer);timer=setInterval(step,650);step();
   $('#skip').onclick=()=>{clearInterval(timer);dash()};
@@ -602,7 +670,7 @@ function live(){
 /* ---------- dashboard ---------- */
 function dash(){
   clearInterval(timer);show('s-dash');
-  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=`<span class="badge b-${C.shape}">${C.shape}</span>`;$('#d-role').textContent=C.role?'Role: '+C.role:'';
+  $('#d-q').textContent=C.q;$('#d-shape').innerHTML=shapeChip();$('#d-role').textContent=C.role?'👤 '+C.role:'';$('#d-sum').classList.add('clamp');$('#d-more').textContent='Read more';
   const pt=$('#p-sub').cloneNode(true);pt.removeAttribute('id');pt.querySelectorAll('input').forEach((x,i)=>{const ok=SC.planChecks[i];if(!ok)x.closest('tr').style.opacity=.45;x.replaceWith(ok?'✓':'✕ not approved')});$('#d-plan').replaceChildren(pt);
   $('#d-note').innerHTML=SC.note;$('#d-note').classList.toggle('hidden',!SC.note);
   $('#battle-card').classList.toggle('hidden',C.shape==='point'&&SC.H.length<2);
@@ -614,7 +682,7 @@ function dash(){
 const hasFut=()=>SC.cells.some(c=>c.modifiers.length);
 function renderSummary(){
   const r=SC.defaultRank.slice(0,3), L=SC.layers, s=n=>SC.sources[n-1];
-  $('#d-mix').textContent='written for the default layer mix';
+  $('#d-mix').textContent='default mix';
   let h;
   if(C.shape==='gap'){
     h=`Across ${SC.cells.length} Planungsräume in ${SC.aname} ${cite(SC.sGeo)}, the largest Kita gap is in <b>${r[0].cell.name}</b>, followed by <b>${r[1].cell.name}</b> and <b>${r[2].cell.name}</b>: these cells combine many children under 6 ${cite(L[0].src)} with few approved places per child ${cite(L[1].src)}. ${C.extra.planDoc?`The Bezirk's own Kita planning reports a deficit in the northern Planungsräume ${cite(C.extra.planDoc)}. `:''}${(f=>f.length?`${f.length>1?'Two announced changes':'One announced change'} after today would widen the gap further — ${f.join(' and ')} (shown under <i>Present + future</i>).`:'')(SC.cells.flatMap(c=>c.modifiers).map(m=>m.q===3?'a closure of two Kitas':'~420 planned housing units'))} One web claim about city-wide rankings could not be verified and was dropped.`;
@@ -641,25 +709,28 @@ function renderLayers(){
 function renderArea(){
   const ranked=scores(SC,state.on,state.mode), byId={};ranked.forEach((r,i)=>byId[r.cell.id]={...r,rank:i+1});
   const defRank={};SC.defaultRank.forEach((r,i)=>defRank[r.cell.id]=i+1);
-  $('#d-ftitle').textContent=C.shape==='gap'?'Top-3 cells by Kita gap':'Top-3 ranked cells';
+  $('#d-ftitle').textContent=C.shape==='gap'?'Biggest Kita gaps':'Top 3 areas';
+  const openD=new Set($$('#d-find .top details[open]').map(d=>d.closest('.top').dataset.id));
   flip('#d-find .top',()=>{$('#d-find').innerHTML=ranked.slice(0,3).map((r,i)=>{const c=r.cell,mv=defRank[c.id]-(i+1);
-    return `<div class="top" data-id="${c.id}"><div class="rk">#${i+1}</div><div class="row" style="gap:8px"><b style="font-size:15px">${c.name}</b><span class="small mut">PLR ${c.id} · ${c.bzr}</span>${mv?`<span class="mv ${mv>0?'up':'dn'}">${mv>0?'▲':'▼'} ${Math.abs(mv)} vs default</span>`:''}</div>
-      <div><span class="sc">${r.score.toFixed(2)}</span> <span class="small mut">${C.shape==='gap'?'gap score':'score'} (${state.mode==='future'?'present + future':'present'})</span></div>
-      <div class="vals">${SC.layers.map(l=>`<div style="opacity:${state.on[l.id]?1:.35}">${l.label}: <b>${c.values[l.id].toFixed(2)}</b> ${cite(l.src)}<div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
+    return `<div class="top" data-id="${c.id}"><div class="top-h"><span class="medal">${MEDAL[i]}</span><div class="grow"><b>${c.name}</b><div class="small mut">${c.bzr}</div></div>${mv?`<span class="mv ${mv>0?'up':'dn'}" title="vs default mix">${mv>0?'▲':'▼'}${Math.abs(mv)}</span>`:''}<span class="sc" title="${C.shape==='gap'?'gap score':'score'} (${state.mode==='future'?'today + future':'today'})">${r.score.toFixed(2)}</span></div>
+      <div class="lbars">${SC.layers.map(l=>`<div class="lb" title="${l.label}: ${c.values[l.id].toFixed(2)}" style="opacity:${state.on[l.id]?1:.3}"><span>${emo(l.label)}</span><div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
+      ${(c.modifiers.length||c.risks.length||c.unknowns.length)?`<div class="tags">${c.modifiers.map(m=>`<span class="tag t-fut" title="${at(m.quote)}">🚀 ${m.label}${state.mode==='future'?' · +0.10':''}</span>`).join('')}${c.risks.map(k=>`<span class="tag t-risk" title="${at(k.quote)}">⚠️ ${k.text}</span>`).join('')}${c.unknowns.map(u=>`<span class="tag t-unk" title="${at(u)}">❓ ${u.split(/[.:]/)[0]}</span>`).join('')}</div>`:''}
+      <details><summary class="small mut">Details &amp; sources</summary><div class="vals">${SC.layers.map(l=>`<div style="opacity:${state.on[l.id]?1:.35}">${l.label}: <b>${c.values[l.id].toFixed(2)}</b> ${cite(l.src)}<div class="mini"><div style="width:${c.values[l.id]*100}%"></div></div></div>`).join('')}</div>
       ${c.modifiers.map(m=>`<div class="mod"><b>Future:</b> ${m.label} ${cite(m.src)} <span class="badge">${state.mode==='future'?'+0.10 applied':'+0.10 in future mode'}</span><br><span class="quote">“${m.quote}”</span>${m.magnitude?` <span class="small mut">· magnitude stated by source: ${m.magnitude}</span>`:''}</div>`).join('')}
       ${c.risks.map(k=>`<div class="risk"><b>Risk (${k.sev}):</b> ${k.text} ${cite(k.src)} <span class="badge">−0.08 skeptic demotion</span><br><span class="quote">“${k.quote}”</span></div>`).join('')}
-      ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${u}</div>`).join('')}</div>`}).join('')
-    +(()=>{const w=ranked.find(r=>r.cell.risks.length);return w&&!ranked.slice(0,3).includes(w)?`<p class="small mut">Also considered: <b>${w.cell.name}</b> (#${byId[w.cell.id].rank}) — ${w.cell.risks[0].text.toLowerCase()} ${cite(w.cell.risks[0].src)}.</p>`:''})();});
+      ${c.unknowns.map(u=>`<div class="unk"><b>Unknown:</b> ${u}</div>`).join('')}</details></div>`}).join('')
+    +(()=>{const w=ranked.find(r=>r.cell.risks.length);return w&&!ranked.slice(0,3).includes(w)?`<p class="small mut">🤨 Also considered: <b>${w.cell.name}</b> (#${byId[w.cell.id].rank}) — ${w.cell.risks[0].text.toLowerCase()} ${cite(w.cell.risks[0].src)}.</p>`:''})();});
+  $$('#d-find .top').forEach(x=>{const d=x.querySelector('details');if(d&&openD.has(x.dataset.id))d.open=true});
   // battle
-  const [a,b]=ranked;$('#battle-title').innerHTML=`Location Battle: <span style="color:var(--acc)">${a.cell.name}</span> vs ${b.cell.name}`;
+  const [a,b]=ranked;$('#battle-title').innerHTML=`⚔️ ${a.cell.name} <span class="mut" style="font-weight:400">vs</span> ${b.cell.name}`;
   $('#d-battle').innerHTML=`<div class="battle">${SC.layers.filter(l=>state.on[l.id]).map(l=>{const va=l.dir==='+'?a.cell.values[l.id]:1-a.cell.values[l.id],vb=l.dir==='+'?b.cell.values[l.id]:1-b.cell.values[l.id];
-    return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#007aff':'#94a3b8'}"></span></div><div class="lab">${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#007aff':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
-    <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each layer's contribution direction-adjusted (longer = better for a ${C.shape==='gap'?'gap':SC.noun}).</p>`;
+    return `<div class="l">${va>vb?'<b>✓</b> ':''}<span class="bar" style="width:${va*100}px;background:${va>=vb?'#007aff':'#94a3b8'}"></span></div><div class="lab">${emo(l.label)} ${l.label}</div><div><span class="bar" style="width:${vb*100}px;background:${vb>va?'#007aff':'#94a3b8'}"></span>${vb>va?' <b>✓</b>':''}</div>`}).join('')}
+    <div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div>`;
   drawMap(ranked,byId);bindCites();
 }
 
 function drawMap(ranked,byId){
-  const A=SC.area;$('#d-maparea').textContent=`${SC.aname} · ${A.cells.length} PLR cells · heatmap of ${C.shape==='gap'?'gap score':'composite score'}`;
+  const A=SC.area;$('#d-maparea').textContent=`${SC.aname} · ${C.shape==='gap'?'gap':'score'} heatmap`;
   M.ranked=ranked;M.byId=byId;
   if(window.maplibregl&&!M.failed)draw3D();else drawMap2D(ranked,byId);
   $$('.top').forEach(t=>{t.onmouseenter=()=>hlCell(t.dataset.id,true);t.onmouseleave=()=>hlCell(t.dataset.id,false)});
@@ -818,17 +889,17 @@ function renderPoint(){
   $('#d-mix').textContent='point · LocalLens';
   const s=P.sources;
   $('#d-sum').innerHTML=`<p style="margin:0;font-size:15px">The space at <b>Wiener Straße 12</b> lies in PLR Lausitzer Platz ${cite(P.addrSrc)}, one of the district's densest and youngest cells ${cite(9)}. ${pointSummary(P)}</p>`;
-  $('#d-ftitle').textContent='Top-3 business hypotheses';
+  $('#d-ftitle').textContent='Top business ideas';
   const sev=v=>v>=8?'#007aff':v>=6?'#64a8ff':v>=4?'#f59e0b':'#dc2626';
   const ref=x=>typeof x==='number'?cite(x):`<span class="small mut">(${x})</span>`;
-  $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="rk">#${i+1}</div><b style="font-size:15px">${h.name}</b> <span class="small mut">rank initial #${i+1} → final #${i+1}</span><div><span class="sc">${h.score.toFixed(1)}</span><span class="small mut"> / 10 recommendation score</span></div>
-    ${P.dims.map((d,k)=>`<div class="dim"><span>${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div><div class="small mut" style="margin:-2px 0 4px 128px">${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</div>`).join('')}
-    <div class="fa"><div><h4 style="color:var(--ok)">FOR</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">AGAINST</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">UNKNOWNS → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></div>`).join('');
-  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`Hypothesis Battle: <span style="color:var(--acc)">${a.name}</span> vs ${b.name}`;
-  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#007aff':'#94a3b8'}"></span></div><div class="lab">${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#007aff':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
+  $('#d-find').innerHTML=P.H.map((h,i)=>`<div class="top"><div class="top-h"><span class="medal">${MEDAL[i]}</span><span class="hemo">${emo(h.name)}</span><div class="grow"><b>${h.name}</b></div><span class="sc" title="recommendation score">${h.score.toFixed(1)}<small>/10</small></span></div>
+    ${P.dims.map((d,k)=>`<div class="dim" title="${at(h.dw[k])}"><span>${emo(d)} ${d}</span><div class="mini" style="height:8px"><div style="width:${h.d[k]*10}%;background:${sev(h.d[k])}"></div></div><b>${h.d[k]}</b></div>`).join('')}
+    <details><summary class="small mut">👍 For · 👎 Against · ❓ Unknowns</summary><ul class="small" style="padding-left:16px">${P.dims.map((d,k)=>`<li><b>${d}:</b> ${h.dw[k].replace(/\[(\d+)\]/g,(m,n)=>cite(+n))}</li>`).join('')}</ul><div class="fa"><div><h4 style="color:var(--ok)">👍 For</h4><ul>${h.for.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 style="color:var(--bad)">👎 Against</h4><ul>${h.against.map(f=>`<li>${f[0]} ${ref(f[1])}</li>`).join('')}</ul></div><div><h4 class="mut">❓ Unknowns → validate</h4><ul>${h.unk.map(u=>`<li>${u[0]}<br><span class="mut">→ ${u[1]}</span></li>`).join('')}</ul></div></div></details></div>`).join('');
+  if(P.H.length>1){const [a,b]=P.H;$('#battle-title').innerHTML=`⚔️ ${a.name} <span class="mut" style="font-weight:400">vs</span> ${b.name}`;
+  $('#d-battle').innerHTML=`<div class="battle">${P.dims.map((d,k)=>`<div class="l">${a.d[k]>b.d[k]?'<b>✓</b> ':''}<span class="bar" style="width:${a.d[k]*10}px;background:${a.d[k]>=b.d[k]?'#007aff':'#94a3b8'}"></span></div><div class="lab">${emo(d)} ${d}</div><div><span class="bar" style="width:${b.d[k]*10}px;background:${b.d[k]>a.d[k]?'#007aff':'#94a3b8'}"></span>${b.d[k]>a.d[k]?' <b>✓</b>':''}</div>`).join('')}<div class="l"><b>${a.score}</b></div><div class="lab"><b>score</b></div><div><b>${b.score}</b></div></div>`;}
   // map
   const A=P.area,hc=['#007aff','#7c3aed','#d97706'];
-  setFlat(true);$('#d-maparea').textContent='the space, its PLR cell, and competitors within 500 m';
+  setFlat(true);$('#d-maparea').textContent='competitors within 500 m';
   $('#map').innerHTML=`<svg viewBox="${cell.cx-170} ${cell.cy-105} 340 210">${A.cells.map(c=>`<path class="cell" data-id="${c.id}" d="${c.d}" fill="${c.id===P.cellId?'#bcd9ff':'#e2e8f0'}"/>`).join('')}
     <circle cx="${cell.cx}" cy="${cell.cy}" r="62" fill="none" stroke="#0b1720" stroke-dasharray="4 3"/>
     ${P.competitors.filter(k=>P.H.includes(P.Hall[k.h])).map(k=>`<circle cx="${k.x}" cy="${k.y}" r="3.6" fill="${hc[k.h]}" stroke="#fff" stroke-width="1"/>`).join('')}
@@ -843,9 +914,10 @@ function renderPoint(){
 
 function renderSources(){
   const conf={high:'b-ok',medium:'b-part',low:'b-bad'},st={verified:['b-ok','verified'],partial:['b-part','partial']};
-  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span class="badge b-${s.method}">${s.method}</span><span class="badge">${s.tier}</span><span class="badge ${conf[s.conf]}">confidence: ${s.conf}</span><span class="badge ${st[s.status][0]}">${st[s.status][1]}</span></div>
+  $('#d-src').innerHTML=SC.sources.map(s=>`<div class="src" id="src-${s.n}"><div class="num">[${s.n}]</div><div><div class="row" style="gap:6px"><b>${s.title}</b><span title="${s.status} · confidence ${s.conf} · ${s.tier}">${s.status==='verified'?'✅':'🟡'}</span><span class="badge b-${s.method}">${s.method}</span></div>
     <div class="quote small" style="margin:3px 0">“${esc(s.quote)}”</div><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></div></div>`).join('');
   $('#d-nover').innerHTML=SC.rejected.map(r=>`<div class="src"><div class="num" style="color:var(--bad)">✕</div><div><b>${r.claim}</b> <span class="badge b-bad">unsupported</span><div class="small mut">${r.reason}</div><a href="${r.url}" target="_blank" rel="noopener">${r.url}</a></div></div>`).join('');
+  $('#n-src').textContent=SC.sources.length;$('#n-rej').textContent=SC.rejected.length;
 }
 function renderTrace(){
   const per={};TR.forEach(e=>{per[e.role]=per[e.role]||{t:0,s:0,n:0};per[e.role].t+=e.tok;per[e.role].s+=+e.sec;per[e.role].n++});
@@ -858,7 +930,7 @@ function renderGrade(){
   const g=[['✓',`${v}/${n} citations verified on re-fetch${n>v?`, ${n-v} partial`:''}`],['✓','Every number in the summary comes from a cited source (no model-estimated magnitudes)'],['✓',`${SC.rejected.length} unsupported claim dropped and listed`],[C.shape==='gap'?'✓':'!',C.shape==='gap'?'No paid sources needed':'Footfall not measured — paid slot skipped (no key)'],['✓','Plan approved by the user before research'],['!','verify_citations.py: run against runs/<id>/evidence.jsonl (not part of the mockup)']];
   $('#d-grade').innerHTML=g.map(r=>`<tr><td style="color:${r[0]==='✓'?'var(--ok)':'var(--warn)'};font-weight:800">${r[0]}</td><td>${r[1]}</td></tr>`).join('');
 }
-function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
+function bindCites(){$$('.cite').forEach(a=>a.onclick=()=>{const el=$('#src-'+a.dataset.n);if(!el)return;for(let d=el.closest('details');d;d=d.parentElement.closest('details'))d.open=true;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')})}
 </script>
 </body>
 </html>
