@@ -104,11 +104,11 @@ any state → failed (error event with reason) | cancelled
 |---|---|---|
 | `POST /research` | `{question, role?, template_hint?}` | `{run_id, run_token, status}`; status is `needs_clarification` (with `clarify_question`) or `awaiting_approval` (with `plan`) |
 | `POST /runs/{id}/clarify` | `{answer}` | same as above (re-classify with the answer) |
-| `POST /runs/{id}/approve` | `{area?: {name}, subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; if `area` differs from the resolved area: re-resolve, regenerate the plan and return `{status: "awaiting_approval", plan}` (a second approve is needed); 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions, unresolvable area) |
+| `POST /runs/{id}/approve` | `{area_id?, subquestions?, layers?: [{id, enabled, weight}], wave2?: bool}` | `{status: "approved"}`; `area_id` must be one of `plan.area_candidates`; if it differs from `plan.area.area_id`: load that area, regenerate the plan and return `{status: "awaiting_approval", plan}` (a second approve is needed); 409 if not `awaiting_approval`; 422 on schema violation (unknown layer id, weight outside 0–1, > 3 sub-questions, `area_id` not in candidates) |
 | `GET /runs/{id}/events` | — | SSE stream of events (§9.1); replays from `trace.jsonl`, supports `Last-Event-ID` = `seq` |
 | `GET /runs/{id}/result` | — | `{status, report_md, cells, evidence, findings, metrics}` once `done`; 202 before |
 
-**Access:** `run_id` is a random UUID4 and is not a credential. `POST /research` also returns a random `run_token`; every `/runs/{id}/…` endpoint requires it as `Authorization: Bearer <run_token>` (SSE: `?token=` query parameter, since `EventSource` cannot set headers) and answers 404 on a missing or wrong token, so run ids neither grant access nor reveal that a run exists. The token is stored hashed in the run directory. There are no user accounts in the hackathon scope; the token binds a run to the client that created it.
+**Access:** `run_id` is a random UUID4 and is not a credential. `POST /research` also returns a random `run_token`; every `/runs/{id}/…` endpoint requires it as `Authorization: Bearer <run_token>` (also for SSE: the frontend consumes the stream with `fetch` + `ReadableStream` (or `@microsoft/fetch-event-source`) instead of `EventSource`, so the token never appears in a URL; query-string tokens are not accepted) and answers 404 on a missing or wrong token, so run ids neither grant access nor reveal that a run exists. The token is stored hashed in the run directory. There are no user accounts in the hackathon scope; the token binds a run to the client that created it.
 
 `/clarify` is new compared to `Execution_Plan.md` (the clarify step needs a way back in). Runs are stored in `runs/<run_id>/`; a run is restartable from any completed stage because every stage writes its artifact before the next one starts.
 
@@ -117,7 +117,7 @@ any state → failed (error event with reason) | cancelled
 ### 5.1 Classify, clarify, resolve area, plan
 
 - One `NebiusGateway.plan` call each for classify and plan, with Pydantic output models (`research_outputs.py`). Each output carries a `why` that is emitted as an event.
-- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan shows what was resolved (name, level, PLR count) so the user can correct it via `approve.area`, which re-resolves the area and regenerates the plan before research starts.
+- Area resolution is deterministic against `berlin_lor_names` (S2). Ambiguous names (e.g. "Kreuzberg" = Ortsteil vs. "Friedrichshain-Kreuzberg" = Bezirk) resolve to the smallest matching unit; the plan carries `area: {area_id, level, name, plr_count}` and `area_candidates: [{area_id, level, name}]` with **all** matching units (e.g. Bezirk Neukölln and Ortsteil Neukölln as separate entries). The user corrects the area by sending another candidate's `area_id` with `approve`; identities are compared by `area_id` (e.g. `bezirk:08`, `ortsteil:0801`), never by name, and a changed id regenerates the plan before research starts.
 - The plan only proposes layers for which `DataPort.available_layers` returns a snapshot. Template layer catalog for T2 coffee:
 
 | Layer id | Source (S2) | Computation per PLR | Direction | Default weight |
@@ -175,12 +175,12 @@ Each researcher gets the PLR list (`id`, `name`, Ortsteil) to localize findings.
 
 ### 5.4 Merge (deterministic)
 
-Merge runs **after** fact-check (1) and only reads findings with `verification = verified` (for `partial`, only the matching evidence ids). Unverified claims therefore never reach modifiers, risks, unknowns or scores.
+Merge runs **after** fact-check (1) and only reads the **accepted set**: findings with `verification = verified`, plus `partial` findings restricted to their matching evidence ids. Unverified claims therefore never reach modifiers, risks, unknowns or scores. The same accepted set (extended by verified skeptic risks) is used for `cells.json` v1, the final `cells.json` and the writer, so no modifier appears in one and vanishes in another.
 
 - `future` findings localized to a PLR → modifier `{type: "future", bonus: 0.10, magnitude?}` on that cell; `magnitude` only if the quote contains a number. Ortsteil-level findings apply to all PLR of that Ortsteil; district-level ones go into the report context only.
 - `risk` findings → `risks[]` on the cell (severity assigned later).
 - A web finding that contradicts a layer (e.g. "café scene saturated" for a low-competition cell) → `unknowns[]` with a validation suggestion.
-- `score_future` is recomputed by S2 `build_cells` → `cells.json` v1. Final `cells.json` is rebuilt after rescore from verified findings only.
+- `score_future` is recomputed by S2 `build_cells` → `cells.json` v1. Final `cells.json` is rebuilt after rescore from the accepted set.
 
 ### 5.5 Skeptic (E4 = C, pending confirmation)
 
@@ -189,11 +189,14 @@ Merge runs **after** fact-check (1) and only reads findings with `verification =
 3. **Judge**: one `NebiusGateway.review` call over the verified risks per cell → `[{finding_id, severity: high|medium|low, rationale}]`. Only ledger ids of verified findings are allowed; others are dropped.
 4. **Rescore**: a cell with ≥ 1 verified `high` risk gets `"demoted_by": ["f_…"]` in `cells.json`; emits `rescore` with the reason. Scores stay unchanged, so the demotion is a persistent rank rule rather than a one-off reorder:
    ```text
-   rank(cells):  order = sort by score desc (score_present or score_future per mode)
-                 for cell in order (top to bottom, original positions):
-                     if cell.demoted_by and cell is not last: swap cell with its current successor
+   rank(cells):
+     base = stable sort by score desc (score_present or score_future per mode), ties by cell id
+     for i, cell in enumerate(base):
+         j = index of the first cell after i in base that is NOT demoted   # none → j = i
+         key[cell] = (j + 0.5) if cell.demoted_by and j != i else i
+     return stable sort of base by key
    ```
-   Each demoted cell moves down at most one place; two adjacent demoted cells keep their relative order. S2 implements `rank()` next to `build_cells`; S3 applies the same function after every layer/weight/mode change, so writer, report and dashboard always show the same ranking. The heatmap colour still uses the raw score; the top-3 list shows a "risk" badge linking to the finding.
+   A demoted cell (or a consecutive block of demoted cells) moves directly behind the next non-demoted cell; a block keeps its internal order; a demoted cell with no non-demoted successor stays where it is. Examples: `A*,B,C → B,A,C`; `A*,B*,C → C,A,B`; `A,B,C* → A,B,C`. Keys are computed on `base` only, never on a partially reordered list. Required tests: single demotion, adjacent demotions, demoted last cell, recomputation after a weight change. S2 implements `rank()` next to `build_cells`; S3 applies the same function after every layer/weight/mode change, so writer, report and dashboard always show the same ranking. The heatmap colour still uses the raw score; the top-3 list shows a "risk" badge linking to the finding.
 
 The skeptic should use a different model family than the researchers. Fallback (`SKEPTIC_MODE=review`): skip step 1, run step 3 over existing risk findings.
 
@@ -202,7 +205,7 @@ The skeptic should use a different model family than the researchers. Fallback (
 Runs twice: (1) on all research findings and dataset entries before merge, (2) on skeptic risk findings before the severity review.
 
 - For every finding: re-extract each cited URL (Tavily extract, cached per run), match the quote with the same matcher as `record_finding`. Status: `verified` (all ids match), `partial` (some match), `unsupported` (none).
-- `unsupported` findings are excluded from writer input and listed in the report appendix "Could not verify". `partial` findings keep only the matching evidence ids.
+- `unsupported` findings are excluded from writer input and listed in the report appendix "Could not verify". `partial` findings keep only the matching evidence ids and belong to the accepted set (§5.4).
 - Dataset ledger entries are verified by recomputing the layer from the snapshot.
 - Output: `factcheck.json`, `fact_check` events.
 - Re-extract results are cached per URL and run, so fact-check (2) only fetches new URLs.
