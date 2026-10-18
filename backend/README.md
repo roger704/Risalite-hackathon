@@ -175,7 +175,7 @@ uv run location-data ingest berlin_households
 uv run location-data ingest berlin_households --lor-snapshot "$LOR_SNAPSHOT_ID"
 ```
 
-`<!-- real-import -->`
+Real import on 18 October 2026 (provider download into a fresh data dir after `berlin_lor`): 542 of 542 Planungsräume, 14,634 observations (27 metrics × 542), 0 rejected rows, joined exactly to `berlin_lor` (542 areas). Wall time 1.34 s, peak RSS 239,376 KB; raw XLSX 580,763 bytes (SHA-256 `e83a88f1…87a7a`), normalized snapshot 1,033,989 bytes. Checked totals: 2,231,314 households, 376,366 with children (16.9 %), 3,930,822 residents in households. Example `01100101` (Stülerstraße): 2,310 households, average size 1.59, 247 with children (`households_with_children_share` 10.69), single-parent share 22.3 %.
 
 ## Research adapters (Tavily, Nebius)
 
