@@ -140,8 +140,13 @@ def mount_frontend(application: FastAPI) -> None:
     ).expanduser()
     fixtures_dir = frontend_root / "fixtures"
     app_dir = frontend_root / "app"
+    landing_dir = frontend_root / "landing"
     if fixtures_dir.is_dir():
         application.mount("/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
+    if landing_dir.is_dir():
+        application.mount(
+            "/landing", StaticFiles(directory=str(landing_dir), html=True), name="landing"
+        )
     if app_dir.is_dir():
         application.mount("/", StaticFiles(directory=str(app_dir), html=True), name="frontend")
 

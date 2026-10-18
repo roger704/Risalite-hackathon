@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api import runs_live
 from app.application.area_data import AreaUnit, FixtureAreaData, SummaryAreaData
 from app.application.runs import Deps, RunService
+from app.application.runs.planning import build_plan
 from app.contracts.api import RunResult
 from app.contracts.cells import CellsDocument
 from app.contracts.evidence import Finding
@@ -41,6 +42,19 @@ UNITS = [
     AreaUnit("ortsteil:0810", "ortsteil", "Neukölln", "Neukölln", IDS),
     AreaUnit("ortsteil:0820", "ortsteil", "Britz", "Neukölln", IDS[:2]),
 ]
+
+
+def test_missing_layer_note_uses_readable_labels_and_excludes_layer():
+    template = v2.Template(
+        "coffee_v2",
+        (v2.LayerSpec("centre_proximity", "Nearby retail centres", "-", 0.1),),
+    )
+    plan = build_plan("location", UNITS[0], [], template, ["centre_proximity"])
+    assert plan["note"] == (
+        "Not included in scoring: Nearby retail centres. Data is unavailable for this run."
+    )
+    assert plan["layers"][0]["enabled"] is False
+    assert "note" not in build_plan("location", UNITS[0], [], template, [])
 
 
 CALLS: list = []
