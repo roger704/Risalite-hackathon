@@ -135,7 +135,7 @@ function live() {
   const finish = () => { if (finished || gen !== GEN) return; finished = true; stopLive(); const g = GEN; $('#bar').style.width = '100%'; doneT = setTimeout(() => { if (g === GEN) loadResult(g); }, 400); };
   $('#skip').onclick = () => MOCK ? finish() : getJSON(`${API}/runs/${encodeURIComponent(RUN.run_id)}/result`)
     .then(r => { if (gen !== GEN) return; if (r.status === 'running') err('#live-err', 'The run is still in progress. Results will open automatically when it finishes.'); else finish(); })
-    .catch(e => err('#live-err', e.message));
+    .catch(e => { if (gen === GEN) err('#live-err', e.message); });
   if (MOCK) {
     $('#l-src').textContent = '· replaying fixtures/' + traceFile();
     getJSONL(FIX + traceFile()).then(evs => {
