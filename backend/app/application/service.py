@@ -228,6 +228,8 @@ class DataService:
                     retrieved_at=raw.retrieved_at,
                     source_edition=config.source_edition,
                     reference_period=config.reference_period,
+                    valid_from=config.parser_options.get("valid_from"),
+                    valid_to=config.parser_options.get("valid_to"),
                     boundary_edition=config.boundary_edition,
                     raw_assets=tuple(saved_assets),
                     request_fingerprint=fingerprint,
