@@ -1,0 +1,33 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t1",
+  "status": "done",
+  "question": "This storefront at Wiener Straße 12 just became available — what is the best use?",
+  "role": "operator: 6 yrs bakery experience, budget €80k, 2 staff",
+  "shape": "point",
+  "report_md": "Wiener Straße 12 is in PLR Lausitzer Platz, where the demo identifies a young, dense population [13] [21]. The craft bakery-café ranks first: the fixture cites a recent closure and four registered bakeries within 500 m, while OSM records three mapped bakeries [18] [14] [15]. A natural-wine bar faces 11 registered bars and 13 mapped bars nearby [14] [15].\n\nOven ventilation remains an important unverified property constraint, and the unsupported rent-doubling claim was rejected [22].",
+  "models": {
+    "Classifier": "gpt-oss-120b",
+    "Planner": "gpt-oss-120b",
+    "Data researcher": "tool calls (no LLM)",
+    "Web researcher": "Nemotron Lightning",
+    "Skeptic": "gpt-oss-120b",
+    "Fact-checker": "Tavily extract + fuzzy match ≥0.85",
+    "Writer": "Beam",
+    "Scorer": "deterministic"
+  },
+  "self_grade": [
+    {
+      "ok": true,
+      "text": "The property was geocoded to a Berlin PLR."
+    },
+    {
+      "ok": true,
+      "text": "Three hypotheses include six dimensions each."
+    },
+    {
+      "ok": false,
+      "text": "Building ventilation and current vacancies need field validation."
+    }
+  ]
+}
