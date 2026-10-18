@@ -426,10 +426,7 @@ def test_unapproved_plans_do_not_count_toward_active_run_cap(make_client, monkey
     monkeypatch.delenv("RISALITE_MAX_ACTIVE_RUNS", raising=False)
     client = make_client()
 
-    plans = [
-        client.post("/research", json={"question": "Café in Britz?"})
-        for _ in range(3)
-    ]
+    plans = [client.post("/research", json={"question": "Café in Britz?"}) for _ in range(3)]
 
     assert all(response.status_code == 200 for response in plans)
     assert all(response.json()["status"] == "awaiting_approval" for response in plans)
