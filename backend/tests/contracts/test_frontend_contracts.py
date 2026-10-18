@@ -58,6 +58,8 @@ def test_fixture_models_validate_and_cross_references_are_complete():
     evidence_raw = _jsonl(FIXTURES / "evidence.jsonl")
     evidence = [EvidenceEntry.model_validate(entry) for entry in evidence_raw]
     events = [ResearchEvent.model_validate(event) for event in _jsonl(FIXTURES / "trace.jsonl")]
+    point_events_raw = _jsonl(FIXTURES / "trace_point.jsonl")
+    point_events = [ResearchEvent.model_validate(event) for event in point_events_raw]
     candidates_raw = _json(FIXTURES / "candidates.json")
     candidates = CandidatesDocument.model_validate(candidates_raw)
     plans = [
@@ -75,6 +77,7 @@ def test_fixture_models_validate_and_cross_references_are_complete():
         references.update(risk.evidence_id for risk in cell.risks)
         assert all(value is None or 0 <= value <= 1 for value in cell.values.values())
     references.update(event_id for event in events for event_id in event.evidence_ids)
+    references.update(event_id for event in point_events for event_id in event.evidence_ids)
     references.add(candidates.space.evidence_id)
     references.update(competitor.evidence_id for competitor in candidates.competitors)
     for hypothesis in candidates.hypotheses:
@@ -111,10 +114,44 @@ def test_fixture_models_validate_and_cross_references_are_complete():
         assert abs(cell.score_present - expected[cell.id]["present"]) < 1e-6
         assert abs(cell.score_future - expected[cell.id]["future"]) < 1e-6
 
+    ranked_names = [
+        cell["name"]
+        for cell in sorted(
+            cells_raw["cells"],
+            key=lambda cell: expected[cell["id"]]["present"],
+            reverse=True,
+        )[:3]
+    ]
+    assert ranked_names == [
+        "Reichenberger Straße Ost",
+        "Lausitzer Platz",
+        "Graefekiez Nord",
+    ]
+    ranking_sentence = (
+        f"The strongest default locations are {ranked_names[0]}, {ranked_names[1]}, and "
+        f"{ranked_names[2]}, ranked from the PLR cell mix [e1]."
+    )
+    assert ranking_sentence in results_raw[0]["summary"]
+
+    assert results_raw[1]["run_id"] == "mock-t1"
     assert events[-1].type == "done"
     assert events[-1].stage == "done"
+    assert 12 <= len(point_events) <= 16
+    assert {event.stage for event in point_events} >= {
+        "classify",
+        "plan",
+        "research",
+        "skeptic",
+        "fact-check",
+        "write",
+        "done",
+    }
+    assert all(event.run_id == "mock-t1" for event in point_events)
+    assert point_events[-1].type == "done"
+    assert point_events[-1].stage == "done"
     assert all(
         document["synthetic"] is True for document in [cells_raw, candidates_raw, *results_raw]
     )
     assert all(entry["synthetic"] is True for entry in evidence_raw)
     assert all(event["synthetic"] is True for event in _jsonl(FIXTURES / "trace.jsonl"))
+    assert all(event["synthetic"] is True for event in point_events_raw)

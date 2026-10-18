@@ -1001,6 +1001,190 @@ def _location_trace() -> list[dict]:
     return events
 
 
+def _point_trace() -> list[dict]:
+    raw_events = [
+        (
+            "Classifier",
+            "classify",
+            "shape=point",
+            "The question asks about a specific storefront at Wiener Straße 12.",
+            812,
+            1.1,
+            [],
+        ),
+        (
+            "Planner",
+            "plan",
+            "3 hypotheses · 6 dimensions each · 500 m competitor radius",
+            "Evaluate business use at the geocoded address.",
+            2140,
+            3.4,
+            [],
+        ),
+        (
+            "Data researcher",
+            "tool:wfs",
+            'locate("Wiener Straße 12") → PLR 02300315 Lausitzer Platz',
+            "Geocode the address before evaluating the storefront.",
+            0,
+            0.8,
+            ["e13"],
+        ),
+        (
+            "Data researcher",
+            "tool:csv",
+            "IHK bakeries, bars and grocery competitors within 500 m",
+            "Keep registered business counts separate from mapped OSM places.",
+            0,
+            1.6,
+            ["e14"],
+        ),
+        (
+            "Data researcher",
+            "tool:osm",
+            "Geofabrik OSM inventory within 500 m",
+            "Report mapped shops and amenities separately from IHK registrations.",
+            0,
+            2.2,
+            ["e15"],
+        ),
+        (
+            "Data researcher",
+            "tool:wfs",
+            "Population density and age groups for Lausitzer Platz",
+            "Assess demand using residential density and age composition.",
+            0,
+            1.1,
+            ["e21"],
+        ),
+        (
+            "Data researcher",
+            "tool:wfs",
+            "Residential location quality and standard land value at the address",
+            "Use Wohnlage and BRW as separate space and cost proxies.",
+            0,
+            1.2,
+            ["e16", "e17"],
+        ),
+        (
+            "Web researcher",
+            "tavily:search",
+            "Hypothesis signals: bakery closure and natural-wine bar menu prices",
+            "Find evidence specific to each proposed storefront use.",
+            1620,
+            2.9,
+            ["e18", "e20"],
+        ),
+        (
+            "Skeptic",
+            "challenge",
+            "Three hypotheses",
+            "Challenge saturation and compare registered competitors with mapped OSM places.",
+            1980,
+            3.7,
+            ["e14", "e15", "e18", "e20"],
+        ),
+        (
+            "Skeptic",
+            "rescore",
+            "Craft bakery-café remains the leading hypothesis",
+            "Reassess the six dimensions without summing the IHK and OSM inventories.",
+            0,
+            0.8,
+            ["e14", "e15", "e17", "e18", "e21"],
+        ),
+        (
+            "Fact-checker",
+            "reject",
+            "“Rents on Wiener Straße doubled since 2023”",
+            "Unsupported forum claim; no rent figure appeared on re-fetch.",
+            0,
+            1.2,
+            ["e22"],
+        ),
+        (
+            "Planner",
+            "replan",
+            "Use the official standard land value instead of the rejected rent claim",
+            "Ground the cost assessment in BRW evidence.",
+            540,
+            0.9,
+            ["e17", "e22"],
+        ),
+        (
+            "Scorer",
+            "score",
+            "6 dimensions × 3 hypotheses rescored",
+            "Keep IHK registrations and OSM places as independent competitor inventories.",
+            1100,
+            1.4,
+            ["e14", "e15", "e16", "e17", "e18", "e20", "e21"],
+        ),
+        (
+            "Fact-checker",
+            "verify",
+            "10 sources re-fetched",
+            "Recheck source quotes and retain the rejected rent-doubling claim as unsupported.",
+            0,
+            5.2,
+            [f"e{evidence_number}" for evidence_number in range(13, 23)],
+        ),
+        (
+            "Writer",
+            "write",
+            "summary and hypothesis findings from ledger ids only",
+            "Post-processor strips citations not present in the evidence ledger.",
+            3400,
+            5.1,
+            ["e13", "e14", "e15", "e17", "e18", "e21", "e22"],
+        ),
+    ]
+    events = []
+    for seq, (role, event_type, text, why, tokens, seconds, evidence_ids) in enumerate(raw_events):
+        stage = {
+            "Classifier": "classify",
+            "Planner": "plan" if event_type == "plan" else "fact-check",
+            "Data researcher": "research",
+            "Web researcher": "research",
+            "Skeptic": "skeptic",
+            "Fact-checker": "fact-check",
+            "Scorer": "research",
+            "Writer": "write",
+        }[role]
+        events.append(
+            {
+                "seq": seq,
+                "run_id": "mock-t1",
+                "stage": stage,
+                "role": role,
+                "type": event_type,
+                "text": text,
+                "why": why,
+                "model": MODELS[role],
+                "tokens": tokens,
+                "seconds": seconds,
+                "evidence_ids": evidence_ids,
+                "synthetic": True,
+            }
+        )
+    events.append(
+        {
+            "seq": len(events),
+            "run_id": "mock-t1",
+            "stage": "done",
+            "role": "Writer",
+            "type": "done",
+            "text": "Run complete",
+            "model": MODELS["Writer"],
+            "tokens": 0,
+            "seconds": 0.0,
+            "evidence_ids": [],
+            "synthetic": True,
+        }
+    )
+    return events
+
+
 def _plan_document(shape_name: str, evidence: list[dict], cells: list[dict]) -> dict:
     if shape_name == "location":
         question = "Where is it smart to open a coffee place in Kreuzberg?"
@@ -1031,6 +1215,9 @@ def _plan_document(shape_name: str, evidence: list[dict], cells: list[dict]) -> 
 
 
 def _result_documents(evidence: list[dict], cells: list[dict]) -> tuple[dict, dict]:
+    scores = compute_scores(cells, LAYERS)
+    ranked_cells = sorted(cells, key=lambda cell: scores[cell["id"]]["present"], reverse=True)
+    top_names = [cell["name"] for cell in ranked_cells[:3]]
     location_result = {
         "synthetic": True,
         "run_id": "mock-t2",
@@ -1039,8 +1226,8 @@ def _result_documents(evidence: list[dict], cells: list[dict]) -> tuple[dict, di
         "role": "coffee operator",
         "shape": "location",
         "summary": (
-            "The strongest default locations are Köpenicker Straße, Oranienplatz, and "
-            "Lausitzer Platz, ranked from the PLR cell mix [e1]. Dense, younger cells "
+            f"The strongest default locations are {top_names[0]}, {top_names[1]}, and "
+            f"{top_names[2]}, ranked from the PLR cell mix [e1]. Dense, younger cells "
             "score well on demand, while the IHK-registered and OSM café inventories "
             "remain separate measures of competition [e2] [e3] [e4]. The announced "
             "Moritzplatz office campus and Köpenicker Straße housing project raise "
@@ -1110,6 +1297,10 @@ def build(geojson_from: Path | None = None) -> None:
     )
     (FIXTURES / "trace.jsonl").write_text(
         "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in _location_trace()),
+        encoding="utf-8",
+    )
+    (FIXTURES / "trace_point.jsonl").write_text(
+        "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in _point_trace()),
         encoding="utf-8",
     )
     _write_json(
