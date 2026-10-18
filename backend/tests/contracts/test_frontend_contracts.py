@@ -34,7 +34,7 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
 
     response = client.get("/")
     assert response.status_code == 200
-    assert "Risalite" in response.text
+    assert "SpotWise" in response.text
     assert client.get("/fixtures/cells.json").status_code == 200
     for asset in (
         "/app.js",

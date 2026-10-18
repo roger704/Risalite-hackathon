@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Risalite — clickable mockup</title>
+<title>SpotWise — clickable mockup</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <!--
-  Risalite dashboard mockup (S3 frontend). Single file, no build step.
+  SpotWise dashboard mockup (S3 frontend). Single file, no build step.
   Online, the area heatmap is a 3D MapLibre GL view (OpenFreeMap / OSM buildings, Berlin TrueDOP 2024
   orthophoto as satellite base). Offline or without WebGL it falls back to the built-in SVG map.
   Geometry: real PLR boundaries (lor_2021:a_lor_plr_2021, gdi.berlin.de WFS, CC BY 3.0, simplified).
@@ -197,8 +197,31 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .why{margin-top:12px}.why ul{margin:8px 0 0;padding-left:18px;color:var(--mut)}.why li{margin:3px 0}
 .center{text-align:center}.grow{flex:1;min-width:0}
 .hero{text-align:center;margin:30px 0 22px}
-.hero-ico{font-size:50px;line-height:1;margin-bottom:12px;display:inline-block;animation:float 4s ease-in-out infinite}
-@keyframes float{50%{transform:translateY(-7px)}}
+.hero h1 .brand{font-weight:800;letter-spacing:-.035em;background:linear-gradient(90deg,#3b82f6,#8b5cf6 45%,#ec4899 75%,#f97316);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mf{display:inline-flex;align-items:center;padding:7px 12px;margin-bottom:14px;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);box-shadow:0 6px 20px rgba(31,38,135,.07),inset 0 1px 0 #fff}
+.mf-n{position:relative;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#fff;box-shadow:0 2px 8px rgba(31,38,135,.08);opacity:.45;transform:scale(.9);transition:opacity .5s,transform .5s var(--spring),box-shadow .5s}
+.mf-n.on{opacity:1;transform:none}
+.mf-n.act{transform:scale(1.07);box-shadow:0 0 0 3px rgba(0,122,255,.18),0 4px 14px rgba(0,122,255,.16)}
+.mf-c{position:relative;width:16px;height:2px;margin:0 4px;border-radius:2px;background:rgba(60,60,67,.15);transition:background .4s}
+.mf-c.on{background:linear-gradient(90deg,#8b9cff,#c084fc)}
+.mf-c.act::after{content:"";position:absolute;top:-2px;width:6px;height:6px;border-radius:50%;background:#7c8cff;box-shadow:0 0 8px #7c8cff;animation:mft .9s var(--ease) forwards}
+@keyframes mft{from{left:-2px;opacity:0}30%{opacity:1}to{left:calc(100% - 4px);opacity:0}}
+.mf-ask{display:flex;align-items:center;justify-content:center;gap:3px;border-radius:10px 10px 10px 3px}
+.mf-ask i{width:4px;height:4px;border-radius:50%;background:var(--acc)}
+.mf-ask.act i{animation:mfdot .9s ease-in-out infinite}.mf-ask.act i:nth-child(2){animation-delay:.15s}.mf-ask.act i:nth-child(3){animation-delay:.3s}
+@keyframes mfdot{50%{transform:translateY(-3px);opacity:.5}}
+.mf-hub b{width:14px;height:14px;border-radius:5px;background:conic-gradient(from 200deg,#60a5fa,#a78bfa,#f472b6,#fb923c,#60a5fa);box-shadow:inset 0 0 0 3px rgba(255,255,255,.55)}
+.mf-hub u{position:absolute;inset:4px;border-radius:50%;border:1px dashed rgba(60,60,67,.22)}
+.mf-hub u::before,.mf-hub u::after{content:"";position:absolute;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#a78bfa;left:50%;top:0}
+.mf-hub u::after{top:100%;background:#60a5fa}
+.mf-hub.on u{animation:mfspin 4s linear infinite}
+@keyframes mfspin{to{transform:rotate(360deg)}}
+.mf-map{grid-template-columns:repeat(3,6px);gap:2px;place-content:center}
+.mf-map i{width:6px;height:6px;border-radius:2px;background:#eceef3;transition:background .4s ease}
+.mf-map.on i{background:var(--c)}
+.mf-doc{font-size:16px;line-height:1}
+.mf-doc b{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:50%;background:#34c759;color:#fff;font-size:9px;display:grid;place-items:center;box-shadow:0 0 0 2px #fff;transform:scale(0);transition:transform .45s var(--spring) .2s}
+.mf-doc.on b{transform:none}
 .hero h1{font-size:36px}.hero p{margin:6px 0 0;font-size:15px}
 #s-ask{max-width:880px;margin:0 auto}
 .search{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.72);border:1px solid var(--line);border-radius:20px;padding:8px 8px 8px 18px;transition:box-shadow .3s var(--ease),border-color .3s}
@@ -285,7 +308,7 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
 </head>
 <body>
 <header>
-  <div class="logo">Risal<span>ite</span></div>
+  <div class="logo">Spot<span>Wise</span></div>
   <nav class="steps" id="steps" aria-label="Workflow"><i class="pill"></i><span data-v="s-ask">Ask</span><span data-v="s-plan">Plan</span><span data-v="s-live">Research</span><span data-v="s-dash">Results</span></nav>
   <div class="mock" title="PLR boundaries are real (CC BY 3.0); all values, quotes and traces are synthetic">🧪 Mockup · synthetic data</div>
   <button id="restart">+ New question</button>
@@ -295,8 +318,8 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
 <!-- 1 · ASK -->
 <section id="s-ask" class="view">
   <div class="hero anim">
-    <div class="hero-ico">📍</div>
-    <h1>What do you want to know about Berlin?</h1>
+    <div class="mf" id="mf" aria-hidden="true" title="Ask → research → score → cited answer"><span class="mf-n mf-ask"><i></i><i></i><i></i></span><span class="mf-c"></span><span class="mf-n mf-hub"><b></b><u></u></span><span class="mf-c"></span><span class="mf-n mf-map"><i style="--c:#e0f2fe;transition-delay:0ms"></i><i style="--c:#a78bfa;transition-delay:60ms"></i><i style="--c:#7dd3fc;transition-delay:120ms"></i><i style="--c:#f472b6;transition-delay:180ms"></i><i style="--c:#fb923c;transition-delay:240ms"></i><i style="--c:#a78bfa;transition-delay:300ms"></i><i style="--c:#7dd3fc;transition-delay:360ms"></i><i style="--c:#e0f2fe;transition-delay:420ms"></i><i style="--c:#f472b6;transition-delay:480ms"></i></span><span class="mf-c"></span><span class="mf-n mf-doc">📄<b>✓</b></span></div>
+    <h1>What's up <span class="brand">SpotWise</span>?</h1>
     <p class="mut">Ask a question → approve the plan → get a cited answer.</p>
   </div>
   <div class="card">
@@ -306,7 +329,7 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
       <label class="field grow" id="opwrap" title="Optional, used for storefront questions">🧑‍🍳 <input type="text" id="op" placeholder="Your experience &amp; budget (optional)"></label>
     </div>
     <div id="clar" class="clar hidden">
-      <div style="font-size:16px;margin-bottom:10px">🤔 <b>Which area?</b> <span class="mut small">Risalite never guesses.</span></div>
+      <div style="font-size:16px;margin-bottom:10px">🤔 <b>Which area?</b> <span class="mut small">SpotWise never guesses.</span></div>
       <div class="row"><button class="btn ghost" data-area="Kreuzberg">📍 Kreuzberg</button><button class="btn ghost" data-area="Neukölln">📍 Neukölln</button></div>
     </div>
   </div>
@@ -316,7 +339,7 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
     <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="emo">☕</span><b>Where to open a café</b><span class="mut small">Kreuzberg</span></div>
     <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="emo">🧸</span><b>Where Kitas are missing</b><span class="mut small">Neukölln</span></div>
   </div>
-  <p class="small mut center anim" style="margin-top:18px">💡 Leave out the area and Risalite will ask.</p>
+  <p class="small mut center anim" style="margin-top:18px">💡 Leave out the area and SpotWise will ask.</p>
 </section>
 
 <!-- 2 · PLAN -->
@@ -1094,7 +1117,7 @@ const pref=x=>typeof x==='number'?`[${x}]`:`(${plain(x)})`;
 const mdu=u=>String(u).replace(/[ <>]/g,encodeURIComponent);
 function reportMarkdown(){
   const L=[],mi=mixInfo(),pt=C.shape==='point';
-  L.push('# Risalite report','',`**Question:** ${plain(C.q)}`,'',`- Shape: \`${C.shape}\``,`- Area: ${areaLabel()}`);
+  L.push('# SpotWise report','',`**Question:** ${plain(C.q)}`,'',`- Shape: \`${C.shape}\``,`- Area: ${areaLabel()}`);
   if(C.role)L.push(`- Role: ${plain(C.role)}`);
   if(pt)L.push(`- Operator profile: ${plain(C.op)||'— none given'}`);
   L.push(`- Mix: ${mi.line}`,`- Generated: ${new Date().toISOString()}`,`- Share link: <${shareURL()}>`,'');
@@ -1163,7 +1186,7 @@ function reportHTML(){
   const ln=u=>/^https?:\/\//i.test(u)?`<a href="${esc(u)}">${esc(u)}</a>`:esc(u);
   const ref=x=>typeof x==='number'?cl(x):`<span class="mut">(${e(x)})</span>`;
   const H=[];
-  H.push(`<div class="brand">Risal<span>ite</span> report</div><h1>${e(C.q)}</h1><ul class="meta"><li>Shape: <b>${e(C.shape)}</b></li><li>Area: <b>${e(areaLabel())}</b></li>`
+  H.push(`<div class="brand">Spot<span>Wise</span> report</div><h1>${e(C.q)}</h1><ul class="meta"><li>Shape: <b>${e(C.shape)}</b></li><li>Area: <b>${e(areaLabel())}</b></li>`
     +(C.role?`<li>Role: <b>${e(C.role)}</b></li>`:'')+(pt?`<li>Operator profile: <b>${e(C.op)||'— none given'}</b></li>`:'')
     +`<li>Mix: <b>${e(mi.line)}</b></li><li>Generated: ${esc(new Date().toISOString())}</li><li>Share link: ${ln(shareURL())}</li></ul>`);
   if(SC.note)H.push(`<div class="note">${e(SC.note)}</div>`);
@@ -1196,7 +1219,7 @@ function reportHTML(){
   const tr=traceRows(),tot=tr.reduce((a,r)=>[a[0]+r.n,a[1]+r.t,a[2]+r.s],[0,0,0]),rej=TR.filter(x=>x.type==='reject');
   H.push(`<h2>${pt?6:7} · Trace summary</h2><table><thead><tr><th>Role</th><th>Model</th><th>Calls</th><th>Tokens</th><th>Seconds</th></tr></thead><tbody>${tr.map(r=>`<tr><td>${e(r.role)}</td><td>${e(r.model)}</td><td>${r.n}</td><td>${r.t.toLocaleString('en')}</td><td>${r.s.toFixed(1)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td></td><td><b>${tot[0]}</b></td><td><b>${tot[1].toLocaleString('en')}</b></td><td><b>${tot[2].toFixed(1)}</b></td></tr></tbody></table>`
     +(rej.length?`<p class="small"><b>Fact-checker rejections:</b></p><ul class="small">${rej.map(x=>`<li>${e(x.text)} — <span class="mut">${e(x.why)}</span></li>`).join('')}</ul>`:''));
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Risalite report — ${e(C.q)}</title><style>${REPORT_CSS}</style></head><body><div class="toolbar no-print"><button onclick="print()">Print / Save as PDF</button></div><main>${H.join('\n')}</main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SpotWise report — ${e(C.q)}</title><style>${REPORT_CSS}</style></head><body><div class="toolbar no-print"><button onclick="print()">Print / Save as PDF</button></div><main>${H.join('\n')}</main></body></html>`;
 }
 
 const CSV_COLS=['n','evidence_id','title','url','method','tier','confidence','status','quote','retrieved_at','published_at'];
@@ -1208,8 +1231,8 @@ const sourcesCSV=()=>[CSV_COLS.join(','),...sourceRows().map(r=>CSV_COLS.map(k=>
 const tex=s=>String(s??'').replace(/[\\{}&%$#_~^]/g,c=>({'\\':'\\textbackslash{}','~':'\\textasciitilde{}','^':'\\textasciicircum{}'}[c]||'\\'+c));
 const texUrl=u=>String(u).replace(/[{}\\ ]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
 function sourcesBib(){
-  const today=new Date().toISOString().slice(0,10),key=n=>`risalite-${runId()}-e${n}`.replace(/[^A-Za-z0-9_-]/g,'-');
-  return `% Risalite sources (verified + partial; unsupported claims omitted)\n% Question: ${plain(C.q)}\n\n`+SC.sources.map(s=>`@misc{${key(s.n)},
+  const today=new Date().toISOString().slice(0,10),key=n=>`spotwise-${runId()}-e${n}`.replace(/[^A-Za-z0-9_-]/g,'-');
+  return `% SpotWise sources (verified + partial; unsupported claims omitted)\n% Question: ${plain(C.q)}\n\n`+SC.sources.map(s=>`@misc{${key(s.n)},
   title = {${tex(plain(s.title))}},
   howpublished = {\\url{${texUrl(s.url)}}},
   url = {${texUrl(s.url)}},
@@ -1221,7 +1244,7 @@ function sourcesBib(){
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function xmsg(t){$('#x-msg').textContent=t;clearTimeout(xmsg.t);xmsg.t=setTimeout(()=>$('#x-msg').textContent='',4000)}
 $$('#d-export [data-x]').forEach(b=>b.onclick=()=>{
-  const base=`risalite-${runId()}-${stamp()}`,x=b.dataset.x;
+  const base=`spotwise-${runId()}-${stamp()}`,x=b.dataset.x;
   if(x==='md'){download(base+'-report.md',reportMarkdown(),'text/markdown;charset=utf-8');xmsg('Report downloaded (.md)')}
   else if(x==='html'){download(base+'-report.html',reportHTML(),'text/html;charset=utf-8');xmsg('Report downloaded (.html) — open it and use Print to save a PDF')}
   else if(x==='pdf'){const w=window.open('','_blank');if(!w){xmsg('Pop-up blocked — use “Report .html” and print from there');return}
@@ -1231,6 +1254,11 @@ $$('#d-export [data-x]').forEach(b=>b.onclick=()=>{
   else if(x==='link'){const u=shareURL(),inp=$('#x-link');inp.value=u;inp.classList.remove('hidden');inp.select();
     (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>xmsg('Share link copied'),()=>xmsg('Copy the link above (Ctrl+C)'))}
 });
+/* ---------- mini flow (compressed landing loop: ask → research → score → answer) ---------- */
+(()=>{const parts=[...$('#mf').children];let k=0;
+  const paint=()=>parts.forEach((n,i)=>{n.classList.toggle('on',i<=k);n.classList.toggle('act',i===k)});
+  if(reduceMotion()){k=parts.length;paint();return}
+  paint();setInterval(()=>{if(document.hidden||curView!=='s-ask')return;k=(k+1)%(parts.length+3);paint()},900)})();
 if(location.hash.length>1)restoreFromHash();
 </script>
 </body>

@@ -23,7 +23,7 @@ Every item must serve citation integrity, visible decisions, or demo-ability.
 - [ ] All: read `Risalite_Spec.md` §Contracts (5 min). **Freeze**: HTTP API, research event, ledger entry, `cells.json`, `candidates.json`. Changes after 15:10 go to all four by message.
 - [ ] S1: cookbook has run end-to-end on Token Factory with sources (if not: first task); model IDs in `config.py`.
 - [ ] S2: WFS fixtures for `lor_2021` (PLR geometries), `ua_einwohnerdichte_2025`, `mss_2025`, `gewerbedaten`, `oepnv_ungestoert` for the demo district; fetch now if missing.
-- [ ] S4: public repo, `.env.example` (`NEBIUS_API_KEY`, `TAVILY_API_KEY`, `NEBIUS_API_BASE`), `.env` git-ignored.
+- [x] S4: public repo, `.env.example` (`NEBIUS_API_KEY`, `TAVILY_API_KEY`, `NEBIUS_API_BASE`), `.env` git-ignored.
 - [ ] All: **freeze demo district** (richest café web story + a plausible risk story) + backup; **freeze one demo storefront + operator profile** for the point path. Record in `Handoff.md`.
 - [ ] S3: decide stack; build against mock `cells.json`, mock `candidates.json`, mock event stream.
 - [ ] Decide A3 (city-wide default when no area given) — recommended yes.
@@ -64,11 +64,11 @@ Every item must serve citation integrity, visible decisions, or demo-ability.
 - [ ] Sources with tier + confidence badge + "could not verify"; self-grade.
 
 ### S4 — Evidence & delivery
-- [ ] `ledger.py` — entry schema from the spec (`tier`, `claim_type` on findings) → `runs/<id>/evidence.jsonl`.
-- [ ] Fact-checker: re-fetch each URL (Tavily `extract` / WFS re-query), fuzzy quote ≥ 0.85, verified / partial / unsupported; unsupported → drop + list. Works on both result shapes.
-- [ ] `scripts/verify_citations.py` for a judge.
-- [ ] README draft: clone → `.env` → `uv sync` → one command → dashboard; architecture picture; model table; both example questions.
-- [ ] Demo script: 5 rehearsal questions per template; storyboard from the spec.
+- [x] `ledger.py` — entry schema from the spec (`tier`, `claim_type` on findings) → `runs/<id>/evidence.jsonl`.
+- [x] Fact-checker: re-fetch each URL (Tavily `extract` / WFS re-query), fuzzy quote ≥ 0.85, verified / partial / unsupported; unsupported → drop + list. Works on both result shapes.
+- [x] `scripts/verify_citations.py` for a judge.
+- [ ] README draft (run section + evidence table done; architecture picture, model table pending): clone → `.env` → `uv sync` → one command → dashboard; architecture picture; model table; both example questions.
+- [x] Demo script: 5 rehearsal questions per template; storyboard from the spec.
 
 ## Phase 2 — Integrate (16:30–17:00)
 
