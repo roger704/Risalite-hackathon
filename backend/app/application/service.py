@@ -30,7 +30,7 @@ from app.domain import (
     record_to_dict,
 )
 from app.infrastructure.catalog import Catalog
-from app.infrastructure.storage import read_records, write_records
+from app.infrastructure.storage import read_record_page, read_records, write_records
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -69,12 +69,23 @@ class DataService:
             if config.dataset_id in self.configs:
                 raise ConfigError(f"Duplicate registered dataset: {config.dataset_id}")
             self.configs[config.dataset_id] = config
-        if connectors is None:
-            from app.connectors.lor import LORConnector
-            from app.connectors.population import PopulationConnector
+        self.connectors = dict(connectors) if connectors is not None else {}
+        self._lazy_connectors = connectors is None
 
-            connectors = {"lor": LORConnector(), "population": PopulationConnector()}
-        self.connectors = connectors
+    def _connector(self, adapter: str):
+        if adapter not in self.connectors:
+            if not self._lazy_connectors:
+                raise ConfigError(f"Adapter is not implemented: {adapter}")
+            from app.connectors.registry import load_connector
+
+            self.connectors[adapter] = load_connector(adapter)
+        return self.connectors[adapter]
+
+    @staticmethod
+    def _parent_dataset(config) -> str | None:
+        if config.adapter == "population":
+            return "berlin_lor"
+        return config.parser_options.get("parent_dataset")
 
     def _config(self, dataset_id: str):
         if dataset_id not in self.configs:
@@ -105,11 +116,16 @@ class DataService:
             raise ConfigError("Dataset is disabled or blocked")
         if config.redistribution_status not in PUBLIC_REDISTRIBUTION_STATUSES:
             raise ConfigError("Public snapshot ingestion requires reviewed redistribution terms")
-        if config.adapter not in self.connectors:
-            raise ConfigError(f"Adapter is not implemented: {config.adapter}")
-        connector = self.connectors[config.adapter]
-        if parent_snapshot_id and config.adapter != "population":
-            raise ConfigError("Only population ingestion accepts a LOR parent snapshot")
+        connector = self._connector(config.adapter)
+        parent_dataset = self._parent_dataset(config)
+        if parent_snapshot_id and not parent_dataset:
+            raise ConfigError("This dataset does not accept a parent snapshot")
+        if (
+            parent_dataset
+            and config.adapter != "population"
+            and not hasattr(connector, "check_parent")
+        ):
+            raise ConfigError("Connectors with a parent dataset must implement check_parent")
         with self._lock(dataset_id):
             job_id = uuid.uuid4().hex
             stage = self.root / "staging" / job_id
@@ -117,9 +133,7 @@ class DataService:
             self.catalog.begin_job(job_id, dataset_id)
             try:
                 parent = (
-                    self.catalog.get("berlin_lor", parent_snapshot_id)
-                    if config.adapter == "population"
-                    else None
+                    self.catalog.get(parent_dataset, parent_snapshot_id) if parent_dataset else None
                 )
                 parent_ids = (parent.snapshot_id,) if parent else ()
                 snapshot_id = f"{dataset_id}-{job_id}"
@@ -172,16 +186,24 @@ class DataService:
                     "record_count": len(batch.records),
                     "acquisition_mode": "local_file" if local_file else "provider_download",
                 }
-                if parent:
+                if parent and config.adapter == "population":
                     coverage.update(self._validate_parent(config, batch.records, parent))
-                else:
-                    if batch.records and all(isinstance(item, Area) for item in batch.records):
+                elif parent:
+                    coverage.update(
+                        connector.check_parent(config, batch.records, self._load_records(parent))
+                    )
+                if not (parent and config.adapter == "population"):
+                    geometries = [
+                        item.geometry for item in batch.records if hasattr(item, "geometry")
+                    ]
+                    if geometries:
                         from shapely.geometry import shape
                         from shapely.ops import unary_union
 
                         coverage["bbox"] = list(
-                            unary_union([shape(item.geometry) for item in batch.records]).bounds
+                            unary_union([shape(item) for item in geometries]).bounds
                         )
+                    if batch.records and all(isinstance(item, Area) for item in batch.records):
                         coverage["area_count"] = len(batch.records)
                 normalized_relative = f"normalized/{dataset_id}/{snapshot_id}/records.parquet"
                 write_records(batch.records, stage / "records.parquet")
@@ -206,6 +228,8 @@ class DataService:
                     retrieved_at=raw.retrieved_at,
                     source_edition=config.source_edition,
                     reference_period=config.reference_period,
+                    valid_from=config.parser_options.get("valid_from"),
+                    valid_to=config.parser_options.get("valid_to"),
                     boundary_edition=config.boundary_edition,
                     raw_assets=tuple(saved_assets),
                     request_fingerprint=fingerprint,
@@ -286,12 +310,15 @@ class DataService:
         return path
 
     def _load_records(self, manifest):
+        return read_records(self._snapshot_path(manifest))
+
+    def _snapshot_path(self, manifest) -> Path:
         if len(manifest.normalized_assets) != 1:
             raise ConnectorError("SOURCE_UNAVAILABLE", "Snapshot storage is incomplete")
         path = self._asset_path(manifest.normalized_assets[0])
         if not path.is_file():
             raise ConnectorError("SOURCE_UNAVAILABLE", "Published snapshot asset is missing")
-        return read_records(path)
+        return path
 
     def _snapshot_available(self, manifest) -> bool:
         return (
@@ -400,22 +427,29 @@ class DataService:
                 raise ConnectorError(
                     "INVALID_CURSOR", "Invalid cursor for this snapshot and query"
                 ) from exc
-        records = [
-            record
-            for record in self._load_records(manifest)
-            if (area_code is None or record.area_code == area_code)
-            and (metric_code is None or getattr(record, "metric_code", None) == metric_code)
-        ]
-        records.sort(key=lambda record: record.record_id)
-        if offset > len(records):
+        if metric_code is None:
+            total, page = read_record_page(
+                self._snapshot_path(manifest), area_code=area_code, offset=offset, limit=limit
+            )
+        else:
+            records = sorted(
+                (
+                    record
+                    for record in self._load_records(manifest)
+                    if (area_code is None or getattr(record, "area_code", None) == area_code)
+                    and getattr(record, "metric_code", None) == metric_code
+                ),
+                key=lambda record: record.record_id,
+            )
+            total, page = len(records), records[offset : offset + limit]
+        if offset > total:
             raise ConnectorError("INVALID_CURSOR", "Cursor is beyond the matching records")
-        page = records[offset : offset + limit]
         next_offset = offset + len(page)
         next_cursor = (
             base64.urlsafe_b64encode(
                 json.dumps({"query": query_key, "offset": next_offset}).encode()
             ).decode()
-            if next_offset < len(records)
+            if next_offset < total
             else None
         )
         return {
