@@ -182,6 +182,10 @@ def create_app(
     ):
         return data.manifest(dataset_id, snapshot_id)
 
+    @application.get("/api/v1/datasets/{dataset_id}/legend")
+    def legend(dataset_id: str, data: Annotated[DataService, Depends(get_service)]):
+        return data.legend(dataset_id)
+
     @application.get("/api/v1/datasets/{dataset_id}/records", response_model=RecordsResponse)
     def records(
         request: Request,

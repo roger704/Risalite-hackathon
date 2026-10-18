@@ -443,6 +443,60 @@ class StopService(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class AreaIndicatorClass(Record):
+    """Ordinal class a published indicator assigns to an area; not a numeric measurement."""
+
+    area_code: str
+    hierarchy: str
+    boundary_edition: str
+    indicator_code: str
+    class_code: str | None
+    class_label: str | None
+    class_rank: int | None
+    class_count: int
+    rank_direction: str
+    reference_period: str
+    value_status: ValueStatus | str
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="area_indicator_class", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _area_keys(self.area_code, self.hierarchy, self.boundary_edition)
+        _text("indicator_code", self.indicator_code)
+        _text("rank_direction", self.rank_direction)
+        _period(self.reference_period)
+        if type(self.class_count) is not int or self.class_count < 1:
+            raise ValidationError("class_count must be a positive integer")
+        try:
+            status = ValueStatus(self.value_status)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(f"Unsupported value_status: {self.value_status}") from exc
+        object.__setattr__(self, "value_status", status)
+        if status == ValueStatus.FORECAST:
+            raise ValidationError("Area indicator classes cannot be forecasts")
+        if status in {
+            ValueStatus.MISSING,
+            ValueStatus.SUPPRESSED,
+            ValueStatus.NOT_APPLICABLE,
+        }:
+            if any(
+                value is not None for value in (self.class_code, self.class_label, self.class_rank)
+            ):
+                raise ValidationError("Missing classes must have null class fields")
+        else:
+            _text("class_code", self.class_code)
+            _text("class_label", self.class_label)
+            if type(self.class_rank) is not int or not 1 <= self.class_rank <= self.class_count:
+                raise ValidationError("class_rank must be within 1..class_count")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class GridObservation(Record):
     geometry: dict[str, Any]
     grid_id: str
@@ -504,7 +558,14 @@ class GridObservation(Record):
 
 
 NormalizedRecord: TypeAlias = (
-    Area | AreaObservation | Place | Business | TransitStop | StopService | GridObservation
+    Area
+    | AreaObservation
+    | Place
+    | Business
+    | TransitStop
+    | StopService
+    | AreaIndicatorClass
+    | GridObservation
 )
 RECORD_TYPES: dict[str, type] = {
     "area": Area,
@@ -513,6 +574,7 @@ RECORD_TYPES: dict[str, type] = {
     "business": Business,
     "transit_stop": TransitStop,
     "stop_service": StopService,
+    "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
 }
 
