@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from pyproj import Transformer
 
-from app.connectors.berlin_wfs_plans import _layer_resource_url
+from app.connectors.berlin_wfs_plans import _single_query
 from app.domain import ConnectorError, DevelopmentPlan, NotFoundError, record_from_dict
 from app.geo.development_plans import (
     EXCLUDED_CLAIMS,
@@ -45,12 +45,24 @@ def _manifest(service, snapshot_id: str):
     return manifest.model_dump(mode="json") if hasattr(manifest, "model_dump") else manifest
 
 
-def _layer_source_urls(service, manifest: dict) -> dict[str, str]:
-    layers = service.configs[DATASET_ID].parser_options["layers"]
-    return {
-        layer["typename"]: _layer_resource_url(manifest["resource_url"], layer["typename"])
-        for layer in layers
-    }
+def _layer_source_urls(manifest: dict) -> dict[str, str]:
+    layer_source_urls = {}
+    first_pages = set()
+    for asset in manifest.get("raw_assets", ()):
+        resource_url = asset.get("resource_url")
+        if not resource_url:
+            continue
+        typename = _single_query(resource_url, "TYPENAMES")
+        if not typename:
+            continue
+        start_index = _single_query(resource_url, "STARTINDEX")
+        if typename not in layer_source_urls or (
+            start_index == "0" and typename not in first_pages
+        ):
+            layer_source_urls[typename] = resource_url
+            if start_index == "0":
+                first_pages.add(typename)
+    return layer_source_urls
 
 
 def _warnings(manifest: dict) -> list[str]:
@@ -77,7 +89,7 @@ def _response_meta(snapshot_id: str, manifest: dict, layer_source_urls: dict[str
     }
 
 
-def _plan_item(plan: DevelopmentPlan, source_url: str, match=None) -> dict:
+def _plan_item(plan: DevelopmentPlan, source_url: str | None, match=None) -> dict:
     item = {
         "plan_id": plan.plan_id,
         "record_id": plan.record_id,
@@ -142,7 +154,7 @@ def planning_router(get_service) -> APIRouter:
         _unknown_query(request, {"snapshot_id", "lon", "lat", "radius_m", "status"})
         _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
-        layer_source_urls = _layer_source_urls(data, manifest)
+        layer_source_urls = _layer_source_urls(manifest)
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
         x, y = transformer.transform(lon, lat)
         index = _plan_index(data, snapshot_id)
@@ -150,7 +162,7 @@ def planning_router(get_service) -> APIRouter:
         return {
             **_response_meta(snapshot_id, manifest, layer_source_urls),
             "plans": [
-                _plan_item(match.plan, layer_source_urls[match.plan.source_layer], match)
+                _plan_item(match.plan, layer_source_urls.get(match.plan.source_layer), match)
                 for match in matches
             ],
         }
@@ -166,7 +178,7 @@ def planning_router(get_service) -> APIRouter:
         _unknown_query(request, {"snapshot_id", "area_code", "lor_snapshot_id"})
         _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
-        layer_source_urls = _layer_source_urls(data, manifest)
+        layer_source_urls = _layer_source_urls(manifest)
         if lor_snapshot_id is None:
             parent_ids = manifest.get("parent_snapshot_ids", ())
             if not parent_ids:
@@ -201,7 +213,7 @@ def planning_router(get_service) -> APIRouter:
             "area_code": area_code,
             "lor_snapshot_id": lor_snapshot_id,
             "plans": [
-                _plan_item(match.plan, layer_source_urls[match.plan.source_layer], match)
+                _plan_item(match.plan, layer_source_urls.get(match.plan.source_layer), match)
                 for match in matches
             ],
         }
@@ -216,14 +228,14 @@ def planning_router(get_service) -> APIRouter:
         _unknown_query(request, {"snapshot_id"})
         _ensure_snapshot_available(data, snapshot_id)
         manifest = _manifest(data, snapshot_id)
-        layer_source_urls = _layer_source_urls(data, manifest)
+        layer_source_urls = _layer_source_urls(manifest)
         plans = _plan_index(data, snapshot_id)
         plan = plans.get_plan(plan_id)
         if plan is None:
             raise NotFoundError(f"Development plan not found: {plan_id}")
         return {
             **_response_meta(snapshot_id, manifest, layer_source_urls),
-            "plan": _plan_item(plan, layer_source_urls[plan.source_layer]),
+            "plan": _plan_item(plan, layer_source_urls.get(plan.source_layer)),
         }
 
     return router

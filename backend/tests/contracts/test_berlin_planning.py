@@ -652,6 +652,10 @@ class PlanningAPIService:
             "dataset_id": dataset_id,
             "snapshot_id": snapshot_id,
             "resource_url": self.configs["berlin_planning"].resource_url,
+            "raw_assets": [
+                {"resource_url": _layer_url(self.configs["berlin_planning"], f"bplan:{layer_name}")}
+                for layer_name in LAYER_NAMES
+            ],
             "landing_url": "https://daten.berlin.de/plans",
             "retrieved_at": "2026-10-18T00:00:00Z",
             "license_id": "DL-DE-ZERO-2.0",
@@ -907,11 +911,49 @@ async def test_failed_refresh_preserves_latest_snapshot_and_api_records(tmp_path
     )
     page = service.records("berlin_planning", first.snapshot_id, limit=1000)
     assert page["count"] == 10
+    snapshot_layers = {
+        dict(parse_qsl(urlsplit(asset.resource_url).query)).get("TYPENAMES")
+        for asset in first.raw_assets
+    }
+    snapshot_layers.discard(None)
+    c_first_page_url = next(
+        asset.resource_url
+        for asset in first.raw_assets
+        if dict(parse_qsl(urlsplit(asset.resource_url).query)).get("TYPENAMES") == "bplan:c_bp_ak"
+        and dict(parse_qsl(urlsplit(asset.resource_url).query)).get("STARTINDEX") == "0"
+    )
+    current_config = service.configs["berlin_planning"]
+    service.configs["berlin_planning"] = replace(
+        current_config,
+        parser_options={
+            **current_config.parser_options,
+            "layers": [
+                layer
+                for layer in current_config.parser_options["layers"]
+                if layer["typename"] != "bplan:c_bp_ak"
+            ],
+        },
+    )
     with TestClient(create_app(service=service)) as client:
+        c_plan = next(
+            record for record in page["records"] if record["source_layer"] == "bplan:c_bp_ak"
+        )
+        c_detail = client.get(
+            f"/api/v1/planning/plans/{c_plan['plan_id']}",
+            params={"snapshot_id": first.snapshot_id},
+        )
         response = client.get(
             "/api/v1/planning/plans/0206101g/1",
             params={"snapshot_id": first.snapshot_id},
         )
+        assert c_detail.status_code == 200
+        c_payload = c_detail.json()
+        assert c_payload["plan"]["source_url"] == c_first_page_url
+        assert (
+            dict(parse_qsl(urlsplit(c_payload["plan"]["source_url"]).query))["TYPENAMES"]
+            == "bplan:c_bp_ak"
+        )
+        assert set(c_payload["provenance"]["layer_source_urls"]) == snapshot_layers
         assert response.status_code == 200
         records_path = service._snapshot_path(
             service.catalog.get("berlin_planning", first.snapshot_id)
