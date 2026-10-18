@@ -2,6 +2,8 @@
 
 import html
 import math
+import re
+import string
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -209,7 +211,8 @@ def _sources_markdown(bundle: RunBundle) -> list[str]:
         prefix = f"[{number}]" if number is not None else "[—]"
         lines.extend(
             [
-                f"### {prefix} {_text(entry.get('title'))} — {_text(entry.get('url'))}",
+                f"### {prefix} {_text(entry.get('title'))} — "
+                f"{_markdown_source_url(entry.get('url'))}",
                 "",
                 f"{_text(entry.get('method'))} · tier {_text(entry.get('tier'))} · "
                 f"confidence {_text(entry.get('confidence'))} · {_text(entry.get('status'))}",
@@ -223,10 +226,23 @@ def _sources_markdown(bundle: RunBundle) -> list[str]:
         lines.extend(["### Could not verify", ""])
         for entry in unsupported:
             lines.append(
-                f"- {_text(entry.get('title'))} — {_text(entry.get('url'))}: "
+                f"- {_text(entry.get('title'))} — {_markdown_source_url(entry.get('url'))}: "
                 f"“{_text(entry.get('quote'))}”"
             )
     return lines
+
+
+def _markdown_source_url(value: Any) -> str:
+    address = _text(value)
+    try:
+        is_http = urlsplit(address).scheme.lower() in {"http", "https"}
+    except ValueError:
+        is_http = False
+    if is_http:
+        encoded = address.replace(" ", "%20").replace("<", "%3C").replace(">", "%3E")
+        return f"<{encoded}>"
+    punctuation = re.compile(f"([{re.escape(string.punctuation)}])")
+    return punctuation.sub(r"\\\1", address)
 
 
 def _trace_markdown(bundle: RunBundle) -> list[str]:

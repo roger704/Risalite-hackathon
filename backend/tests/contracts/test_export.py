@@ -10,6 +10,7 @@ import pytest
 from app.domain import ConnectorError
 from app.export import (
     Mix,
+    RunBundle,
     load_run,
     rank_cells,
     render_html,
@@ -73,6 +74,13 @@ def test_citations_are_numbered_and_unsupported_or_unknown_ids_are_removed():
     assert rewritten == "Kept [1], partial [2], unsupported , missing ."
 
 
+def test_citations_preserve_bracket_text_and_markdown_links():
+    evidence = coffee().evidence
+    assert replace_citations("see [e1] and [sic]", evidence) == "see [1] and [sic]"
+    assert replace_citations("[docs](https://x.test)", evidence) == "[docs](https://x.test)"
+    assert replace_citations("[e99]", evidence) == ""
+
+
 def test_markdown_sections_top_three_sources_and_default_mix_label():
     report = render_markdown(coffee())
     sections = [
@@ -133,6 +141,44 @@ def test_sources_csv_has_exact_header_formula_guard_and_unsupported_blank_number
     assert rows[1]["title"] == "Käse & Gemüse"
     assert rows[2]["n"] == ""
     assert rows[0]["title"].startswith("Café &")
+
+
+def test_markdown_sources_autolink_http_and_escape_other_schemes():
+    bundle = RunBundle(
+        run={"run_id": "source-url-test", "shape": "point", "question": "Fixture-free URL test"},
+        cells=None,
+        geojson=None,
+        candidates={"hypotheses": []},
+        evidence=[
+            {
+                "n": 1,
+                "evidence_id": "e1",
+                "title": "HTTP query",
+                "url": "https://example.test/wfs?CQL_FILTER=nace LIKE '56%25'<tag>",
+                "method": "wfs",
+                "tier": "1",
+                "confidence": 1,
+                "status": "verified",
+                "quote": "Example quote.",
+            },
+            {
+                "n": None,
+                "evidence_id": "e2",
+                "title": "Unsupported URL",
+                "url": "javascript:alert(1)",
+                "method": "web",
+                "tier": "3",
+                "confidence": 0,
+                "status": "unsupported",
+                "quote": "Unverified.",
+            },
+        ],
+        trace=[],
+    )
+    report = render_markdown(bundle)
+    assert "<https://example.test/wfs?CQL_FILTER=nace%20LIKE%20'56%25'%3Ctag%3E>" in report
+    assert "javascript\\:alert\\(1\\)" in report
+    assert "<javascript:" not in report
 
 
 def test_bibtex_omits_unsupported_entries_escapes_fields_and_sanitizes_keys():

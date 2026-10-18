@@ -2,6 +2,8 @@
 
 import re
 
+_ID_SHAPED = re.compile(r"[A-Za-z][A-Za-z0-9_.:-]*\d[A-Za-z0-9_.:-]*")
+
 
 def citation_number(evidence: list[dict], evidence_id: str | None) -> int | None:
     if not evidence_id:
@@ -21,7 +23,10 @@ def replace_citations(text: str, evidence: list[dict]) -> str:
     numbers = {entry.get("evidence_id"): entry.get("n") for entry in evidence}
 
     def replace(match: re.Match) -> str:
-        number = numbers.get(match.group(1))
-        return f"[{number}]" if number is not None else ""
+        token = match.group(1)
+        if token in numbers:
+            number = numbers[token]
+            return f"[{number}]" if number is not None else ""
+        return "" if _ID_SHAPED.fullmatch(token) else match.group(0)
 
-    return re.sub(r"\[([^\[\]]+)\]", replace, text)
+    return re.sub(r"\[([^\[\]]+)\](?!\()", replace, text)
