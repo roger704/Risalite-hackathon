@@ -10,6 +10,7 @@ from .errors import (
     ValidationError,
 )
 from .models import (
+    DEVELOPMENT_PLAN_STATUSES,
     PUBLIC_REDISTRIBUTION_STATUSES,
     RECORD_TYPES,
     SCHEMA_VERSION,
@@ -19,7 +20,9 @@ from .models import (
     Building,
     Business,
     DatasetConfig,
+    DevelopmentPlan,
     FetchRequest,
+    ForecastObservation,
     GridObservation,
     NormalizedBatch,
     NormalizedRecord,
@@ -48,7 +51,10 @@ __all__ = [
     "AreaIndicatorClass",
     "AreaObservation",
     "Building",
+    "ForecastObservation",
     "Business",
+    "DevelopmentPlan",
+    "DEVELOPMENT_PLAN_STATUSES",
     "Place",
     "RECORD_TYPES",
     "StopService",

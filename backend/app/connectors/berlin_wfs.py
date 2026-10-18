@@ -265,6 +265,10 @@ class BerlinWFSConnector(FileConnector):
     adapter_version = "1.1.0"
 
     async def fetch(self, request: FetchRequest) -> RawBundle:
+        if request.config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import fetch_development_plans
+
+            return await fetch_development_plans(self, request)
         config = request.config
         if not config.enabled or config.access_validation == "blocked":
             raise ConfigError("Dataset is disabled or blocked")
@@ -361,6 +365,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def normalize(self, raw: RawBundle, config: DatasetConfig) -> NormalizedBatch:
+        if config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import normalize_development_plans
+
+            return normalize_development_plans(raw, config)
         options = _options(config)
         if not raw.assets:
             raise SchemaError("WFS requires at least one GeoJSON asset")
@@ -491,6 +499,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def validate(self, batch: NormalizedBatch) -> QualityReport:
+        if batch.records and batch.records[0].record_type == "development_plan":
+            from app.connectors.berlin_wfs_plans import validate_development_plans
+
+            return validate_development_plans(batch)
         if batch.records and all(
             isinstance(record, RoadTrafficSegment) for record in batch.records
         ):
@@ -534,6 +546,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def check_parent(self, config: DatasetConfig, records: tuple, parent_records: tuple) -> dict:
+        if config.parser_options.get("record_type") == "development_plan":
+            from app.connectors.berlin_wfs_plans import check_development_plan_parent
+
+            return check_development_plan_parent(records, parent_records)
         options = _options(config)
         invalid_records = sum(
             not isinstance(record, Area) for record in (*records, *parent_records)
