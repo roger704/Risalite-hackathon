@@ -14,8 +14,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+import shapely
+from pyproj import Transformer
+from shapely.geometry import shape
+
+from app.domain import NotFoundError
 from app.evidence.ledger import EvidenceLedger
 from app.scoring.v2 import CellInput, Template
+
+_TO_METRIC = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
+_TO_METRIC_FN = _TO_METRIC.transform
 
 BEZIRKE = {
     "01": "Mitte",
@@ -367,12 +375,8 @@ SummaryFn = Callable[..., dict[str, Any]]
 class SummaryAreaData:
     """Port over ``AreaSummaryService.summary(plr_code, category=...)`` per PLR.
 
-    Mapped ``coffee_v2`` layers: ``residents_block_density`` (fallback: residents / PLR area,
-    flagged as a confidence reason), ``young_adult_share``, ``footfall_proxy`` (OSM bakery +
-    restaurant + fast_food per km²), ``transit`` (departures 07–10 + 16–19 at stations inside
-    the PLR), ``cafe_saturation`` (OSM coffee_shop per 10,000 residents, denominator ≥ 2,000),
-    ``cafe_crosscheck`` (IHK count, cross-check only). ``centre_proximity`` and every other
-    layer have no summary source and stay ``None``.
+    Block density and centre proximity use their published snapshots when available; residents
+    per PLR area remains the flagged density fallback.
     """
 
     MAPPED = frozenset(
@@ -392,12 +396,23 @@ class SummaryAreaData:
         names: dict[str, dict[str, str]],
         *,
         source_urls: dict[str, str] | None = None,
+        block_densities: dict[str, float] | None = None,
+        block_snapshot_id: str | None = None,
+        center_geometries: Iterable[dict[str, Any]] = (),
+        center_snapshot_id: str | None = None,
     ):
         self._summary = summary
         self._names = names
         self._units = units_from_lor(names)
         self._by_id = {unit.area_id: unit for unit in self._units}
         self._source_urls = source_urls or {}
+        self._block_densities = block_densities or {}
+        self._block_snapshot_id = block_snapshot_id
+        self._center_geometries = [
+            shapely.transform(shape(geometry), _TO_METRIC_FN, interleaved=False)
+            for geometry in center_geometries
+        ]
+        self._center_snapshot_id = center_snapshot_id
         self._rows: dict[str, dict[str, Any]] = {}
         self._notes: dict[str, list[str]] = {}
         self._reference: dict[str, list[CellInput]] = {}
@@ -407,6 +422,7 @@ class SummaryAreaData:
     def from_data_service(cls, data_service: Any) -> SummaryAreaData:
         from app.application.area_names import area_names
         from app.application.area_summary import AreaSummaryService
+        from app.application.population_blocks import block_aggregates
 
         manifest = data_service.catalog.get("berlin_lor_names", None)
         names = area_names(data_service, manifest.snapshot_id)
@@ -414,7 +430,42 @@ class SummaryAreaData:
             dataset_id: getattr(config, "landing_url", LANDING)
             for dataset_id, config in data_service.configs.items()
         }
-        return cls(AreaSummaryService(data_service).summary, names, source_urls=urls)
+
+        def published_snapshot(dataset_id: str):
+            try:
+                candidate = data_service.catalog.get(dataset_id)
+            except NotFoundError:
+                return None
+            return candidate if data_service._snapshot_available(candidate) else None
+
+        blocks = published_snapshot("berlin_population_density_blocks")
+        block_densities = {}
+        if blocks:
+            aggregates = block_aggregates(data_service, blocks.snapshot_id)
+            block_densities = {
+                area_code: round(value.net_density_per_ha * 100, 3)
+                for area_code, value in aggregates.areas.items()
+                if value.net_density_per_ha is not None
+            }
+
+        centers = published_snapshot("berlin_centers")
+        center_geometries = []
+        if centers:
+            center_geometries = [
+                record.geometry
+                for record in data_service._load_records(centers)
+                if hasattr(record, "geometry")
+            ]
+
+        return cls(
+            AreaSummaryService(data_service).summary,
+            names,
+            source_urls=urls,
+            block_densities=block_densities,
+            block_snapshot_id=blocks.snapshot_id if blocks else None,
+            center_geometries=center_geometries,
+            center_snapshot_id=centers.snapshot_id if centers else None,
+        )
 
     def units(self) -> list[AreaUnit]:
         return list(self._units)
@@ -426,7 +477,20 @@ class SummaryAreaData:
         return self._by_id[area_id].resolution()
 
     def unmapped_layers(self, template: Template) -> list[str]:
-        return [layer.id for layer in template.layers if layer.id not in self.MAPPED]
+        return [
+            layer.id
+            for layer in template.layers
+            if layer.id not in self.MAPPED
+            and not (layer.id == "centre_proximity" and self._center_geometries)
+        ]
+
+    def _centre_proximity(self, boundary: dict[str, Any] | None) -> float | None:
+        if not boundary or not self._center_geometries:
+            return None
+        point = shapely.transform(
+            shape(boundary).representative_point(), _TO_METRIC_FN, interleaved=False
+        )
+        return round(min(point.distance(center) for center in self._center_geometries), 1)
 
     def _row(self, plr: str) -> dict[str, Any]:
         if plr in self._rows:
@@ -441,10 +505,21 @@ class SummaryAreaData:
         notes: list[str] = []
         values: dict[str, tuple[float | None, list[dict[str, str]], str | None]] = {}
 
-        density = _value(residents.get("density"))
+        density = self._block_densities.get(plr)
+        density_sources = []
         if density is not None:
+            density_sources = [
+                {
+                    "dataset_id": "berlin_population_density_blocks",
+                    "snapshot_id": self._block_snapshot_id or "",
+                }
+            ]
+        else:
+            density = _value(residents.get("density"))
+            density_sources = _sources(residents.get("density"))
+        if density is not None and plr not in self._block_densities:
             notes.append("fallback layer used: residents_block_density = residents / PLR area")
-        values["residents_block_density"] = (density, _sources(residents.get("density")), "persons/km2")
+        values["residents_block_density"] = (density, density_sources, "persons/km2")
         values["young_adult_share"] = (*_young_share(residents), "ratio")
 
         osm, osm_sources, ihk = _osm_count(base)
@@ -470,6 +545,21 @@ class SummaryAreaData:
             "POIs/km2",
         )
         values["transit"] = (*_transit_departures(base.get("transit") or {}), "departures")
+        center_distance = self._centre_proximity(area.get("boundary"))
+        values["centre_proximity"] = (
+            center_distance,
+            (
+                [
+                    {
+                        "dataset_id": "berlin_centers",
+                        "snapshot_id": self._center_snapshot_id or "",
+                    }
+                ]
+                if center_distance is not None
+                else []
+            ),
+            "meters",
+        )
         name = _value_text(area.get("name")) or self._names.get(plr, {}).get("name", plr)
         row = {"id": plr, "name": name, "residents": total, "values": values}
         if osm is not None and ihk is not None:

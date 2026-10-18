@@ -282,7 +282,14 @@ def test_summary_area_data_maps_layers_and_records_ledger(tmp_path):
     def summary(plr, category="coffee_shop", include_geometry=True):
         counts = {"coffee_shop": 4, "bakery": 2, "restaurant": 3, "fast_food": 1}
         return {
-            "area": {"name": {"value": "Moritzplatz"}, "area_km2": field(0.5), "boundary": {"type": "Polygon", "coordinates": []}},
+            "area": {
+                "name": {"value": "Moritzplatz"},
+                "area_km2": field(0.5),
+                "boundary": {
+                    "type": "Polygon",
+                    "coordinates": [[[13.4, 52.5], [13.41, 52.5], [13.41, 52.51], [13.4, 52.5]]],
+                },
+            },
             "residents": {
                 "total": field(4000), "density": field(8000.0),
                 "age_bands": [{"age_min": 18, "age_max_exclusive": 27, "count": field(800)}, {"age_min": 27, "age_max_exclusive": 45, "count": field(1200)}],
@@ -314,6 +321,31 @@ def test_summary_area_data_maps_layers_and_records_ledger(tmp_path):
     assert any("fallback" in r for r in reasons)
     assert port.crosscheck("ortsteil:0210") == {"02100104": (4, 12)}
     assert port.geojson("ortsteil:0210")["features"][0]["id"] == "02100104"
+
+    wired = SummaryAreaData(
+        summary,
+        names,
+        block_densities={"02100104": 12400.0},
+        block_snapshot_id="blocks-1",
+        center_geometries=[{"type": "Point", "coordinates": [13.42, 52.52]}],
+        center_snapshot_id="centers-1",
+    )
+    [wired_cell] = wired.cells("plr:02100104", template)
+    assert wired_cell.raw["residents_block_density"] == 12400.0
+    assert wired_cell.raw["centre_proximity"] > 0
+    assert wired.unmapped_layers(template) == []
+    wired_ledger = EvidenceLedger(tmp_path / "wired")
+    [wired_cell] = wired.cells("plr:02100104", template, ledger=wired_ledger)
+    density_evidence = wired_ledger.get(wired_cell.layer_evidence["residents_block_density"])
+    center_evidence = wired_ledger.get(wired_cell.layer_evidence["centre_proximity"])
+    assert (density_evidence["dataset_id"], density_evidence["snapshot_id"]) == (
+        "berlin_population_density_blocks",
+        "blocks-1",
+    )
+    assert (center_evidence["dataset_id"], center_evidence["snapshot_id"]) == (
+        "berlin_centers",
+        "centers-1",
+    )
 
 
 def test_area_run_names_budgets_and_factcheck_file(make_client, tmp_path):
