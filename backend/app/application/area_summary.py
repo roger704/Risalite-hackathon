@@ -36,6 +36,7 @@ CALCULATION_VERSION = "area_summary_v1"
 METRIC_CRS = "EPSG:25833"
 CATEGORY_DIR = Path(__file__).resolve().parents[2] / "config" / "categories"
 MAX_LISTED_ITEMS = 200
+ESTIMATE_FLAG = "frequency_headway_estimate"
 
 # role -> (default dataset id, request parameter, requires pinning to the LOR snapshot)
 ROLES: dict[str, tuple[str, str, bool]] = {
@@ -167,6 +168,8 @@ class AreaSummaryService:
         self._cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
         self._cache_size = cache_size
         self._lock = threading.Lock()
+        self._building: dict[tuple[str, str], threading.Lock] = {}
+        self._mappings: dict[tuple[str, str], tuple[str | None, frozenset[str] | None]] = {}
 
     # Snapshot resolution -------------------------------------------------------------
 
@@ -225,12 +228,45 @@ class AreaSummaryService:
             if key in self._cache:
                 self._cache.move_to_end(key)
                 return self._cache[key]
-        value = builder(self.data._snapshot_path(manifest))
-        with self._lock:
-            self._cache[key] = value
-            while len(self._cache) > self._cache_size:
-                self._cache.popitem(last=False)
+            build_lock = self._building.setdefault(key, threading.Lock())
+        with build_lock:
+            with self._lock:
+                if key in self._cache:
+                    self._cache.move_to_end(key)
+                    return self._cache[key]
+            try:
+                value = builder(self.data._snapshot_path(manifest))
+            except BaseException:
+                with self._lock:
+                    self._building.pop(key, None)
+                raise
+            with self._lock:
+                self._cache[key] = value
+                while len(self._cache) > self._cache_size:
+                    self._cache.popitem(last=False)
+                self._building.pop(key, None)
         return value
+
+    def _snapshot_mapping(self, resolved: _Resolved):
+        """Category mapping recorded on the snapshot's records, not the current config."""
+        current = _category_mapping(self.data.configs.get(resolved.dataset_id))
+        if not resolved.usable:
+            return current
+        key = (resolved.dataset_id, resolved.manifest.snapshot_id)
+        with self._lock:
+            if key in self._mappings:
+                return self._mappings[key]
+        version = None
+        parquet = pq.ParquetFile(self.data._snapshot_path(resolved.manifest))
+        for batch in parquet.iter_batches(batch_size=1, columns=["record_json"]):
+            rows = batch.column(0).to_pylist()
+            if rows:
+                version = json.loads(rows[0]).get("category_mapping_version")
+                break
+        mapping = current if version is None else _load_mapping(version)
+        with self._lock:
+            self._mappings[key] = mapping
+        return mapping
 
     def _area_records(self, manifest, area_code: str):
         path = self.data._snapshot_path(manifest)
@@ -288,14 +324,11 @@ class AreaSummaryService:
         if unknown:
             raise ConnectorError("UNSUPPORTED_FILTER", "Unknown snapshot parameters")
         requested = {role: snapshot_ids.get(parameter) for role, (_, parameter, _) in ROLES.items()}
-        mappings = {
-            role: _category_mapping(self.data.configs.get(ROLES[role][0]))
+        configured = {
+            category
             for role in ("places", "businesses")
+            for category in _category_mapping(self.data.configs.get(ROLES[role][0]))[1] or ()
         }
-        if not any(category in categories for _, categories in mappings.values()):
-            raise ConnectorError(
-                "UNSUPPORTED_CATEGORY", "category is not defined by any configured mapping"
-            )
 
         boundary = self._resolve("boundary", requested["boundary"])
         if not boundary.usable:
@@ -311,6 +344,15 @@ class AreaSummaryService:
             item = self._resolve(role, requested[role])
             resolved[role] = (
                 self._check_parent(item, boundary) if needs_parent and item.usable else item
+            )
+        mappings = {
+            role: self._snapshot_mapping(resolved[role]) for role in ("places", "businesses")
+        }
+        if category not in configured and not any(
+            categories is None or category in categories for _, categories in mappings.values()
+        ):
+            raise ConnectorError(
+                "UNSUPPORTED_CATEGORY", "category is not defined by any configured mapping"
             )
 
         areas = [
@@ -496,7 +538,7 @@ class AreaSummaryService:
             "inventory": "mapped_places",
             "status": places.status,
         }
-        if places.usable and category not in categories:
+        if places.usable and categories is not None and category not in categories:
             entry["status"] = "not_applicable"
             entry["reason"] = f"category is not defined by mapping {version}"
         elif places.usable:
@@ -532,7 +574,7 @@ class AreaSummaryService:
             "inventory": "registered_businesses",
             "status": businesses.status,
         }
-        if businesses.usable and category not in categories:
+        if businesses.usable and categories is not None and category not in categories:
             entry["status"] = "not_applicable"
             entry["reason"] = f"category is not defined by mapping {version}"
         elif businesses.usable:
@@ -582,7 +624,7 @@ class AreaSummaryService:
             **base,
             "registered_businesses": _field(
                 len(records),
-                "observed",
+                "derived",
                 "businesses",
                 source,
                 reference_period=edition,
@@ -597,7 +639,15 @@ class AreaSummaryService:
                     "employees_min": low,
                     "employees_max": high,
                     "business_count": _field(
-                        count, "observed", "businesses", source, reference_period=edition
+                        count,
+                        "derived",
+                        "businesses",
+                        source,
+                        reference_period=edition,
+                        calculation=_calculation(
+                            "employee_size_class_count",
+                            "IHK registrations in the area grouped by employee size-class label",
+                        ),
                     ),
                     "note": "Size-class bounds, not headcounts.",
                 }
@@ -656,6 +706,7 @@ class AreaSummaryService:
                             "window_end": s.window_end,
                             "departures": s.departures,
                             "route_types": list(s.route_types),
+                            "quality_flags": list(s.quality_flags),
                         }
                         for s in services
                     ],
@@ -664,8 +715,10 @@ class AreaSummaryService:
             for s in services:
                 window = windows.setdefault(
                     (s.service_date, s.window_start, s.window_end, s.timezone),
-                    {"stations": 0, "departures": 0, "route_types": set()},
+                    {"stations": 0, "departures": 0, "route_types": set(), "estimated": 0},
                 )
+                if ESTIMATE_FLAG in s.quality_flags:
+                    window["estimated"] += 1
                 window["stations"] += 1 if s.departures else 0
                 window["departures"] += s.departures
                 window["route_types"].update(s.route_types)
@@ -678,7 +731,9 @@ class AreaSummaryService:
         )
         summary = []
         for key in all_windows:
-            window = windows.get(key, {"stations": 0, "departures": 0, "route_types": set()})
+            window = windows.get(
+                key, {"stations": 0, "departures": 0, "route_types": set(), "estimated": 0}
+            )
             summary.append(
                 {
                     "service_date": key[0],
@@ -707,7 +762,12 @@ class AreaSummaryService:
                             "Sum of per-station departures; a trip serving several stations in "
                             "the area is counted at each station",
                         ),
+                        note="Includes departures estimated from GTFS frequencies.txt headways."
+                        if window["estimated"]
+                        else None,
                     ),
+                    "includes_frequency_estimates": bool(window["estimated"]),
+                    "estimated_station_windows": window["estimated"],
                     "route_types": sorted(window["route_types"]),
                 }
             )
@@ -719,7 +779,17 @@ class AreaSummaryService:
             "measures": "scheduled timetable departures, not passengers or footfall",
             "windows": summary,
             "stops_in_area": {
-                str(kind): _field(count, "derived", "stops", source, reference_period=period)
+                str(kind): _field(
+                    count,
+                    "derived",
+                    "stops",
+                    source,
+                    reference_period=period,
+                    calculation=_calculation(
+                        "stops_point_in_polygon_count",
+                        f"GTFS stops by location_type whose point lies inside the area in {METRIC_CRS}",
+                    ),
+                )
                 for kind, count in sorted(stop_counts.items())
             },
             "stations": stations[:MAX_LISTED_ITEMS],
@@ -798,14 +868,19 @@ def _count_entry(selected, source, edition, calculation, mapping_version):
     }
 
 
-def _category_mapping(config) -> tuple[str | None, frozenset[str]]:
+def _category_mapping(config) -> tuple[str | None, frozenset[str] | None]:
     name = config.parser_options.get("category_mapping") if config else None
     if not name:
         return None, frozenset()
+    return _load_mapping(name)
+
+
+def _load_mapping(name: str) -> tuple[str, frozenset[str] | None]:
+    """Categories of a versioned mapping file; None when that version is not installed."""
     try:
         data = json.loads((CATEGORY_DIR / f"{name}.json").read_text())
     except (OSError, ValueError):
-        return name, frozenset()
+        return name, None
     entries = data.get("categories") or data.get("rules") or []
     return data.get("mapping_version", name), frozenset(
         item["canonical_category"] for item in entries if "canonical_category" in item

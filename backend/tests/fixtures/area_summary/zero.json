@@ -480,6 +480,8 @@
     "stops_in_area": {},
     "windows": [
       {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
         "route_types": [],
         "scheduled_departures": {
           "calculation": {
@@ -521,6 +523,8 @@
         "window_start": "07:00:00"
       },
       {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
         "route_types": [],
         "scheduled_departures": {
           "calculation": {
@@ -589,7 +593,7 @@
           "snapshot_id": "ihk_businesses-synthetic-1"
         }
       ],
-      "status": "observed",
+      "status": "derived",
       "unit": "businesses",
       "value": 0
     },

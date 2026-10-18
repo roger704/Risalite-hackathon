@@ -346,6 +346,7 @@
         "departures": [
           {
             "departures": 10,
+            "quality_flags": [],
             "route_types": [
               3
             ],
@@ -355,6 +356,7 @@
           },
           {
             "departures": 8,
+            "quality_flags": [],
             "route_types": [
               3
             ],
@@ -371,7 +373,11 @@
     "status": "used",
     "stops_in_area": {
       "0": {
-        "calculation": null,
+        "calculation": {
+          "id": "stops_point_in_polygon_count",
+          "method": "GTFS stops by location_type whose point lies inside the area in EPSG:25833",
+          "version": "area_summary_v1"
+        },
         "reference_period": "2026-10-15/2026-12-12",
         "sources": [
           {
@@ -384,7 +390,11 @@
         "value": 1
       },
       "1": {
-        "calculation": null,
+        "calculation": {
+          "id": "stops_point_in_polygon_count",
+          "method": "GTFS stops by location_type whose point lies inside the area in EPSG:25833",
+          "version": "area_summary_v1"
+        },
         "reference_period": "2026-10-15/2026-12-12",
         "sources": [
           {
@@ -399,6 +409,8 @@
     },
     "windows": [
       {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
         "route_types": [
           3
         ],
@@ -442,6 +454,8 @@
         "window_start": "07:00:00"
       },
       {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
         "route_types": [
           3
         ],

@@ -154,7 +154,7 @@ def population_records(source_id, snapshot_id):
             )
 
 
-def place_records(source_id, snapshot_id):
+def place_records(source_id, snapshot_id, mapping_version="osm_v1"):
     rows = [
         ("node/1", 13.352, "coffee_shop", "Synthetic Café One"),
         ("node/2", 13.355, "coffee_shop", None),
@@ -167,7 +167,7 @@ def place_records(source_id, snapshot_id):
             geometry=point(lon),
             source_geometry_type=record_id.split("/")[0],
             original_category="amenity=cafe" if category == "coffee_shop" else "shop=bakery",
-            category_mapping_version="osm_v1",
+            category_mapping_version=mapping_version,
             canonical_category=category,
             name=name,
         )
@@ -226,6 +226,9 @@ def transit_records(source_id, snapshot_id):
                 trip_count=departures,
                 route_count=1 if departures else 0,
                 route_types=(3,) if departures else (),
+                quality_flags=("frequency_headway_estimate",)
+                if station == "S2" and departures
+                else (),
             )
 
 
@@ -394,6 +397,11 @@ def test_suppressed_population_stays_null(tmp_path):
     transit = body["transit"]
     assert [w["stations_with_departures"]["value"] for w in transit["windows"]] == [0, 1]
     assert [w["scheduled_departures"]["value"] for w in transit["windows"]] == [0, 5]
+    assert [w["includes_frequency_estimates"] for w in transit["windows"]] == [False, True]
+    assert "frequencies.txt" in transit["windows"][1]["scheduled_departures"]["note"]
+    assert transit["stations"][0]["departures"][1]["quality_flags"] == [
+        "frequency_headway_estimate"
+    ]
 
 
 def test_zero_population_and_zero_competitors(tmp_path):
@@ -493,3 +501,47 @@ def test_frontend_fixtures_are_marked_synthetic(name):
         for item in body["snapshots"]
         if item["status"] == "used"
     )
+
+
+def test_pinned_snapshot_keeps_its_own_category_mapping(tmp_path):
+    service, _ = make_service(tmp_path)
+    old = publish(
+        service,
+        "osm_pois",
+        "legacy",
+        lambda source_id, snapshot_id: place_records(source_id, snapshot_id, "osm_v0"),
+    )
+    body = get(service, "01011101", osm_snapshot_id=old).json()
+    osm = by_dataset(body["competitors"]["sources"])["osm_pois"]
+    assert osm["status"] == "used"
+    assert osm["category_mapping_version"] == "osm_v0"
+    assert osm["count"]["value"] == 2
+
+
+def test_concurrent_cold_requests_build_one_index(tmp_path):
+    import threading
+    import time
+
+    from app.application.area_summary import AreaSummaryService
+
+    service, ids = make_service(tmp_path)
+    summaries = AreaSummaryService(service)
+    manifest = service.catalog.get("osm_pois", ids["osm_pois"])
+    builds = []
+
+    def builder(path):
+        builds.append(path)
+        time.sleep(0.05)
+        return object()
+
+    results = []
+    threads = [
+        threading.Thread(target=lambda: results.append(summaries._cached(manifest, builder)))
+        for _ in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(builds) == 1
+    assert len({id(value) for value in results}) == 1

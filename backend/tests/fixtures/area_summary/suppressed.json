@@ -492,6 +492,7 @@
         "departures": [
           {
             "departures": 0,
+            "quality_flags": [],
             "route_types": [],
             "service_date": "2026-11-10",
             "window_end": "10:00:00",
@@ -499,6 +500,9 @@
           },
           {
             "departures": 5,
+            "quality_flags": [
+              "frequency_headway_estimate"
+            ],
             "route_types": [
               3
             ],
@@ -515,7 +519,11 @@
     "status": "used",
     "stops_in_area": {
       "0": {
-        "calculation": null,
+        "calculation": {
+          "id": "stops_point_in_polygon_count",
+          "method": "GTFS stops by location_type whose point lies inside the area in EPSG:25833",
+          "version": "area_summary_v1"
+        },
         "reference_period": "2026-10-15/2026-12-12",
         "sources": [
           {
@@ -530,6 +538,8 @@
     },
     "windows": [
       {
+        "estimated_station_windows": 0,
+        "includes_frequency_estimates": false,
         "route_types": [],
         "scheduled_departures": {
           "calculation": {
@@ -571,6 +581,8 @@
         "window_start": "07:00:00"
       },
       {
+        "estimated_station_windows": 1,
+        "includes_frequency_estimates": true,
         "route_types": [
           3
         ],
@@ -580,6 +592,7 @@
             "method": "Sum of per-station departures; a trip serving several stations in the area is counted at each station",
             "version": "area_summary_v1"
           },
+          "note": "Includes departures estimated from GTFS frequencies.txt headways.",
           "reference_period": "2026-10-15/2026-12-12",
           "sources": [
             {
@@ -641,7 +654,7 @@
           "snapshot_id": "ihk_businesses-synthetic-1"
         }
       ],
-      "status": "observed",
+      "status": "derived",
       "unit": "businesses",
       "value": 0
     },
