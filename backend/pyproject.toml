@@ -34,6 +34,7 @@ packages = ["app"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = ["live: opt-in tests that contact public providers"]
+addopts = "-m 'not live'"
 
 [tool.ruff]
 target-version = "py311"

@@ -1,6 +1,6 @@
 # Location intelligence backend
 
-The first implementation downloads, validates, stores, and serves Berlin LOR boundaries and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
+The first implementation downloads, validates, stores, and serves Berlin LOR boundaries, official LOR names, and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
 ## Setup
 
@@ -22,15 +22,17 @@ Reviewed source URLs, parser mappings, licenses, size limits, and editions live 
 
 ## Import the official data
 
-Import boundaries first, then population:
+Import boundaries first, then official names and population:
 
 ```sh
 uv run location-data ingest berlin_lor
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_lor_names --lor-snapshot "$LOR_SNAPSHOT_ID"
 uv run location-data ingest berlin_population
 uv run location-data datasets
 ```
 
-Each successful import prints a JSON manifest containing its `snapshot_id`. Population ingestion pins the active published LOR snapshot by default and requires complete matching hierarchy, boundary-scheme, and area-code coverage. To select an existing boundary snapshot explicitly, replace the example identifier with the `snapshot_id` returned by the LOR import:
+Each successful import prints a JSON manifest containing its `snapshot_id`. Names and population ingestion pin the active published LOR snapshot by default and require complete matching hierarchy, boundary-scheme, and area-code coverage. Use `--lor-snapshot` to pin the exact boundary snapshot used for either import:
 
 ```sh
 LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
@@ -41,10 +43,11 @@ Previously downloaded source files can be imported without contacting the provid
 
 ```sh
 uv run location-data ingest berlin_lor --file /absolute/path/to/lor-source.7z
+uv run location-data ingest berlin_lor_names --file /absolute/path/to/combined-wfs-feature-collection.json --lor-snapshot "$LOR_SNAPSHOT_ID"
 uv run location-data ingest berlin_population --file /absolute/path/to/SB_A01-16-00_2026h01_BE.xlsx
 ```
 
-The raw file is copied into the local store. Imports preserve SHA-256 hashes, source URLs, retrieval times, parser configuration hashes, quality reports, attribution, and parent snapshot IDs. Reimporting the same data with the same configuration and dependencies reuses its cached snapshot. Failed validation leaves the previously active snapshot available; diagnostic files remain in staging.
+For a provider WFS download, each page is a separate raw asset copied in response order to `raw/<dataset>/<snapshot>/<index>-page-NNNN.json`, with its own SHA-256 hash. `--file` accepts one combined FeatureCollection. Imports preserve source URLs, retrieval times, parser configuration hashes, quality reports, attribution, and parent snapshot IDs. Reimporting the same data with the same configuration and dependencies reuses its cached snapshot. Failed validation leaves the previously active snapshot available; diagnostic files remain in staging.
 
 LOR geometry is stored as WGS84 GeoParquet and population records as Parquet. SQLite tracks immutable manifests, active snapshots, and ingestion jobs. Ingestion uses local filesystem locks and targets one backend instance on macOS/Linux; this is not a distributed ingestion service.
 
@@ -58,7 +61,13 @@ uv run location-data manifest berlin_population "$POPULATION_SNAPSHOT_ID"
 uv run location-data records berlin_population --snapshot "$POPULATION_SNAPSHOT_ID" --area-code 01100101 --metric-code population_total --limit 10
 ```
 
-Every records query requires an explicit snapshot. Supported filters are `area_code` and, for population, `metric_code`. Page limits are 1–1,000. Pass the returned `next_cursor` with `--cursor` to continue the same snapshot and filters. LOR codes are strings: preserve leading zeroes.
+Every records query requires an explicit snapshot. Supported filters are `area_code` and, for population, `metric_code`. Page limits are 1–1,000. Pass the returned `next_cursor` with `--cursor` to continue the same snapshot and filters. LOR codes are strings: preserve leading zeroes. Query an official name and its source attributes with:
+
+```sh
+uv run location-data records berlin_lor_names --snapshot "$NAMES_SNAPSHOT_ID" --area-code 01100101
+```
+
+For Python callers, `app.application.area_names.area_names(service, snapshot_id)` returns a pinned lookup of area codes to names and string attributes.
 
 The API serves existing local snapshots and performs no hidden provider downloads:
 
@@ -89,6 +98,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | Dataset | Reviewed resource | Validation result and limitations |
 |---|---|---|
 | `berlin_lor` | [Official LOR page](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/), [download archive](https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/lebensweltlich-orientierte-raeume/lor_2021-01-01_k3_shapefiles_nur_id.7z?ts=1780323163) | 542 Planungsräume; reviewed member `LOR_2023-01-01_PLR_EPSG_25833_nur_ID.shp`, source CRS EPSG:25833. Boundary scheme `2021`, actual geometry release `2023-01-01`. The archive provides IDs, not neighborhood names; output names are explicit code-based fallbacks. Attribution: Amt für Statistik Berlin-Brandenburg, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). |
+| `berlin_lor_names` | [Official LOR WFS metadata](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848), WFS `lor_2021:a_lor_plr_2021` | 542 Planungsräume, official `plr_name` values and related LOR attributes; source CRS EPSG:25833, WFS 2.0 GeoJSON paging (200 features/page). Licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/), attributed to Amt für Statistik Berlin-Brandenburg. The WFS layer is stand 01.01.2021, while `berlin_lor` geometry is the 2023-01-01 release of the same 2021 scheme; code sets must match exactly, geometry differences are reported and not reconciled. Names are official LOR names, not marketing neighborhood names. |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
 
 All 542 population codes matched the reviewed LOR code set, and each complete age-band breakdown matched its area total. The population code directory states December 2021. Matching codes establishes identifier compatibility; it does not certify that polygon boundaries were unchanged between source editions. The manifest pins the actual LOR snapshot used by each population import.
@@ -107,14 +117,19 @@ Shared record types live in `app/domain/models.py`: `Area`, `AreaObservation`, `
 
 Register an adapter name in `app/connectors/registry.py`; modules load lazily, so a planned adapter that has no module yet fails with `Adapter is not implemented`. A dataset that must be pinned to another snapshot sets `parser_options.parent_dataset`, and its connector implements `check_parent(config, records, parent_records) -> dict`. The returned dict is merged into the manifest coverage. Use `--lor-snapshot` to pin an explicit parent.
 
+`berlin_wfs` is a generic WFS 2.0 GeoJSON adapter. A reviewed dataset configuration specifies `typename`, `page_size`, `max_pages`, optional `max_total_bytes`, `expected_crs`, `source_bbox`, optional `allowed_bbox`, `expected_properties`, `id_field`, optional `id_pattern`, exactly one of `expected_count` or `expected_count_range`, `record_type`, `field_map`, `attribute_fields`, `hierarchy`, and optional `geometry_types`. Area sources may also set `parent_dataset` and `geometry_difference_threshold`. Once a record type has a normalizer, datasets such as Berlin Kitas or schools can reuse the WFS paging and CRS checks through configuration rather than a source-specific fetcher.
+
+The WFS provider includes a changing `timeStamp` in each response, so a fresh provider download changes its raw hashes and does not hit the snapshot cache. Reimporting the same local files does reuse the cache.
+
 ## Development checks
 
 ```sh
 uv run pytest
+uv run pytest -m live tests/live/test_berlin_wfs_live.py -k berlin_wfs
 uv run ruff check app tests
 uv run ruff format --check app tests
 ```
 
-GitHub Actions runs the same checks offline with `uv sync --locked`; tests marked `live` are excluded.
+Pytest's default options exclude tests marked `live`; an explicit `-m live` opts in to public-provider tests. GitHub Actions runs the offline checks with `uv sync --locked`.
 
 The normal suite runs offline with synthetic fixtures and mocked acquisition. It exercises both connectors, contracts, ingestion failures and snapshot compatibility, API queries, and CLI behavior. It does not require downloading all provider data on each test run. Full official datasets and generated local snapshots are excluded from Git.

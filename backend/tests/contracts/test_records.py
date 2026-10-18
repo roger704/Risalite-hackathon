@@ -3,6 +3,7 @@
 import pytest
 
 from app.domain import (
+    Area,
     Business,
     Place,
     StopService,
@@ -74,6 +75,41 @@ def service(**changes):
 def test_records_round_trip(factory):
     record = factory()
     assert record_from_dict(record_to_dict(record)) == record
+
+
+def test_area_attributes_round_trip_and_require_string_values():
+    record = Area(
+        source_id="berlin_lor_names",
+        snapshot_id="snap",
+        source_record_id="01100101",
+        record_id="planungsraum:01100101",
+        geometry={
+            "type": "Polygon",
+            "coordinates": [[[13.4, 52.5], [13.4, 52.6], [13.5, 52.5], [13.4, 52.5]]],
+        },
+        area_code="01100101",
+        name="Stülerstraße",
+        hierarchy="planungsraum",
+        boundary_edition="2021",
+        attributes={"bzr_name": "Tiergarten Süd"},
+    )
+    assert record_from_dict(record_to_dict(record)) == record
+    with pytest.raises(ValidationError, match="strings"):
+        Area(
+            source_id="berlin_lor_names",
+            snapshot_id="snap",
+            source_record_id="01100101",
+            record_id="planungsraum:01100101",
+            geometry={
+                "type": "Polygon",
+                "coordinates": [[[13.4, 52.5], [13.4, 52.6], [13.5, 52.5], [13.4, 52.5]]],
+            },
+            area_code="01100101",
+            name="Stülerstraße",
+            hierarchy="planungsraum",
+            boundary_edition="2021",
+            attributes={"finhalt": 366933.11},
+        )
 
 
 def test_unmapped_place_category_stays_explicit():
