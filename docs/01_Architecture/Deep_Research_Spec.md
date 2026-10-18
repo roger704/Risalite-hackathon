@@ -518,3 +518,22 @@ Proposed additions (undecided):
 | M7 | one scoring rule shared by S2 and S3: today S3 `scoring.js` sorts future mode on the uncapped score and imputes missing layers with the mean, while S2 caps at 1.0 and reweights — rankings can diverge |
 | M8 | specify the T1 flow (hypothesis researchers, dimension scoring, radius competitors) |
 | M9 | data requests to the data team (land value, NACE businesses with coordinates, Kita, MSS, addresses) or align the mockup with `coffee_v1` |
+
+### 13.9 Merging flow, frontend and data — decisions (for team discussion)
+
+Context: open data PRs #36 (area-summary API with per-value `status`/`sources`/`calculation`), #37 block density, #38 `berlin_kitas`, #41 `berlin_centers`, #42 Zensus grid catchment, #43 `berlin_planning` (B-Pläne), #45 Valhalla isochrones, #47 `berlin_addresses`, #48 population forecast; S3 contracts in PR #19. No branch provides land value (BRW), MSS, NACE business points, ALKIS parcels or Wohnlage.
+
+| # | Decision | Options | Recommendation |
+|---|---|---|---|
+| D1 | Contract source of truth | A this spec §9 · B S3 contracts (PR #19) · C B + M1–M6 added to `backend/app/contracts` | C |
+| D2 | Data-stage input | A own `AreaDataPort` · B area-summary API (#36) · C B + ports for Kitas/centers/B-Pläne/forecast | C (summary fields map 1:1 to ledger entries) |
+| D3 | T2 layer set | A `coffee_v1` · B cleaned `coffee_v1` (IHK cross-check only, transit fix) + block density, centre proximity · C mockup layers (BRW/NACE/MSS — no data) | B; mockup adopts real layer names |
+| D4 | Future modifiers | A web only · B B-Pläne + forecast structured, web supplements · C structured only | B |
+| D5 | T3 Kita gap | A unsupported · B second template (`kita_gap_v1`: children 0–6 vs places from #38) · C mockup preview only | B if #38 exposes approved places, else C |
+| D6 | T1 shape | A story stack + §34 (base spec; no ALKIS data) · B LocalLens per Execution Plan S1b (`candidates.json`) · C both | B (grounding: #47 → PLR, OSM/IHK radius, #42/#45 catchment, #41, #43); owner to confirm (S1b) |
+| D7 | T1 dimension scores 0–10 | A LLM · B deterministic for data-backed dims + LLM with mandatory evidence ids for operator/space fit · C deterministic only | B; weak-tier-only dims capped |
+| D8 | Backend/frontend scoring | A frontend recomputes (today, can diverge) · B backend precomputes combinations · C same rule in Python and JS with shared golden test vectors | C |
+| D9 | Event schema | A §9.1 · B `events.ResearchEvent` (PR #19) · C B + `replan`, `skip`, `rescore`, `role` | C |
+| D10 | Models per role | configurable; second bake-off including gpt-oss-120b (base spec's choice) before fixing | — |
+
+Deviation from `Risalite_Spec.md` / `Execution_Plan.md`: input flow, templates, dashboard skeleton, `cells.json` and skeptic-demotes principle are unchanged. This spec extends web research (two waves), skeptic (E4=C, persistent `demoted_by`, `rank()`), approval (HTTP pause, area IDs, run tokens) and takes over ledger/fact-check (from S4). The base spec's WFS dataset names no longer match the connectors actually built. T1 is not covered here; the base spec (§34 story stack) and the Execution Plan (LocalLens) differ on its shape.
