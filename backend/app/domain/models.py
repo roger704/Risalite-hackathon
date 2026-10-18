@@ -1424,3 +1424,78 @@ class PopulationBlock(Record):
 
 RECORD_TYPES["population_block"] = PopulationBlock
 NormalizedRecord = NormalizedRecord | PopulationBlock
+
+
+@dataclass(frozen=True, kw_only=True)
+class Parcel(Record):
+    geometry: dict[str, Any]
+    parcel_id: str
+    cadastral_district_code: str
+    parcel_numerator: str
+    cadastral_district_name: str | None = None
+    cadastral_section: str | None = None
+    parcel_denominator: str | None = None
+    municipality_code: str | None = None
+    municipality_name: str | None = None
+    responsible_office: str | None = None
+    official_area_m2: float | None = None
+    official_area_source: str = "ALKIS afl (Amtliche Fläche), source-provided"
+    geometry_area_m2: float
+    geometry_area_method: str = "planar area of source geometry in EPSG:25833"
+    area_unit: str = "m2"
+    created_date: str | None = None
+    lifespan_start: str | None = None
+    record_type: str = field(default="parcel", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        for name in (
+            "parcel_id",
+            "cadastral_district_code",
+            "parcel_numerator",
+            "official_area_source",
+            "geometry_area_method",
+            "area_unit",
+        ):
+            _text(name, getattr(self, name))
+        for name in (
+            "cadastral_district_name",
+            "cadastral_section",
+            "parcel_denominator",
+            "municipality_code",
+            "municipality_name",
+            "responsible_office",
+        ):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Parcel geometry must preserve a Polygon or MultiPolygon")
+        if not self.geometry.get("coordinates"):
+            raise ValidationError("Parcel geometry must have coordinates")
+        if self.official_area_m2 is not None and (
+            isinstance(self.official_area_m2, bool)
+            or not isinstance(self.official_area_m2, (int, float))
+            or not isfinite(self.official_area_m2)
+            or self.official_area_m2 <= 0
+        ):
+            raise ValidationError("official_area_m2 must be a finite positive number or null")
+        if (
+            isinstance(self.geometry_area_m2, bool)
+            or not isinstance(self.geometry_area_m2, (int, float))
+            or not isfinite(self.geometry_area_m2)
+            or self.geometry_area_m2 < 0
+        ):
+            raise ValidationError("geometry_area_m2 must be a finite nonnegative number")
+        for name in ("created_date", "lifespan_start"):
+            value = getattr(self, name)
+            if value is not None:
+                try:
+                    date.fromisoformat(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(f"{name} must be an ISO calendar date or null") from exc
+
+
+RECORD_TYPES["parcel"] = Parcel
+NormalizedRecord = NormalizedRecord | Parcel
