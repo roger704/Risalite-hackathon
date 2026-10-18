@@ -579,3 +579,50 @@ def manifest_from_dict(data: Mapping[str, Any]) -> SnapshotManifest:
         return SnapshotManifest(**values)
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError(f"Invalid snapshot manifest: {exc}") from exc
+
+
+@dataclass(frozen=True, kw_only=True)
+class RoadTrafficSegment(Record):
+    """Road segment with average daily motor-vehicle traffic (vehicles/day); WGS84 line geometry."""
+
+    geometry: dict[str, Any]
+    reference_period: str
+    dtv_motor_vehicles_per_day: int | None = None
+    vehicle_class_volumes_per_day: dict[str, int] = field(default_factory=dict)
+    name: str | None = None
+    source_length_m: int | None = None
+    area_code: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="road_traffic_segment", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _period(self.reference_period)
+        if (
+            not isinstance(self.geometry, dict)
+            or self.geometry.get("type") not in {"LineString", "MultiLineString"}
+            or not self.geometry.get("coordinates")
+        ):
+            raise ValidationError("Road traffic geometry must have LineString coordinates")
+        _optional_count("dtv_motor_vehicles_per_day", self.dtv_motor_vehicles_per_day)
+        _optional_count("source_length_m", self.source_length_m)
+        for name in ("name", "area_code"):
+            _optional_text(name, getattr(self, name))
+        if not isinstance(self.vehicle_class_volumes_per_day, dict) or any(
+            not isinstance(key, str)
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            for key, value in self.vehicle_class_volumes_per_day.items()
+        ):
+            raise ValidationError(
+                "vehicle_class_volumes_per_day must map strings to nonnegative integers"
+            )
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+RECORD_TYPES["road_traffic_segment"] = RoadTrafficSegment
