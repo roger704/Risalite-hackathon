@@ -1,0 +1,139 @@
+{
+ "type": "FeatureCollection",
+ "numberMatched": 3,
+ "numberReturned": 2,
+ "timeStamp": "2026-10-18T12:00:00Z",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "urn:ogc:def:crs:EPSG::25833"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "id": "gruenanlagen.1",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       388067.35,
+       5818041.29
+      ],
+      [
+       388338.84,
+       5818035.1
+      ],
+      [
+       388348.98,
+       5818479.98
+      ],
+      [
+       388077.51,
+       5818486.18
+      ],
+      [
+       388067.35,
+       5818041.29
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "pitid": "0000a001:00000001",
+    "kennzeich": "00001",
+    "bezirkname": "Mitte",
+    "ortstlname": "Synthetic Ort",
+    "objartname": "Grünanlage",
+    "namenr": "Synthetic Volkspark",
+    "namezusatz": " ",
+    "baujahr": "1923",
+    "sanierjahr": " ",
+    "katasterfl": 74000,
+    "widmung": "gewidmet",
+    "plannr": "01011101",
+    "planname": "Synthetic Alpha"
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "gruenanlagen.2",
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        389424.83,
+        5818010.48
+       ],
+       [
+        389560.58,
+        5818007.42
+       ],
+       [
+        389565.6,
+        5818229.86
+       ],
+       [
+        389429.85,
+        5818232.92
+       ],
+       [
+        389424.83,
+        5818010.48
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        389706.34,
+        5818449.24
+       ],
+       [
+        389842.08,
+        5818446.19
+       ],
+       [
+        389847.08,
+        5818668.63
+       ],
+       [
+        389711.35,
+        5818671.68
+       ],
+       [
+        389706.34,
+        5818449.24
+       ]
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "pitid": "0000a001:00000002",
+    "kennzeich": "00002",
+    "bezirkname": "Mitte",
+    "ortstlname": "Synthetic Ort",
+    "objartname": "Grünanlage",
+    "namenr": " ",
+    "namezusatz": " ",
+    "baujahr": " ",
+    "sanierjahr": "2019",
+    "katasterfl": 0,
+    "widmung": "gewidmet",
+    "plannr": "01011102",
+    "planname": "Synthetic Beta"
+   }
+  }
+ ],
+ "links": [
+  {
+   "rel": "next",
+   "type": "application/json",
+   "href": "https://gdi.berlin.de/services/wfs/gruenanlagen?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=gruenanlagen%3Agruenanlagen&OUTPUTFORMAT=application%2Fjson&SORTBY=pitid&COUNT=2&STARTINDEX=2"
+  }
+ ]
+}
