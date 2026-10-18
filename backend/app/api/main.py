@@ -14,7 +14,9 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.buildings import create_buildings_router
 from app.api.centers import create_centers_router
+from app.api.parcels import parcels_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
@@ -230,6 +232,8 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    application.include_router(create_buildings_router(get_service))
 
     @application.get("/api/v1/datasets", response_model=list[DatasetResponse])
     def datasets(data: Annotated[DataService, Depends(get_service)]):
@@ -635,6 +639,8 @@ def create_app(
     application.include_router(planning_router(get_service))
     if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
         application.include_router(fixture_runs_router)
+
+    application.include_router(parcels_router(get_service))
 
     # Keep this last: the "/" mount catches every otherwise-unmatched route.
     mount_frontend(application)

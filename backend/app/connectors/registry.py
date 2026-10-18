@@ -21,6 +21,8 @@ ADAPTERS: dict[str, str] = {
     "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
     "berlin_wfs_addresses": "app.connectors.berlin_addresses:BerlinAddressConnector",
     "households": "app.connectors.households:HouseholdsConnector",
+    "berlin_alkis_buildings": "app.connectors.berlin_alkis_buildings:BerlinALKISBuildingsConnector",
+    "berlin_alkis_parcels": "app.connectors.berlin_alkis_parcels:BerlinALKISParcelsConnector",
 }
 
 
