@@ -273,3 +273,22 @@ def test_trace_writer_continues_sequence(tmp_path):
     TraceWriter(tmp_path, "r1").emit("fact_check", "factcheck", "a")
     event = TraceWriter(tmp_path, "r1").emit("fact_check", "factcheck", "b")
     assert event["seq"] == 1 and event["run_id"] == "r1"
+
+
+async def test_pin_screens_url_before_dns_and_ignores_proxy_env():
+    calls = []
+
+    async def resolver(host, port):
+        calls.append(host)
+        return ["93.184.216.34"]
+
+    async with FactChecker(resolver=resolver) as fc:
+        for url in (
+            "ftp://example.org/a",
+            "https://user@example.org/",
+            "https://example.org:8443/",
+        ):
+            with pytest.raises(Exception):
+                await fc.get_public(url)
+        assert calls == []
+        assert (await fc._client()).trust_env is False

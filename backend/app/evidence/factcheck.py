@@ -180,7 +180,7 @@ class FactChecker:
 
     async def _client(self) -> httpx.AsyncClient:
         if self.http is None:
-            self.http = httpx.AsyncClient(timeout=30.0, follow_redirects=False)
+            self.http = httpx.AsyncClient(timeout=30.0, follow_redirects=False, trust_env=False)
         return self.http
 
     async def _pin(self, url: str) -> tuple[str, dict[str, str], dict[str, Any]]:
@@ -194,8 +194,11 @@ class FactChecker:
         else:
             await validate_public_url(url)
             return url, {}, {}
+        # Screen scheme, port, userinfo and hostname before any DNS query.
+        await validate_public_url(url, lambda *_: ["93.184.216.34"])
+        port = 443 if parts.scheme.lower() == "https" else 80
         try:
-            resolved = (self.resolver or _default_resolver)(host, parts.port or 0)
+            resolved = (self.resolver or _default_resolver)(host, port)
             if isawaitable(resolved):
                 resolved = await resolved
             resolved = list(resolved)
