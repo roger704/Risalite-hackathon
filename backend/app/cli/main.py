@@ -36,6 +36,16 @@ def parser() -> argparse.ArgumentParser:
     records.add_argument("--metric-code")
     records.add_argument("--limit", type=int, default=100)
     records.add_argument("--cursor")
+
+    catchment = subcommands.add_parser(
+        "catchment",
+        help="Aggregate grid observations for a circular catchment from a pinned snapshot",
+    )
+    catchment.add_argument("dataset")
+    catchment.add_argument("--snapshot", required=True)
+    catchment.add_argument("--lon", type=float, required=True)
+    catchment.add_argument("--lat", type=float, required=True)
+    catchment.add_argument("--radius-m", type=float, required=True)
     return command
 
 
@@ -63,6 +73,17 @@ def main(argv: list[str] | None = None) -> int:
                 metric_code=args.metric_code,
                 limit=args.limit,
                 cursor=args.cursor,
+            )
+        elif args.command == "catchment":
+            from app.geo.zensus_catchment import snapshot_catchment
+
+            result = snapshot_catchment(
+                service,
+                args.dataset,
+                args.snapshot,
+                args.lon,
+                args.lat,
+                args.radius_m,
             )
         else:
             result = manifest_to_dict(
