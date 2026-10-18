@@ -129,6 +129,8 @@ uv run location-data ingest berlin_lor
 uv run location-data ingest berlin_population_forecast --lor-snapshot "$LOR_SNAPSHOT_ID"
 ```
 
+The committed config has `redistribution_status: "unknown"`, so ingestion is refused by the publication gate until reuse terms are confirmed and that field is changed; until then, use a reviewed local `--config-dir` copy for evaluation.
+
 The connector retains fractional forecasts at their published precision. Small-area values exist only for the middle variant at Berlin, district, and Prognoseraum levels; upper and lower variants are Berlin-wide values rounded to thousands. The finest published geography is the Prognoseraum, and the LOR prefix check does not assign any forecast to Planungsräume. Records at 31 December 2024 are observed base stock; later periods are forecasts. Total and age records are alternative views, not additive quantities. The landing page and workbooks did not state reuse terms, so the committed redistribution status remains `unknown` pending confirmation.
 
 The API exposes expected change between the observed base and a selected target year:
