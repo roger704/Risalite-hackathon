@@ -148,8 +148,25 @@ def test_live_point_markdown_renders_findings_without_cells_or_candidates():
                 {
                     "finding_id": "f_1",
                     "claim": "The area has a dense, young population.",
+                    "status": "accepted",
+                    "verification": "verified",
                     "evidence_ids": ["ev_live"],
-                }
+                },
+                {
+                    "finding_id": "f_2",
+                    "claim": "The skeptic-rejected claim.",
+                    "status": "rejected",
+                    "evidence_ids": ["ev_live"],
+                    "cited_evidence_ids": ["ev_live"],
+                },
+                {
+                    "finding_id": "f_3",
+                    "claim": "The fact-check-unsupported claim.",
+                    "status": "accepted",
+                    "verification": "unsupported",
+                    "evidence_ids": [],
+                    "cited_evidence_ids": ["ev_live"],
+                },
             ],
             "plan": {},
         },
@@ -172,8 +189,14 @@ def test_live_point_markdown_renders_findings_without_cells_or_candidates():
 
     report = render_markdown(bundle)
     findings = report.split("## 3. Findings", 1)[1].split("## 5. Sources", 1)[0]
+    research_findings, dropped = findings.split("### Dropped or unverified claims", 1)
 
-    assert "The area has a dense, young population. [1]" in findings
+    assert "The area has a dense, young population. [1]" in research_findings
+    assert "The skeptic-rejected claim." not in research_findings
+    assert "The fact-check-unsupported claim." not in research_findings
+    assert "The skeptic-rejected claim. (rejected · unverified)" in dropped
+    assert "The fact-check-unsupported claim. (accepted · unsupported)" in dropped
+    assert "[1]" not in dropped
     assert "Top 3 cells" not in findings
 
 

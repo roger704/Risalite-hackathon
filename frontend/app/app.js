@@ -375,7 +375,12 @@ function dash() {
   } else if ((R.findings || []).length) {
     $('#layer-card').classList.add('hidden'); $('#battle-card').classList.add('hidden');
     $('#d-ftitle').textContent = 'Research findings'; $('#d-mix').textContent = 'Live research';
-    $('#d-find').innerHTML = `<h3>Research findings</h3>${R.findings.map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim || f.statement || '')}</b><div class="quote small">“${esc(f.quote || '')}”</div><span class="badge">${esc(f.status || 'accepted')} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || f.cited_evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('')}`;
+    const liveFindings = R.findings || [];
+    const verifiedFindings = liveFindings.filter(f => f.status === 'accepted' && ['verified', 'partial'].includes(f.verification));
+    const droppedFindings = liveFindings.filter(f => f.status !== 'accepted' || !['verified', 'partial'].includes(f.verification));
+    const verifiedHtml = verifiedFindings.length ? `<h3>Research findings</h3>${verifiedFindings.map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim || f.statement || '')}</b><div class="quote small">“${esc(f.quote || '')}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification)}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('')}` : '';
+    const droppedHtml = droppedFindings.length ? `<h3 class="mut">Dropped / unverified</h3><ul class="small mut">${droppedFindings.map(f => `<li>${esc(f.claim || f.statement || '')} <span class="badge">${esc(f.status || 'unknown')} · ${esc(f.verification || 'unverified')}</span></li>`).join('')}</ul>` : '';
+    $('#d-find').innerHTML = verifiedHtml + droppedHtml;
   } else { $('#d-find').innerHTML = '<p class="mut">The run returned no cells or candidates.</p>'; }
   bindCites();
 }

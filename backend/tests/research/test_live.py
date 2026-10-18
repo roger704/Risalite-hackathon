@@ -243,6 +243,7 @@ def _write_canned_live_run(run_dir):
                 "localization": "Kreuzberg",
                 "agent": "web_researcher",
                 "status": "accepted",
+                "verification": "verified",
             }
         )
         + "\n"

@@ -215,14 +215,34 @@ def _point_findings_markdown(bundle: RunBundle) -> list[str]:
 def _live_findings_markdown(bundle: RunBundle) -> list[str]:
     findings = bundle.run.get("findings") or []
     if findings:
-        lines = ["### Research findings"]
-        for finding in findings:
+        verified_findings = [
+            finding
+            for finding in findings
+            if finding.get("status") == "accepted"
+            and finding.get("verification") in {"verified", "partial"}
+        ]
+        dropped_findings = [
+            finding
+            for finding in findings
+            if finding.get("status") != "accepted"
+            or finding.get("verification") not in {"verified", "partial"}
+        ]
+        lines = []
+        if verified_findings:
+            lines.append("### Research findings")
+        for finding in verified_findings:
             claim = _text(finding.get("claim") or finding.get("statement"))
-            citations = _citation_list(
-                bundle,
-                finding.get("evidence_ids") or finding.get("cited_evidence_ids"),
-            )
+            citations = _citation_list(bundle, finding.get("evidence_ids"))
             lines.append(f"- {claim} {citations}".rstrip())
+        if dropped_findings:
+            if lines:
+                lines.append("")
+            lines.append("### Dropped or unverified claims")
+            for finding in dropped_findings:
+                claim = _text(finding.get("claim") or finding.get("statement"))
+                status = _text(finding.get("status") or "unknown")
+                verification = _text(finding.get("verification") or "unverified")
+                lines.append(f"- {claim} ({status} · {verification})".rstrip())
         return lines
     report_md = _text(bundle.run.get("report_md"))
     return [replace_citations(report_md, bundle.evidence)] if report_md else []
