@@ -208,6 +208,8 @@ def create_app(
     def get_runs_dir() -> Path:
         return application.state.runs_dir
 
+    application.state.runs_dir = get_runs_dir().resolve()
+
     @application.middleware("http")
     async def request_context(request: Request, call_next):
         request.state.request_id = str(uuid4())

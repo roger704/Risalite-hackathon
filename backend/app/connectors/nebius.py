@@ -40,6 +40,10 @@ SYSTEM_PROMPTS = {
         "close those gaps, each with a one-sentence rationale. Do not answer the "
         "questions yourself.\n\n" + SECURITY_RULES
     ),
+    "decide": (
+        "You are the lead web researcher of a Berlin location-analysis service and run an iterative research loop. Each turn you see the question, the area, the searches already run, and the evidence gathered so far. Choose exactly one next action: 'search' (one new, specific query that closes the most important remaining gap; prefer German-language queries for local Berlin facts; never repeat an earlier query), 'extract' (up to 3 evidence_ids whose full page would confirm a specific number or claim you intend to rely on), or 'finish' (when the evidence covers demand, competition, rent or cost, and planned changes for the area, or the budget is nearly spent). In 'why', explain the choice by referring to what the evidence does or does not yet show. In 'dropped', list evidence_ids you judge off-topic, outdated or unreliable, each with a short reason.\n\n"
+        + SECURITY_RULES
+    ),
     "synthesize": (
         "You are the synthesis step of a Berlin location-analysis service. Write "
         "concise claims from the supplied structured data and evidence. Label each "
@@ -140,7 +144,20 @@ class NebiusConfig:
         base_url = overrides.pop(
             "base_url", env.get("NEBIUS_BASE_URL") or "https://api.tokenfactory.nebius.com/v1/"
         )
-        return cls(api_key=api_key, model=model, base_url=base_url, **overrides)
+        response_format_mode = overrides.pop(
+            "response_format_mode", env.get("NEBIUS_RESPONSE_FORMAT_MODE", "json_schema")
+        )
+        max_completion_tokens = overrides.pop(
+            "max_completion_tokens", int(env.get("NEBIUS_MAX_COMPLETION_TOKENS", "2048"))
+        )
+        return cls(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            response_format_mode=response_format_mode,
+            max_completion_tokens=max_completion_tokens,
+            **overrides,
+        )
 
 
 class NebiusGateway:
@@ -185,6 +202,14 @@ class NebiusGateway:
         evidence: Sequence[WebEvidence] = (),
     ) -> BaseModel:
         return await self._structured("plan", context, output_model, evidence)
+
+    async def decide(
+        self,
+        context: Mapping[str, Any],
+        output_model: type[BaseModel],
+        evidence: Sequence[WebEvidence] = (),
+    ) -> BaseModel:
+        return await self._structured("decide", context, output_model, evidence)
 
     async def synthesize(
         self,

@@ -97,6 +97,27 @@ def test_run_store_evicts_done_runs_before_active_runs_and_rejects_when_full(cli
     assert set(RUNS) == {active["run_id"], newer_run["run_id"]}
 
 
+def test_run_store_evicts_failed_runs(client, monkeypatch):
+    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 1)
+    failed = start_run(client)
+    RUNS[failed["run_id"]]["status"] = "failed"
+
+    response = client.post(
+        "/research",
+        json={"question": "Where should a coffee shop open in Neukölln?"},
+    )
+
+    assert response.status_code == 200
+    assert failed["run_id"] not in RUNS
+    assert (
+        client.get(
+            f"/runs/{failed['run_id']}/result",
+            headers=auth(failed),
+        ).status_code
+        == 404
+    )
+
+
 def test_expired_approved_runs_are_evicted_but_fresh_ones_are_preserved(client, monkeypatch):
     monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 1)
     stale = start_run(client)
