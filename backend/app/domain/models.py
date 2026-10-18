@@ -1060,16 +1060,7 @@ class RetailCenter(Record):
             raise ValidationError("attributes must map strings to strings")
 
 
-NormalizedRecord = (
-    Area
-    | AreaObservation
-    | Place
-    | Business
-    | TransitStop
-    | StopService
-    | GridObservation
-    | RetailCenter
-)
+NormalizedRecord = NormalizedRecord | RetailCenter
 RECORD_TYPES["retail_center"] = RetailCenter
 
 
