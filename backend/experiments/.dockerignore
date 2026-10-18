@@ -1,0 +1,13 @@
+# Keep secrets and local state out of the build context.
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+*.log
+Dockerfile
+.dockerignore
+README.md

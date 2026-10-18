@@ -15,6 +15,7 @@
 | [Data sources research](DATA_SOURCES.md) | Free datasets, access methods, licensing, limitations, integration order |
 | [Connector blueprint](CONNECTOR_BLUEPRINT.md) | Adapter designs, shared data contracts, caching, provenance |
 | [Backend setup guide](backend/README.md) | Working LOR and population connectors, ingestion CLI, versioned snapshots, read API |
+| [Deep research experiment](backend/experiments/README.md) | Isolated Python 3.12 DeepAgents + Nebius Token Factory + Tavily research loop; local, Docker, and CPU-only Nebius VM deployment |
 
 **Implementation status:** the backend currently implements the LOR and population connectors, ingestion CLI, snapshots, and read API. Everything else below is planned.
 
