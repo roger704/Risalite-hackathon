@@ -23,22 +23,27 @@ Hard rules:
 | E1 | Framework | `deepagents` (`create_deep_agent`, researcher subagents) inside a deterministic Risalite-owned run shell | confirmed |
 | E2 | Researcher granularity | **Two waves**: wave 1 = up to 3 district sub-questions, started right after approval in parallel with the data stage; wave 2 = one researcher per top-3 cell, driven by the cell's data profile; wave 2 behind a flag | confirmed (C) |
 | E3 | Approval | **HTTP pause before the agent** (`awaiting_approval` → `POST /runs/{id}/approve`); not deepagents `interrupt_on`. Mid-run `interrupt_on` for budget extension is a stretch | confirmed (A) |
-| E4 | Skeptic | **Skeptic subagent collects counter-evidence, a structured review call judges severity** on verified risks only; fallback flag = review call only | **proposed (C), pending confirmation** |
+| E4 | Skeptic | **Skeptic subagent collects counter-evidence, a structured review call judges severity** on verified risks only; fallback flag = review call only | confirmed (C), 2026-10-18 |
 | E5 | Fallback | Same tools and ledger in a fixed staged pipeline (u14app-style: queries → search → extract → record → fact-check → write), switchable via `RESEARCH_MODE=agent|staged` | confirmed |
 | E6 | Ownership | S1 owns the complete research flow incl. ledger, fact-checker, writer, events, HTTP API. S1 also owns the scoring engine logic (S11, §5.8); S2 owns connectors and raw layer values (via #36), S3 owns the frontend | confirmed |
-| E7 | Contracts | Event, ledger, finding, plan, data port as in §9; frozen after review | proposed |
-| E8 | Models | Configurable per role; default routing from the bake-off in §10 | proposed |
+| E7 | Contracts | Event, ledger, finding, plan, data port as in §9 plus M1–M6, D9 event types and the §5.8.7 score fields; frozen after one joint S1/S3 review | confirmed |
+| E8 | Models | Configurable per role; no Kimi; bake-off candidates Nemotron (Nebius), DeepSeek-V4.1-Flash, optionally MiniMax-M3 (§10) | confirmed |
 | D1 | Contracts | S3 contracts (`backend/app/contracts`, PR #19) are the source of truth; this spec's additions (§9.6, M1–M6) are added there | confirmed (C), 2026-10-18 |
 | D2 | Data input | Data stage reads the area-summary API (PR #36) plus ports for Kitas (#38), centres (#41), B-Pläne (#43), forecast (#48) | confirmed (C) |
 | D3 | T2 layers | Cleaned `coffee_v1`: IHK only as cross-check, transit fix, plus block density (#37) and centre proximity (#41); mockup adopts real layer names; superseded in detail by `coffee_v2` (§5.8.2) | confirmed (B) |
 | S1–S11 | Scoring engine | `scoring v2` (§5.8): new engine re-using the structure of PR #14; values via #36 (S2); saturation + agglomeration instead of café counts; IHK cross-check only; percentile normalization; area **and** Berlin reference; signed graded future modifiers; rule-based confidence; tiers, stability, `rank()`; one rule for S2/S3 with golden vectors; engine logic owned by S1 | confirmed, 2026-10-18 |
 | D4 | Future modifiers | Structured first (B-Pläne, forecast), web supplements | confirmed (B) |
 | D5 | T3 | Second template `kita_gap_v1` if #38 exposes approved places, otherwise mockup preview only | confirmed (B, conditional) |
-| D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data) | confirmed (B); owner to confirm |
+| D6 | T1 | LocalLens (Execution Plan S1b, `candidates.json`); no §34 story stack (no ALKIS data); no designated owner (Eraldo = runtime/hosting), scope check in progress | confirmed (B) |
 | D7 | T1 dimension scores | Data-backed dimensions deterministic; operator/space fit by LLM with mandatory evidence ids; weak-tier-only dimensions capped | confirmed (B) |
 | D8 | Score rule | One rule in Python (S2) and JS (S3), guarded by shared golden test vectors | confirmed (C) |
 | D9 | Events | `events.ResearchEvent` (PR #19) + `replan`, `skip`, `rescore`, `role` | confirmed (C) |
-| D10 | Models | Configurable; second bake-off incl. gpt-oss-120b before fixing defaults | confirmed |
+| D10 | Models | Configurable; second bake-off on the real runtime before fixing defaults (candidates in §10) | confirmed |
+| F1 | Data deliverables (S2) | Via #36/ports: block density (#37), complementary OSM POIs per PLR, transit for 07–10 and 16–19 with correct projection, distance to nearest centre (#41), Kita capacities (#38); handed over as a fixed list, S2 acknowledges `AreaDataPort` | confirmed, 2026-10-18 |
+| F2 | Wave-2 trigger / display | Wave 2 runs on the top-3 by `score_present`; the UI defaults to `score_present`, "with future" is a toggle | confirmed |
+| F3 | Engine defaults | §5.8 values (weights, residents ≥ 2,000, tie 0.02, Berlin bands 0.40/0.70, bonus classes) are v2 defaults; sanity check on Kreuzberg once the runtime exists; Kita coverage target stays a parameter until sourced (Berlin Bedarfsquote) | confirmed |
+| F4 | T1 catchment | 500 m by default; walking isochrone (#45) only if Valhalla runs in the demo environment | confirmed |
+| F5 | Demo scope | T2 café Kreuzberg end-to-end; T1 if capacity allows; T3 limited (not all Kitas report capacity) | confirmed |
 
 ## 3. Flow
 
@@ -199,7 +204,7 @@ Merge runs **after** fact-check (1) and only reads the **accepted set**: finding
 - Every finding, modifier and risk carries its `subquestion_id`; unticking a sub-question at approval removes the linked layers, modifiers and risks (M1).
 - `score_future` is recomputed by scoring v2 (§5.8) → `cells.json` v1. Final `cells.json` is rebuilt after rescore from the accepted set.
 
-### 5.5 Skeptic (E4 = C, pending confirmation)
+### 5.5 Skeptic (E4 = C)
 
 1. **Collect**: skeptic subagent with an adversarial prompt, run for #1 and #2: closures, rent jumps, saturation, construction sites, new chains, policy restrictions. Same tools, budget 3 searches per cell, findings with `claim_type="risk"`.
 2. **Verify**: fact-check (2) runs on the risk findings with the same rules as fact-check (1).
@@ -207,7 +212,8 @@ Merge runs **after** fact-check (1) and only reads the **accepted set**: finding
 4. **Rescore**: a cell with ≥ 1 verified `high` risk gets `"demoted_by": ["f_…"]` in `cells.json`; emits `rescore` with the reason. Scores stay unchanged, so the demotion is a persistent rank rule rather than a one-off reorder:
    ```text
    rank(cells):
-     base = stable sort by score desc (score_present or score_future per mode), ties by cell id
+     base = stable sort by (eligible desc, score desc), ties by cell id   # score_present or score_future per mode
+            # eligible = not cell.incomplete; ineligible cells sort after all eligible ones and never enter the top-3
      for i, cell in enumerate(base):
          j = index of the first cell after i in base that is NOT demoted   # none → j = i
          key[cell] = (j + 0.5) if cell.demoted_by and j != i else i
@@ -273,7 +279,7 @@ Required: `residents_block_density`, `cafe_saturation`. Weights are starting val
 
 #### 5.8.4 Future modifiers
 
-Signed per template (`future_effects`, §6). Size class from the quoted number: small ±0.03 (< 200 dwellings or equivalent), medium ±0.06, large ±0.10 (≥ 1,000); no number → ±0.03. Only completion ≤ 2031 counts (later → text only). Sum per cell capped at ±0.15. Only with a verified evidence id; structured B-Plan/forecast modifiers take precedence and absorb duplicate web findings.
+Signed per template (`future_effects`, §6). Magnitudes are shared: small ±0.03, medium ±0.06, large ±0.10; no number → small. The size thresholds are unit-specific and defined per template in `future_effects`: dwellings (`coffee_v2`, housing growth) small < 200, medium 200–999, large ≥ 1,000; Kita places (`kita_gap_v1`) small < 50, medium 50–150, large > 150; children 0–6 forecast increase small < 50, medium 50–199, large ≥ 200. Only completion ≤ 2031 counts (later → text only). Sum per cell capped at ±0.15. Only with a verified evidence id; structured B-Plan/forecast modifiers take precedence and absorb duplicate web findings.
 
 #### 5.8.5 Confidence
 
@@ -282,20 +288,20 @@ Start `high`; one step down per reason (floor `low`): optional layer missing · 
 #### 5.8.6 Tiers, rank and stability
 
 - `tier`: cells within 0.02 of the previous cell share a tier; the UI shows "tied".
-- `rank()` as §5.5 (high risk → `demoted_by`, scores unchanged); medium risk → confidence −1 only.
+- `rank()` as §5.5 (high risk → `demoted_by`, scores unchanged; `incomplete` cells sort after all eligible cells, so they never enter the top-3 after any re-rank in Python or JS); medium risk → confidence −1 only.
 - `top3_share`: share of 200 weight perturbations (±30 %, fixed seed) in which the cell is top-3.
 
 #### 5.8.7 Output additions (`cells.json`)
 
-`score_berlin`, `confidence`, `confidence_reasons[]`, `tier`, `top3_share`, `excluded_cells[].reason`, `layers[].transform`, `layers[].reference`.
+`score_berlin`, `confidence`, `confidence_reasons[]`, `tier`, `top3_share`, `incomplete` (bool) + `gap_low`/`gap_high` (T3), `excluded_cells[].reason`, `layers[].transform`, `layers[].reference`.
 
 #### 5.8.8 Required tests
 
-WGS84 stops against EPSG:25833 polygons; incompatible snapshots rejected; OSM and IHK never summed; minimum-population exclusion; `locate`/T1 and `cells` use the same eligible set and reference; golden vectors (§9.7) incl. missing layer, tie, demotion, negative T3 bonus, cap.
+WGS84 stops against EPSG:25833 polygons; incompatible snapshots rejected; OSM and IHK never summed; minimum-population exclusion; `locate`/T1 and `cells` use the same eligible set and reference; golden vectors (§9.7) incl. missing layer, tie, demotion, negative T3 bonus, cap, a high-scoring `incomplete` cell (must stay out of the top-3), and a 100-place Kita opening (medium, −0.06).
 
 ## 6. T1 / T3
 
-- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): `future_effects` defines **direction only**; the magnitude always follows the size classes and cap of §5.8.4 (±0.03/±0.06/±0.10, sum ±0.15). In `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → negative (gap shrinks; size class from the number of places: < 50 small, 50–150 medium, > 150 large), closures → positive, forecast growth of children 0–6 → positive (size class from the forecast increase); in `coffee_v2` housing/population growth → positive, announced café openings → negative. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
+- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): `future_effects` defines **direction only**; the magnitude always follows the size classes and cap of §5.8.4 (±0.03/±0.06/±0.10, sum ±0.15). In `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → negative (gap shrinks; size class from the number of places per the Kita thresholds in §5.8.4), closures → positive, forecast growth of children 0–6 → positive (forecast thresholds in §5.8.4); in `coffee_v2` housing/population growth → positive, announced café openings → negative. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
 - **T1 (point, LocalLens, D6/D7)** reuses ledger, tools, events, approval and API; result is `candidates.json` (PR #19 contract):
   1. Parse space (address) and operator profile; `berlin_addresses` (#47) → coordinates → PLR.
   2. Plan: location sub-questions + 3–4 business hypotheses with *why* (operator experience × neighbourhood gaps); user approves/edits as in E3.
@@ -331,7 +337,7 @@ runs/<run_id>/
 {"run_id": "r_…", "seq": 17, "ts": "2026-10-18T14:02:11Z", "type": "search",
  "agent": "researcher:wave1:2", "why": "Need dated housing projects near Moritzplatz",
  "detail": {"query": "Wohnungsbau Moritzplatz 2027", "results": 5},
- "model": "moonshotai/Kimi-K3", "tokens_in": null, "tokens_out": null, "seconds": 1.1}
+ "model": "nvidia/Nemotron-3-Ultra-550b-a55b", "tokens_in": null, "tokens_out": null, "seconds": 1.1}
 ```
 
 `type ∈ {status, classify, clarify, area, plan, approved, layer, score, search, extract, finding_accepted, finding_rejected, model_call, tool_error, budget_exhausted, merge, skeptic_risk, fact_check, review, rescore, write, metrics, error}`. `agent` is `orchestrator`, `researcher:wave1:<n>`, `researcher:wave2:<plr_id>`, `skeptic:<plr_id>`, `factcheck`, `writer`, `system`. SSE `id` = `seq`.
@@ -402,22 +408,24 @@ Same question ("Where is it smart to open a coffee place in Kreuzberg?"), same 3
 
 Single run per model, so this is indicative, not statistically robust. The cookbook baseline (MiniMax + plain `TavilySearch`) was not reached in this run.
 
-Proposed default routing (env `NEBIUS_MODEL_<ROLE>`):
+Provisional default routing until the second bake-off (env `NEBIUS_MODEL_<ROLE>`):
 
 | Role | Model | Reason |
 |---|---|---|
-| orchestrator, researcher | `moonshotai/Kimi-K3` | best citation discipline and future-claim handling at moderate cost |
-| skeptic | `deepseek-ai/DeepSeek-V4-Pro` | different family, thorough searcher; bounded by the skeptic budget |
-| classify, plan, review, writer | `moonshotai/Kimi-K3` | to be re-checked once structured calls are implemented |
+| orchestrator, researcher | `nvidia/Nemotron-3-Ultra-550b-a55b` (provisional) | Nebius-hosted NVIDIA family; Kimi excluded by team decision (E8) |
+| skeptic | `deepseek-ai/DeepSeek-V4.1-Flash` (provisional) | different family from the researchers, cheap and fast; bounded by the skeptic budget |
+| classify, plan, review, writer | `nvidia/nemotron-3-super-120b-a12b` (provisional) | to be re-checked once structured calls are implemented |
+
+Second bake-off (D10, on the real runtime, same question and per-researcher budgets): `nvidia/Nemotron-3-Ultra-550b-a55b`, `nvidia/nemotron-3-super-120b-a12b`, `deepseek-ai/DeepSeek-V4.1-Flash`, optionally `MiniMaxAI/MiniMax-M3` (timed out in run 1; only with the stop-on-budget rule). Kimi-K3 is not used (team decision); its run-1 numbers stay above as the quality reference. All ids verified in the Nebius `/models` list on 2026-10-18.
 
 Token volume (0.8–1.5 M per run) is dominated by researchers re-reading extracted pages; truncating `extract_page` output and caching per URL are the first cost levers.
 
 ## 11. Open questions for the reviewer
 
-1. E4: confirm C (skeptic subagent + severity review) vs. A (review call only).
+1. ~~E4~~ resolved: C confirmed.
 2. OSM↔IHK cross-check threshold (`max/min > 2`, both ≥ 3).
 3. Default layer weights for T2 (§5.1) — S2 may want to own them.
-4. Wave-2 trigger: top-3 by score v0 or by `score_future` after wave 1?
+4. ~~Wave-2 trigger~~ resolved (F2): top-3 by `score_present`.
 5. `POST /runs/{id}/clarify`, `approve.area`, `run_token` and `cells[].demoted_by` + shared `rank()` as additions to the frozen contracts (the last one needs S2 and S3 sign-off).
 6. Budgets (§5.3) vs. the demo time slot.
 
@@ -446,7 +454,7 @@ Findings from a second review of deepagents 0.7.28, langchain-tavily 0.2.18, u14
 | Built-in `ls/read_file/write_file/edit_file/glob/grep/execute` + default `general-purpose` subagent | active | not needed; extra attack surface and distraction. Removable via `HarnessProfile` (`excluded_tools`, `general_purpose_subagent=…(enabled=False)`) |
 | `write_todos`, summarization, large-result offload, `PatchToolCalls` | active (defaults) | useful, keep |
 | `ToolCallLimitMiddleware`, `ModelCallLimitMiddleware` | no | hard caps as a second safety net next to `BUDGET_EXHAUSTED` |
-| `ModelFallbackMiddleware`, `ModelRetryMiddleware` | no | e.g. Kimi-K3 → DeepSeek-V4-Pro on provider errors |
+| `ModelFallbackMiddleware`, `ModelRetryMiddleware` | no | e.g. Nemotron-3-Ultra → DeepSeek-V4.1-Flash on provider errors |
 | `interrupt_on` + checkpointer | no | stays a stretch option (E3=A) |
 | `RubricMiddleware` (beta grader loop) | no | non-reproducible, extra cost |
 | `skills`, `memory`, `AsyncSubAgent`, `CompiledSubAgent` | no | not needed for the MVP |
