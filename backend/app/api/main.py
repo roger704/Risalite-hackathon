@@ -8,10 +8,14 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.runs_fixtures import router as fixture_runs_router
+from app.application.area_summary import SNAPSHOT_PARAMETERS, AreaSummaryService
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
 from app.export import EXPORT_FORMATS, Mix, load_run
@@ -39,6 +43,26 @@ class RecordsResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class AreaSummaryResponse(BaseModel):
+    """Versioned area summary; see CONNECTOR_BLUEPRINT.md section 7."""
+
+    model_config = ConfigDict(extra="allow")
+    schema_version: str
+    summary_type: str
+    calculation_version: str
+    parameters: dict[str, Any]
+    area: dict[str, Any]
+    residents: dict[str, Any]
+    competitors: dict[str, Any]
+    workplaces: dict[str, Any]
+    transit: dict[str, Any]
+    snapshots: list[dict[str, Any]]
+    not_integrated: list[str]
+    not_provided: list[str]
+    limitations: list[str]
+    warnings: list[str]
+
+
 def default_data_dir() -> Path:
     configured = os.environ.get("LOCATION_DATA_DIR", "").strip()
     return (
@@ -54,6 +78,7 @@ def _error_status(code: str) -> int:
         "UNKNOWN_DATASET",
         "DATASET_NOT_FOUND",
         "SNAPSHOT_NOT_FOUND",
+        "AREA_NOT_FOUND",
         "RUN_NOT_FOUND",
         "UNKNOWN_FORMAT",
     }:
@@ -63,6 +88,19 @@ def _error_status(code: str) -> int:
     if code in {"SOURCE_UNAVAILABLE", "DATA_UNAVAILABLE", "DATASET_UNAVAILABLE"}:
         return 503
     return 422
+
+
+def mount_frontend(application: FastAPI) -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    frontend_root = Path(
+        os.environ.get("RISALITE_FRONTEND_DIR", str(repo_root / "frontend"))
+    ).expanduser()
+    fixtures_dir = frontend_root / "fixtures"
+    app_dir = frontend_root / "app"
+    if fixtures_dir.is_dir():
+        application.mount("/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
+    if app_dir.is_dir():
+        application.mount("/", StaticFiles(directory=str(app_dir), html=True), name="frontend")
 
 
 def create_app(
@@ -179,6 +217,48 @@ def create_app(
             cursor=cursor,
         )
 
+    def get_area_summaries(
+        data: Annotated[DataService, Depends(get_service)],
+    ) -> AreaSummaryService:
+        current = getattr(application.state, "area_summaries", None)
+        if current is None or current.data is not data:
+            current = application.state.area_summaries = AreaSummaryService(data)
+        return current
+
+    @application.get("/api/v1/areas/{area_code}/summary", response_model=AreaSummaryResponse)
+    def area_summary(
+        request: Request,
+        area_code: Annotated[str, PathParam(pattern=r"^\d{8}$")],
+        summaries: Annotated[AreaSummaryService, Depends(get_area_summaries)],
+        category: Annotated[str, Query(pattern=r"^[a-z][a-z0-9_]{0,63}$")] = "coffee_shop",
+        include_geometry: bool = True,
+        lor_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+        names_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+        population_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+        osm_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+        ihk_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+        gtfs_snapshot_id: Annotated[str | None, Query(min_length=1)] = None,
+    ):
+        unknown = set(request.query_params) - {"category", "include_geometry", *SNAPSHOT_PARAMETERS}
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query parameters: " + ", ".join(sorted(unknown))
+            )
+        pins = {
+            "lor_snapshot_id": lor_snapshot_id,
+            "names_snapshot_id": names_snapshot_id,
+            "population_snapshot_id": population_snapshot_id,
+            "osm_snapshot_id": osm_snapshot_id,
+            "ihk_snapshot_id": ihk_snapshot_id,
+            "gtfs_snapshot_id": gtfs_snapshot_id,
+        }
+        return summaries.summary(
+            area_code,
+            category=category,
+            include_geometry=include_geometry,
+            snapshot_ids=pins,
+        )
+
     @application.get("/api/v1/runs/{run_id:path}/export/{fmt}")
     def export_run(request: Request, run_id: str, fmt: str):
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", run_id):
@@ -212,6 +292,11 @@ def create_app(
         headers = {"Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'}
         return Response(content=body, media_type=media_type, headers=headers)
 
+    if os.environ.get("RISALITE_RUNS", "").casefold() != "off":
+        application.include_router(fixture_runs_router)
+
+    # Keep this last: the "/" mount catches every otherwise-unmatched route.
+    mount_frontend(application)
     return application
 
 
