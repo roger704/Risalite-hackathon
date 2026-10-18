@@ -1,0 +1,125 @@
+{
+  "dataset_id": "berlin_population_forecast",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin (Abt. I, Referat I A)",
+  "adapter": "population_forecast",
+  "landing_url": "https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/",
+  "resource_url": "https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/kleinraeumige_ergebnistabellen_bevoelkerungsprognose_2024-2040-_1_.xlsx?ts=1780323150",
+  "allowed_hosts": [
+    "www.berlin.de"
+  ],
+  "license_id": "LicenseRef-berlin-de-unstated",
+  "license_url": "https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/",
+  "attribution": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin, Bevölkerungsprognose für Berlin und die Bezirke 2024–2040 (mittlere Variante Senatsbeschluss 04.11.2025)",
+  "boundary_edition": "2021",
+  "source_edition": "2024-2040",
+  "reference_period": "2024-12-31",
+  "access_validation": "validated",
+  "redistribution_status": "unknown",
+  "max_download_bytes": 5000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "forecast_edition": "2024-2040",
+    "base_period": "2024-12-31",
+    "target_years": [
+      2025,
+      2026,
+      2027,
+      2028,
+      2029,
+      2030,
+      2031,
+      2032,
+      2033,
+      2034,
+      2035,
+      2036,
+      2037,
+      2038,
+      2039,
+      2040
+    ],
+    "assets": [
+      {
+        "role": "small_area",
+        "url": "https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/kleinraeumige_ergebnistabellen_bevoelkerungsprognose_2024-2040-_1_.xlsx?ts=1780323150",
+        "sha256": "925b4c76f55798284c4959c926540bbda60c98378f311ac65495cae020b14035",
+        "size_bytes": 3208437
+      },
+      {
+        "role": "scenario_overview",
+        "url": "https://www.berlin.de/sen/stadt/_assets/stadtdaten/stadtwissen/bevoelkerungsprognose-2024-2040/uebersichtstabellen_grafiken_bevoelkerungsprognose_2024-2040-_1_.xlsx?ts=1780323147",
+        "sha256": "33641776345b1f9ac811b3cefbb1052f1426b8bd1a5ecc3c4a55d72f3b2c97ff",
+        "size_bytes": 411765
+      }
+    ],
+    "expected_sheet_names": {
+      "small_area": [
+        "00_Übersicht",
+        "00_Berlin",
+        "01_Mitte+4PGR",
+        "02_Friedr.hain-Kreuzberg+5PGR",
+        "03_Pankow+7PGR",
+        "04_Charlottenb-Wilmersd+5PGR",
+        "05_Spandau+4PGR",
+        "06_Steglitz+4PGR",
+        "07_Tempelhof-Schönebg+6PGR",
+        "08_Neukölln+4PGR",
+        "09_Treptow+5PGR",
+        "10_Marzahn_+4PGR",
+        "11_Lichtenberg+5PGR",
+        "12_Reinickendorf+5PGR"
+      ],
+      "scenario_overview": [
+        "00_Übersicht",
+        "T1_prog. Entwicklung 2000-2040",
+        "G1_Verlauf Prognose",
+        "G2_Lebensbaum_2024-2040",
+        "T2_Entwicklung Altersgruppen"
+      ]
+    },
+    "expected_area_counts": {
+      "bezirk": 12,
+      "prognoseraum": 58
+    },
+    "overview_sheet_name": "T1_prog. Entwicklung 2000-2040",
+    "overview_year_labels": [
+      2000,
+      2005,
+      2010,
+      2015,
+      2020,
+      2024,
+      "2025*",
+      "2030*",
+      "2040*"
+    ],
+    "expected_cells": {
+      "small_area_title": "Bevölkerungsprognose 2024-2040  (Basis Melderegister)",
+      "small_area_scenario": "mittlere Variante",
+      "base_period_label": "Ausgangsbestand: 31.12.2024",
+      "berlin_geography_label": "Berlin",
+      "district_geography_label": "Bezirk",
+      "overview_title": "Prognostizierte Entwicklung der Einwohner Berlins",
+      "overview_row4": {
+        "A": "31.12.",
+        "B": "Einwohner ",
+        "D": "Einwohner ",
+        "F": "Einwohner "
+      }
+    },
+    "max_unpacked_bytes": 30000000,
+    "limitations": [
+      "Forecast values for 2025–2040 are model projections of registered residents (principal residence) at 31 December of each year; the base stock on 31 December 2024 comes from the Melderegister.",
+      "This dataset is not daytime population, customers, footfall, or purchasing power.",
+      "Small-area tables for 12 districts and 58 Prognoseräume exist only for the middle variant, adopted as the planning basis by Senate decision of 04.11.2025.",
+      "Upper and lower variants are available only for Berlin as a whole, rounded to thousands, for 2025, 2030, and 2040.",
+      "Prognoseraum is the finest published resolution; values must not be assigned to Planungsräume, blocks, or addresses.",
+      "Fractional forecast values are retained as published. Total and age records are separate views and must not be summed together.",
+      "LOR 2021 code compatibility does not certify identical polygons.",
+      "No explicit licence or reuse statement was found on the landing page, report PDF, or workbooks (checked 2026-10-18); redistribution_status remains unknown pending confirmation from SenStadt.",
+      "The source workbooks report Last-Modified 2026-06-01.",
+      "Overlapping aggregate age-band blocks below row 109 in the small-area workbook are intentionally not emitted; they are derivable from the single-year age records."
+    ]
+  }
+}
