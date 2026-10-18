@@ -1,0 +1,1267 @@
+{
+  "area": {
+    "name": "Friedrichshain-Kreuzberg",
+    "level": "bezirk",
+    "cell_count": 36,
+    "matched_on": "bez",
+    "plr_ids": [
+      "02100101",
+      "02100102",
+      "02100103",
+      "02100104",
+      "02100105",
+      "02100106",
+      "02200207",
+      "02200208",
+      "02200209",
+      "02200210",
+      "02200211",
+      "02200212",
+      "02200213",
+      "02300314",
+      "02300315",
+      "02300316",
+      "02300417",
+      "02300418",
+      "02300419",
+      "02400520",
+      "02400521",
+      "02400522",
+      "02400623",
+      "02400624",
+      "02400625",
+      "02500726",
+      "02500727",
+      "02500728",
+      "02500729",
+      "02500830",
+      "02500831",
+      "02500832",
+      "02500833",
+      "02500834",
+      "02500835",
+      "02500836"
+    ]
+  },
+  "mode_default": "present",
+  "layers": [
+    {
+      "id": "demand_density",
+      "label": "Resident density (residents/km²)",
+      "direction": "+",
+      "weight_default": 0.3,
+      "source": "https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx",
+      "evidence_id": "s2-demand_density-da30672e",
+      "why": "Cafés need resident footfall; registered-resident density is the cheapest proxy.",
+      "units": "residents/km²",
+      "method": "minmax",
+      "required": true
+    },
+    {
+      "id": "young_adult_share",
+      "label": "Residents aged 18–45 (share)",
+      "direction": "+",
+      "weight_default": 0.15,
+      "source": "https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx",
+      "evidence_id": "s2-young_adult_share-da30672e",
+      "why": "Young adults are the core café audience.",
+      "units": "share of residents",
+      "method": "minmax",
+      "required": false
+    },
+    {
+      "id": "competition_osm",
+      "label": "Existing cafés (OSM)",
+      "direction": "-",
+      "weight_default": 0.15,
+      "source": "https://download.geofabrik.de/europe/germany/berlin-261017.osm.pbf",
+      "evidence_id": "s2-competition_osm-8d3055e0",
+      "why": "Mapped cafés in the cell; separate inventory from IHK, never summed.",
+      "units": "cafés (OSM)",
+      "method": "percentile",
+      "required": true
+    },
+    {
+      "id": "competition_ihk",
+      "label": "Registered cafés (IHK 56114/561141)",
+      "direction": "-",
+      "weight_default": 0.15,
+      "source": "https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv",
+      "evidence_id": "s2-competition_ihk-950feed4",
+      "why": "IHK-registered cafés in the cell; separate inventory from OSM, never summed.",
+      "units": "registered cafés (IHK)",
+      "method": "percentile",
+      "required": true
+    },
+    {
+      "id": "transit",
+      "label": "Scheduled departures 07–10 (supply, not footfall)",
+      "direction": "+",
+      "weight_default": 0.25,
+      "source": "https://www.vbb.de/gtfs",
+      "evidence_id": "s2-transit-e1f51933",
+      "why": "Morning scheduled departures within 400 m indicate commuter flow past the cell; this is scheduled supply, not measured footfall.",
+      "units": "scheduled departures 07–10 (service date from config)",
+      "method": "minmax",
+      "required": true
+    }
+  ],
+  "cells": [
+    {
+      "id": "02500831",
+      "name": "Wismarplatz",
+      "geometry_ref": "cells.geojson#02500831",
+      "values": {
+        "demand_density": 0.9666,
+        "young_adult_share": 0.5607,
+        "competition_osm": 0.1429,
+        "competition_ihk": 0.2,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 1.0,
+      "score_future": 1.0,
+      "raw_values": {
+        "demand_density": 31512.281254646972,
+        "young_adult_share": 0.5647793930119868,
+        "competition_osm": 4.0,
+        "competition_ihk": 1.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400522",
+      "name": "Richard-Sorge-Viertel",
+      "geometry_ref": "cells.geojson#02400522",
+      "values": {
+        "demand_density": 0.6219,
+        "young_adult_share": 0.3373,
+        "competition_osm": 0.0571,
+        "competition_ihk": 0.0571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.7747,
+      "score_future": 0.7747,
+      "raw_values": {
+        "demand_density": 20824.69357285317,
+        "young_adult_share": 0.48839022699705426,
+        "competition_osm": 3.0,
+        "competition_ihk": 0.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500726",
+      "name": "Hausburgviertel",
+      "geometry_ref": "cells.geojson#02500726",
+      "values": {
+        "demand_density": 0.9151,
+        "young_adult_share": 0.5821,
+        "competition_osm": 0.3714,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.7662,
+      "score_future": 0.7662,
+      "raw_values": {
+        "demand_density": 29914.420304152864,
+        "young_adult_share": 0.5720925205361003,
+        "competition_osm": 6.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500832",
+      "name": "Traveplatz",
+      "geometry_ref": "cells.geojson#02500832",
+      "values": {
+        "demand_density": 0.7892,
+        "young_adult_share": 0.6522,
+        "competition_osm": 0.4857,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.7487,
+      "score_future": 0.7487,
+      "raw_values": {
+        "demand_density": 26011.893703673748,
+        "young_adult_share": 0.5960657785179018,
+        "competition_osm": 7.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100105",
+      "name": "Prinzenstraße",
+      "geometry_ref": "cells.geojson#02100105",
+      "values": {
+        "demand_density": 0.6371,
+        "young_adult_share": 0.1552,
+        "competition_osm": 0.0571,
+        "competition_ihk": 0.0571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.7248,
+      "score_future": 0.7248,
+      "raw_values": {
+        "demand_density": 21297.84160710382,
+        "young_adult_share": 0.42609853528628494,
+        "competition_osm": 3.0,
+        "competition_ihk": 0.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500830",
+      "name": "Niederbarnimstraße",
+      "geometry_ref": "cells.geojson#02500830",
+      "values": {
+        "demand_density": 0.7131,
+        "young_adult_share": 0.5626,
+        "competition_osm": 0.4857,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.6691,
+      "score_future": 0.6691,
+      "raw_values": {
+        "demand_density": 23654.062065739905,
+        "young_adult_share": 0.565439672801636,
+        "competition_osm": 7.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500727",
+      "name": "Forckenbeckplatz",
+      "geometry_ref": "cells.geojson#02500727",
+      "values": {
+        "demand_density": 0.5693,
+        "young_adult_share": 0.4346,
+        "competition_osm": 0.1429,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.6452,
+      "score_future": 0.6452,
+      "raw_values": {
+        "demand_density": 19195.803243246475,
+        "young_adult_share": 0.5216653816499615,
+        "competition_osm": 4.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400521",
+      "name": "Friedenstraße",
+      "geometry_ref": "cells.geojson#02400521",
+      "values": {
+        "demand_density": 0.3515,
+        "young_adult_share": 0.3504,
+        "competition_osm": 0.0,
+        "competition_ihk": 0.0571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.6198,
+      "score_future": 0.6198,
+      "raw_values": {
+        "demand_density": 12444.661836366444,
+        "young_adult_share": 0.4928555726533304,
+        "competition_osm": 2.0,
+        "competition_ihk": 0.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500728",
+      "name": "Samariterviertel",
+      "geometry_ref": "cells.geojson#02500728",
+      "values": {
+        "demand_density": 1.0,
+        "young_adult_share": 0.527,
+        "competition_osm": 0.8286,
+        "competition_ihk": 0.7143,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.6158,
+      "score_future": 0.6158,
+      "raw_values": {
+        "demand_density": 32547.11154939206,
+        "young_adult_share": 0.5532462391132225,
+        "competition_osm": 18.0,
+        "competition_ihk": 5.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400624",
+      "name": "Weberwiese",
+      "geometry_ref": "cells.geojson#02400624",
+      "values": {
+        "demand_density": 0.6441,
+        "young_adult_share": 0.4534,
+        "competition_osm": 0.2571,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.583,
+      "score_future": 0.583,
+      "raw_values": {
+        "demand_density": 21514.100158346675,
+        "young_adult_share": 0.5280843353648493,
+        "competition_osm": 5.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500729",
+      "name": "Pettenkofer Straße",
+      "geometry_ref": "cells.geojson#02500729",
+      "values": {
+        "demand_density": 0.4942,
+        "young_adult_share": 0.4342,
+        "competition_osm": 0.2571,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.478,
+      "score_future": 0.478,
+      "raw_values": {
+        "demand_density": 16866.150908092706,
+        "young_adult_share": 0.5215231788079471,
+        "competition_osm": 5.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400623",
+      "name": "Andreasviertel",
+      "geometry_ref": "cells.geojson#02400623",
+      "values": {
+        "demand_density": 0.4505,
+        "young_adult_share": 0.3671,
+        "competition_osm": 0.2571,
+        "competition_ihk": 0.4714,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.4695,
+      "score_future": 0.4695,
+      "raw_values": {
+        "demand_density": 15512.848444949155,
+        "young_adult_share": 0.49856553075362114,
+        "competition_osm": 5.0,
+        "competition_ihk": 3.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500833",
+      "name": "Boxhagener Platz",
+      "geometry_ref": "cells.geojson#02500833",
+      "values": {
+        "demand_density": 0.9043,
+        "young_adult_share": 0.6728,
+        "competition_osm": 1.0,
+        "competition_ihk": 1.0,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.4503,
+      "score_future": 0.4503,
+      "raw_values": {
+        "demand_density": 29579.331301027534,
+        "young_adult_share": 0.6031225139220366,
+        "competition_osm": 42.0,
+        "competition_ihk": 16.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200212",
+      "name": "Graefekiez Süd",
+      "geometry_ref": "cells.geojson#02200212",
+      "values": {
+        "demand_density": 0.6269,
+        "young_adult_share": 0.1445,
+        "competition_osm": 0.6714,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.4136,
+      "score_future": 0.4136,
+      "raw_values": {
+        "demand_density": 20979.941637052478,
+        "young_adult_share": 0.422457937088515,
+        "competition_osm": 11.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100104",
+      "name": "Moritzplatz",
+      "geometry_ref": "cells.geojson#02100104",
+      "values": {
+        "demand_density": 0.416,
+        "young_adult_share": 0.1462,
+        "competition_osm": 0.4857,
+        "competition_ihk": 0.2,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3882,
+      "score_future": 0.3882,
+      "raw_values": {
+        "demand_density": 14444.513064481498,
+        "young_adult_share": 0.42300691663633055,
+        "competition_osm": 7.0,
+        "competition_ihk": 1.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500835",
+      "name": "Stralauer Kiez",
+      "geometry_ref": "cells.geojson#02500835",
+      "values": {
+        "demand_density": 0.1526,
+        "young_adult_share": 0.6436,
+        "competition_osm": 0.4857,
+        "competition_ihk": 0.2,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3785,
+      "score_future": 0.3785,
+      "raw_values": {
+        "demand_density": 6277.128422530451,
+        "young_adult_share": 0.5931545518701482,
+        "competition_osm": 7.0,
+        "competition_ihk": 1.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200208",
+      "name": "Rathaus Yorckstraße",
+      "geometry_ref": "cells.geojson#02200208",
+      "values": {
+        "demand_density": 0.3687,
+        "young_adult_share": 0.1955,
+        "competition_osm": 0.4857,
+        "competition_ihk": 0.2,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3732,
+      "score_future": 0.3732,
+      "raw_values": {
+        "demand_density": 12977.388747769324,
+        "young_adult_share": 0.43987057343160163,
+        "competition_osm": 7.0,
+        "competition_ihk": 1.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500834",
+      "name": "Revaler Straße",
+      "geometry_ref": "cells.geojson#02500834",
+      "values": {
+        "demand_density": 0.6852,
+        "young_adult_share": 0.5261,
+        "competition_osm": 0.8857,
+        "competition_ihk": 0.7714,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3707,
+      "score_future": 0.3707,
+      "raw_values": {
+        "demand_density": 22789.30178605806,
+        "young_adult_share": 0.5529516200621394,
+        "competition_osm": 25.0,
+        "competition_ihk": 6.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300315",
+      "name": "Lausitzer Platz",
+      "geometry_ref": "cells.geojson#02300315",
+      "values": {
+        "demand_density": 0.695,
+        "young_adult_share": 0.1512,
+        "competition_osm": 0.7143,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3666,
+      "score_future": 0.3666,
+      "raw_values": {
+        "demand_density": 23092.171289277456,
+        "young_adult_share": 0.4247437955303124,
+        "competition_osm": 13.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400520",
+      "name": "Barnimkiez",
+      "geometry_ref": "cells.geojson#02400520",
+      "values": {
+        "demand_density": 0.1536,
+        "young_adult_share": 0.0,
+        "competition_osm": 0.0571,
+        "competition_ihk": 0.0571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3554,
+      "score_future": 0.3554,
+      "raw_values": {
+        "demand_density": 6309.843683760525,
+        "young_adult_share": 0.37302121926574605,
+        "competition_osm": 3.0,
+        "competition_ihk": 0.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100106",
+      "name": "Wassertorplatz",
+      "geometry_ref": "cells.geojson#02100106",
+      "values": {
+        "demand_density": 0.3477,
+        "young_adult_share": 0.1107,
+        "competition_osm": 0.2571,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.355,
+      "score_future": 0.355,
+      "raw_values": {
+        "demand_density": 12326.642204970587,
+        "young_adult_share": 0.41089315525876463,
+        "competition_osm": 5.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300316",
+      "name": "Köpenicker Straße",
+      "geometry_ref": "cells.geojson#02300316",
+      "values": {
+        "demand_density": 0.2378,
+        "young_adult_share": 0.1646,
+        "competition_osm": 0.2571,
+        "competition_ihk": 0.2,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3521,
+      "score_future": 0.3521,
+      "raw_values": {
+        "demand_density": 8918.120159513195,
+        "young_adult_share": 0.4293193717277487,
+        "competition_osm": 5.0,
+        "competition_ihk": 1.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100101",
+      "name": "Askanischer Platz",
+      "geometry_ref": "cells.geojson#02100101",
+      "values": {
+        "demand_density": 0.2985,
+        "young_adult_share": 0.4574,
+        "competition_osm": 0.3714,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3192,
+      "score_future": 0.3192,
+      "raw_values": {
+        "demand_density": 10799.97372592176,
+        "young_adult_share": 0.5294577685088634,
+        "competition_osm": 6.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02500836",
+      "name": "Stralauer Halbinsel",
+      "geometry_ref": "cells.geojson#02500836",
+      "values": {
+        "demand_density": 0.0991,
+        "young_adult_share": 0.0348,
+        "competition_osm": 0.1429,
+        "competition_ihk": 0.0571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.3027,
+      "score_future": 0.3027,
+      "raw_values": {
+        "demand_density": 4619.296826269282,
+        "young_adult_share": 0.38491370952103937,
+        "competition_osm": 4.0,
+        "competition_ihk": 0.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300417",
+      "name": "Reichenberger Straße West",
+      "geometry_ref": "cells.geojson#02300417",
+      "values": {
+        "demand_density": 0.6721,
+        "young_adult_share": 0.2832,
+        "competition_osm": 0.8,
+        "competition_ihk": 0.8429,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.2868,
+      "score_future": 0.2868,
+      "raw_values": {
+        "demand_density": 22381.669242820255,
+        "young_adult_share": 0.4698911729141475,
+        "competition_osm": 17.0,
+        "competition_ihk": 7.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100103",
+      "name": "Am Berlin Museum",
+      "geometry_ref": "cells.geojson#02100103",
+      "values": {
+        "demand_density": 0.3681,
+        "young_adult_share": 0.2104,
+        "competition_osm": 0.3714,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.2837,
+      "score_future": 0.2837,
+      "raw_values": {
+        "demand_density": 12959.667442190206,
+        "young_adult_share": 0.4449841210536148,
+        "competition_osm": 6.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02400625",
+      "name": "Wriezener Bahnhof",
+      "geometry_ref": "cells.geojson#02400625",
+      "values": {
+        "demand_density": 0.0,
+        "young_adult_share": 1.0,
+        "competition_osm": 0.5714,
+        "competition_ihk": 0.4714,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.2778,
+      "score_future": 0.2778,
+      "raw_values": {
+        "demand_density": 1547.5624477119552,
+        "young_adult_share": 0.7150336574420344,
+        "competition_osm": 8.0,
+        "competition_ihk": 3.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300419",
+      "name": "Wrangelkiez",
+      "geometry_ref": "cells.geojson#02300419",
+      "values": {
+        "demand_density": 0.5793,
+        "young_adult_share": 0.3321,
+        "competition_osm": 0.8571,
+        "competition_ihk": 0.7714,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.2465,
+      "score_future": 0.2465,
+      "raw_values": {
+        "demand_density": 19506.981801264188,
+        "young_adult_share": 0.48661018599668904,
+        "competition_osm": 23.0,
+        "competition_ihk": 6.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200210",
+      "name": "Urbanstraße",
+      "geometry_ref": "cells.geojson#02200210",
+      "values": {
+        "demand_density": 0.38,
+        "young_adult_share": 0.2477,
+        "competition_osm": 0.7429,
+        "competition_ihk": 0.6,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.1815,
+      "score_future": 0.1815,
+      "raw_values": {
+        "demand_density": 13327.035809611034,
+        "young_adult_share": 0.45774647887323944,
+        "competition_osm": 14.0,
+        "competition_ihk": 4.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300418",
+      "name": "Reichenberger Straße Ost",
+      "geometry_ref": "cells.geojson#02300418",
+      "values": {
+        "demand_density": 0.3581,
+        "young_adult_share": 0.2531,
+        "competition_osm": 0.6143,
+        "competition_ihk": 0.7714,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.1548,
+      "score_future": 0.1548,
+      "raw_values": {
+        "demand_density": 12649.922573562168,
+        "young_adult_share": 0.4595806409072926,
+        "competition_osm": 10.0,
+        "competition_ihk": 6.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200209",
+      "name": "Viktoriapark",
+      "geometry_ref": "cells.geojson#02200209",
+      "values": {
+        "demand_density": 0.4575,
+        "young_adult_share": 0.1704,
+        "competition_osm": 0.6714,
+        "competition_ihk": 0.8857,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.1366,
+      "score_future": 0.1366,
+      "raw_values": {
+        "demand_density": 15729.259878192388,
+        "young_adult_share": 0.4313096111518709,
+        "competition_osm": 11.0,
+        "competition_ihk": 8.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200213",
+      "name": "Graefekiez Nord",
+      "geometry_ref": "cells.geojson#02200213",
+      "values": {
+        "demand_density": 0.4849,
+        "young_adult_share": 0.2286,
+        "competition_osm": 0.9143,
+        "competition_ihk": 0.9143,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.0844,
+      "score_future": 0.0844,
+      "raw_values": {
+        "demand_density": 16579.02522165065,
+        "young_adult_share": 0.45121205948258303,
+        "competition_osm": 29.0,
+        "competition_ihk": 11.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02100102",
+      "name": "Mehringplatz",
+      "geometry_ref": "cells.geojson#02100102",
+      "values": {
+        "demand_density": 0.3947,
+        "young_adult_share": 0.2277,
+        "competition_osm": 0.7714,
+        "competition_ihk": 0.9571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.0577,
+      "score_future": 0.0577,
+      "raw_values": {
+        "demand_density": 13783.669545318813,
+        "young_adult_share": 0.45088922468906195,
+        "competition_osm": 15.0,
+        "competition_ihk": 14.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200207",
+      "name": "Gleisdreieck",
+      "geometry_ref": "cells.geojson#02200207",
+      "values": {
+        "demand_density": 0.0622,
+        "young_adult_share": 0.1254,
+        "competition_osm": 0.6143,
+        "competition_ihk": 0.3571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.0543,
+      "score_future": 0.0543,
+      "raw_values": {
+        "demand_density": 3475.22276544935,
+        "young_adult_share": 0.4158950617283951,
+        "competition_osm": 10.0,
+        "competition_ihk": 2.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02300314",
+      "name": "Oranienplatz",
+      "geometry_ref": "cells.geojson#02300314",
+      "values": {
+        "demand_density": 0.4612,
+        "young_adult_share": 0.0781,
+        "competition_osm": 0.9714,
+        "competition_ihk": 0.8429,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.0239,
+      "score_future": 0.0239,
+      "raw_values": {
+        "demand_density": 15843.708029246116,
+        "young_adult_share": 0.39971550497866287,
+        "competition_osm": 34.0,
+        "competition_ihk": 7.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    },
+    {
+      "id": "02200211",
+      "name": "Chamissokiez",
+      "geometry_ref": "cells.geojson#02200211",
+      "values": {
+        "demand_density": 0.4267,
+        "young_adult_share": 0.16,
+        "competition_osm": 0.9429,
+        "competition_ihk": 0.9571,
+        "transit": 0.5
+      },
+      "modifiers": [],
+      "score_present": 0.0,
+      "score_future": 0.0,
+      "raw_values": {
+        "demand_density": 14774.667958414222,
+        "young_adult_share": 0.4277496708018574,
+        "competition_osm": 32.0,
+        "competition_ihk": 14.0,
+        "transit": 0.0
+      },
+      "evidence_ids": {
+        "demand_density": "s2-demand_density-da30672e",
+        "young_adult_share": "s2-young_adult_share-da30672e",
+        "competition_osm": "s2-competition_osm-8d3055e0",
+        "competition_ihk": "s2-competition_ihk-950feed4",
+        "transit": "s2-transit-e1f51933"
+      },
+      "risks": [],
+      "unknowns": [],
+      "missing_layers": []
+    }
+  ],
+  "excluded_cells": [],
+  "template": "coffee",
+  "scoring_version": "coffee_v1",
+  "generated_at": "2026-10-18T13:35:31.844508+00:00"
+}
