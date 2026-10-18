@@ -5,7 +5,8 @@
   "landing_url": "https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2",
   "resource_url": "https://gdi.berlin.de/services/wfs/kita?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=kita:kita&OUTPUTFORMAT=application/json&SORTBY=e_nr",
   "allowed_hosts": [
-    "gdi.berlin.de"
+    "gdi.berlin.de",
+    "datenregister.berlin.de"
   ],
   "license_id": "dl-de-zero-2.0",
   "license_url": "https://www.govdata.de/dl-de/zero-2-0",
@@ -24,6 +25,8 @@
     "page_size": 1000,
     "max_pages": 10,
     "max_total_bytes": 15000000,
+    "edition_metadata_url": "https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2",
+    "edition_reference_type": "revision",
     "expected_crs": "EPSG:25833",
     "source_bbox": [
       360000,

@@ -1,12 +1,14 @@
 """Kita WFS ingestion against a pinned LOR snapshot and the childcare read endpoints."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
 from fastapi.testclient import TestClient
 
 from app.api.main import create_app
+from app.application.childcare import childcare_areas
 from app.application.service import DataService
 from app.connectors.berlin_wfs import BerlinWFSConnector
 from app.connectors.lor import LORConnector
@@ -63,6 +65,13 @@ def setup_service(tmp_path, fail=False):
     async def handler(request):
         if fail:
             return httpx.Response(503, request=request)
+        if request.url.host == "datenregister.berlin.de":
+            return httpx.Response(
+                200,
+                headers={"content-type": "application/json"},
+                content=(FIXTURES / "edition-metadata.json").read_bytes(),
+                request=request,
+            )
         start = int(request.url.params["STARTINDEX"])
         return httpx.Response(
             200,
@@ -102,7 +111,8 @@ async def ingest_all(tmp_path):
 async def test_ingests_kitas_with_provenance_and_area_counts(tmp_path):
     service, lor, _, kitas = await ingest_all(tmp_path)
     assert kitas.parent_snapshot_ids == (lor.snapshot_id,)
-    assert len(kitas.raw_assets) == 2
+    assert len(kitas.raw_assets) == 3
+    assert kitas.raw_assets[-1].path.endswith("edition-metadata.json")
     assert kitas.source_edition == "2025-12-31"
     assert kitas.license_id == "dl-de-zero-2.0"
     assert kitas.quality_report.valid and kitas.quality_report.rejected_rows == 0
@@ -165,6 +175,41 @@ async def test_childcare_endpoints_keep_sources_and_dates_separate(tmp_path):
     assert without_population.json()["sources"]["children_under_6"] is None
     assert all(row["children_under_6"] is None for row in without_population.json()["areas"])
     assert missing.status_code == 404
+
+
+async def test_childcare_areas_reject_population_on_another_lor_snapshot(tmp_path):
+    service, lor, population, kitas = await ingest_all(tmp_path)
+    other_lor = tmp_path / "other.geojson"
+    source = json.loads((BACKEND / "tests/fixtures/lor/areas.geojson").read_text())
+    source["features"][0]["properties"]["PLR_NAME"] = "Revised Alpha"
+    other_lor.write_text(json.dumps(source))
+    other = await service.ingest("berlin_lor", local_file=other_lor)
+    population_file = tmp_path / "population.csv"
+    other_population = await service.ingest(
+        "berlin_population", local_file=population_file, parent_snapshot_id=other.snapshot_id
+    )
+    assert other.snapshot_id != lor.snapshot_id
+    with TestClient(create_app(service=service)) as client:
+        response = client.get(
+            "/api/v1/childcare/areas",
+            params={
+                "snapshot_id": kitas.snapshot_id,
+                "population_snapshot_id": other_population.snapshot_id,
+            },
+        )
+    assert response.status_code == 409
+
+
+async def test_childcare_view_uses_join_pinned_in_manifest_not_current_config(tmp_path):
+    service, _, _, kitas = await ingest_all(tmp_path)
+    config = service.configs["berlin_kitas"]
+    service.configs["berlin_kitas"] = replace(
+        config,
+        parser_options={**config.parser_options, "parent_dataset": "x", "hierarchy": "bezirk"},
+    )
+    body = childcare_areas(service, kitas.snapshot_id)
+    assert body["hierarchy"] == "planungsraum"
+    assert body["facility_count"] == 3 and body["unassigned_facility_count"] == 0
 
 
 async def test_failed_refresh_keeps_last_valid_snapshot(tmp_path):

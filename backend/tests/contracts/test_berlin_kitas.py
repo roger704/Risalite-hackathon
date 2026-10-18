@@ -35,7 +35,7 @@ def configuration(**options):
     return DatasetConfig(**values)
 
 
-def bundle(tmp_path, mutate=None, snapshot_id="synthetic-kitas"):
+def bundle(tmp_path, mutate=None, snapshot_id="synthetic-kitas", revision="2025-12-31"):
     paths = []
     for index in range(2):
         data = json.loads((FIXTURES / f"page-{index:04d}.json").read_text())
@@ -43,6 +43,12 @@ def bundle(tmp_path, mutate=None, snapshot_id="synthetic-kitas"):
             mutate(index, data)
         path = tmp_path / f"{snapshot_id}-page-{index:04d}.json"
         path.write_text(json.dumps(data))
+        paths.append(path)
+    if revision is not None:
+        path = tmp_path / f"{snapshot_id}-edition-metadata.json"
+        path.write_text(
+            (FIXTURES / "edition-metadata.json").read_text().replace("2025-12-31", revision)
+        )
         paths.append(path)
     return RawBundle(
         assets=tuple(
@@ -188,10 +194,21 @@ def test_rejects_identity_schema_geometry_and_completeness_errors(tmp_path, muta
         normalize(tmp_path, mutate)
 
 
+def test_source_edition_is_verified_against_provider_metadata(tmp_path):
+    batch = normalize(tmp_path)
+    assert any("Source edition 2025-12-31 verified" in warning for warning in batch.warnings)
+    with pytest.raises(SchemaError, match="differs from the reviewed source_edition"):
+        BerlinWFSConnector().normalize(bundle(tmp_path, revision="2026-12-31"), configuration())
+    with pytest.raises(SchemaError, match="could not be verified"):
+        BerlinWFSConnector().normalize(bundle(tmp_path, revision=None), configuration())
+
+
 def test_completeness_requires_all_pages(tmp_path):
     raw = bundle(tmp_path)
     with pytest.raises(SchemaError):
-        BerlinWFSConnector().normalize(replace(raw, assets=raw.assets[:1]), configuration())
+        BerlinWFSConnector().normalize(
+            replace(raw, assets=(raw.assets[0], raw.assets[2])), configuration()
+        )
 
 
 @pytest.mark.parametrize(
@@ -202,6 +219,7 @@ def test_completeness_requires_all_pages(tmp_path):
         {"capacity_reference_date": None},
         {"capacity_reference_date": "31.12.2025"},
         {"geometry_types": ["Polygon"]},
+        {"edition_metadata_url": "http://datenregister.berlin.de/x"},
         {"max_unassigned_ratio": 2},
         {"district_field": "unknown"},
     ],

@@ -252,7 +252,7 @@ uv run location-data records berlin_kitas --snapshot "$KITA_SNAPSHOT_ID" --limit
 Read endpoints for the childcare view (the frontend can show both datasets side by side, each with its own snapshot, date, coverage and attribution in `sources`):
 
 - `GET /api/v1/childcare/facilities?snapshot_id=<kita snapshot>`: GeoJSON FeatureCollection with the pinned-LOR `area_code` per facility.
-- `GET /api/v1/childcare/areas?snapshot_id=<kita snapshot>&population_snapshot_id=<optional population snapshot>`: per Planungsraum `facility_count`, `facilities_with_capacity`, `facilities_without_capacity`, `permitted_places_known_sum`, and `children_under_6` (the population `0–6` age band with its own `value_status` and reference period). Population and Kita snapshots must share the LOR boundary edition.
+- `GET /api/v1/childcare/areas?snapshot_id=<kita snapshot>&population_snapshot_id=<optional population snapshot>`: per Planungsraum `facility_count`, `facilities_with_capacity`, `facilities_without_capacity`, `permitted_places_known_sum`, and `children_under_6` (the population `0–6` age band with its own `value_status` and reference period). Population and Kita snapshots must pin the same `berlin_lor` snapshot; the join parameters (parent dataset, hierarchy) are read from the Kita manifest, not the current config.
 
 Facility counts and permitted places are not available places, vacancies, or proof of a childcare shortage. The registry has no per-record date, excludes private facilities and Kindertagespflege, and children attend across area borders. Kita-Navigator is not used as a bulk vacancy source: no supported bulk access or reuse terms are established.
 

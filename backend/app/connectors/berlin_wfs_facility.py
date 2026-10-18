@@ -7,9 +7,12 @@ quality checks and the EPSG:25833 point-in-area assignment to a pinned LOR snaps
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections import Counter
+from pathlib import Path
+from urllib.parse import urlsplit
 
 from pyproj import Transformer
 from shapely import STRtree, points
@@ -28,6 +31,7 @@ from app.domain import (
 )
 
 METRIC_CRS = "EPSG:25833"
+EDITION_METADATA_NAME = "edition-metadata.json"
 
 
 def _ratio(name: str, value) -> float:
@@ -70,6 +74,11 @@ def check_facility_options(options: dict) -> None:
             raise SchemaError("WFS facility capacity_reference_date must be an ISO date")
     if options.get("geometry_types", ["Point"]) != ["Point"]:
         raise SchemaError("WFS facility geometry_types must be ['Point']")
+    metadata_url = options.get("edition_metadata_url")
+    if metadata_url is not None and (
+        not isinstance(metadata_url, str) or urlsplit(metadata_url).scheme != "https"
+    ):
+        raise SchemaError("WFS facility edition_metadata_url must be an https URL")
     district_field = options.get("district_field")
     if district_field is not None and district_field not in options["expected_properties"]:
         raise SchemaError("WFS facility district_field must be an expected property")
@@ -94,9 +103,44 @@ def _capacity(value, key: str, source_id: str) -> int | None:
     return int(text)
 
 
+def verify_edition(raw: RawBundle, config: DatasetConfig, options: dict) -> str | None:
+    """Check the provider's CKAN revision date against the reviewed source_edition.
+
+    The WFS is a live layer without a per-response edition, so the snapshot stores the
+    provider metadata next to the pages and refuses to publish when the revision moved.
+    """
+    if not options.get("edition_metadata_url"):
+        return None
+    reference_type = options.get("edition_reference_type", "revision")
+    assets = [asset for asset in raw.assets if asset.path.endswith(EDITION_METADATA_NAME)]
+    if len(assets) != 1:
+        raise SchemaError("WFS facility source edition could not be verified: no provider metadata")
+    try:
+        result = json.loads(Path(assets[0].path).read_bytes())["result"]
+        extras = {item["key"]: item["value"] for item in result["extras"]}
+        references = json.loads(extras["dataset-reference-date"])
+        dates = [item["value"] for item in references if item.get("type") == reference_type]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SchemaError("WFS facility provider metadata has no dataset reference dates") from exc
+    if len(dates) != 1:
+        raise SchemaError(f"WFS facility provider metadata has no unique {reference_type} date")
+    if dates[0] != config.source_edition or (
+        options.get("capacity_reference_date") not in (None, dates[0])
+    ):
+        raise SchemaError(
+            f"Provider {reference_type} date {dates[0]} differs from the reviewed source_edition "
+            f"{config.source_edition}; review the mapping and dates before publishing"
+        )
+    return (
+        f"Source edition {dates[0]} verified against provider metadata ({reference_type} date; "
+        f"metadata_modified {result.get('metadata_modified', 'unknown')})."
+    )
+
+
 def normalize_facilities(
     features: list, raw: RawBundle, config: DatasetConfig, options: dict, source_bounds, allowed
 ) -> NormalizedBatch:
+    edition_note = verify_edition(raw, config, options)
     field_map = options["field_map"]
     capacity_field = field_map.get("capacity")
     required = set(options["expected_properties"])
@@ -198,6 +242,8 @@ def normalize_facilities(
 
     total = len(records)
     warnings = list(options.get("limitations", ()))
+    if edition_note:
+        warnings.append(edition_note)
     warnings.append(
         "Facility categories: "
         + ", ".join(f"{label}={count}" for label, count in sorted(categories.items()))

@@ -336,6 +336,16 @@ class BerlinWFSConnector(FileConnector):
             next_url = href
         else:
             raise SchemaError("WFS page cap exceeded before all features were received")
+        if options.get("edition_metadata_url"):
+            from app.connectors.berlin_wfs_facility import EDITION_METADATA_NAME
+
+            urls.append(options["edition_metadata_url"])
+            assets.append(
+                await self.fetcher.download(
+                    replace(config, resource_url=options["edition_metadata_url"]),
+                    Path(request.staging_dir) / EDITION_METADATA_NAME,
+                )
+            )
 
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -362,6 +372,8 @@ class BerlinWFSConnector(FileConnector):
         pages = []
         matched = None
         for asset in raw.assets:
+            if asset.path.endswith("edition-metadata.json"):
+                continue
             try:
                 with Path(asset.path).open("rb") as source:
                     collection = parse_page(source.read(), options)

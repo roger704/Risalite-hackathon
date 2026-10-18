@@ -63,9 +63,14 @@ def _facility_view(service: DataService, snapshot_id: str, dataset_id: str):
         raise ConnectorError(
             "SOURCE_UNAVAILABLE", "Facility snapshot has no pinned parent LOR snapshot"
         )
-    parent_dataset = service.configs[dataset_id].parser_options.get("parent_dataset", "berlin_lor")
+    coverage = manifest.get("coverage") or {}
+    parent_dataset = coverage.get("parent_dataset")
+    hierarchy = (coverage.get("area_join") or {}).get("hierarchy")
+    if not parent_dataset or not hierarchy:
+        raise ConnectorError(
+            "SOURCE_UNAVAILABLE", "Facility snapshot does not record its pinned area join"
+        )
     lor_manifest = service.manifest(parent_dataset, parents[0])
-    hierarchy = service.configs[dataset_id].parser_options.get("hierarchy", "planungsraum")
     facilities = tuple(_all_records(service, dataset_id, snapshot_id))
     areas = tuple(
         record
@@ -136,8 +141,12 @@ def childcare_areas(
     population_source = None
     if population_snapshot_id is not None:
         population_manifest = service.manifest(population_dataset_id, population_snapshot_id)
-        if population_manifest.get("boundary_edition") != lor_manifest.get("boundary_edition"):
-            raise IncompatibleSnapshotError("Population and facility LOR boundary editions differ")
+        if list(population_manifest.get("parent_snapshot_ids") or []) != [
+            lor_manifest["snapshot_id"]
+        ]:
+            raise IncompatibleSnapshotError(
+                "Population and facility snapshots must pin the same LOR snapshot"
+            )
         population_source = _source(population_manifest)
         for record in _all_records(
             service,
