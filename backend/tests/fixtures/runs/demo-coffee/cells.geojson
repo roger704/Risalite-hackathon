@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "properties": {"id": "A"}, "geometry": {"type": "Polygon", "coordinates": [[[13.400, 52.500], [13.401, 52.500], [13.401, 52.501], [13.400, 52.501], [13.400, 52.500]]]}},
+    {"type": "Feature", "properties": {"id": "B"}, "geometry": {"type": "Polygon", "coordinates": [[[13.402, 52.500], [13.403, 52.500], [13.403, 52.501], [13.402, 52.501], [13.402, 52.500]]]}},
+    {"type": "Feature", "properties": {"id": "C"}, "geometry": {"type": "Polygon", "coordinates": [[[13.404, 52.500], [13.405, 52.500], [13.405, 52.501], [13.404, 52.501], [13.404, 52.500]]]}},
+    {"type": "Feature", "properties": {"id": "D"}, "geometry": {"type": "Polygon", "coordinates": [[[13.406, 52.500], [13.407, 52.500], [13.407, 52.501], [13.406, 52.501], [13.406, 52.500]]]}},
+    {"type": "Feature", "properties": {"id": "E"}, "geometry": {"type": "Polygon", "coordinates": [[[13.408, 52.500], [13.409, 52.500], [13.409, 52.501], [13.408, 52.501], [13.408, 52.500]]]}}
+  ]
+}

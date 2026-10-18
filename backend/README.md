@@ -284,3 +284,21 @@ Responses distinguish `measure: network_walking_estimate` (or `network_walking_i
 Every API/CLI client has a 500-request budget, and the service limits concurrent route requests to two. Results persist in `LOCATION_DATA_DIR/routing/cache.sqlite` (or `<data-dir>/routing/cache.sqlite`) under keys containing graph version, profile hash, request kind, coordinates rounded to six decimal places, and contours. Rebuilding the graph changes its version and naturally invalidates old cache keys; changing the profile changes its hash. `VALHALLA_BASE_URL` may override the configured service address only when its host passes the explicit allowlist; public demo hosts are rejected.
 
 The graph uses Geofabrik's Berlin extract (ODbL-1.0, attributed to © OpenStreetMap contributors and Geofabrik GmbH); Valhalla is MIT-licensed. ODbL share-alike conditions may apply to derived data. The pedestrian profile assumes a 5.1 km/h walking speed, no crossing/signal wait and no elevation, follows OSM access/barrier tags as of the extract date, and may include flagged ferry segments. Isochrones are generalized, denoised network approximations; small separate reachable pockets can be omitted. Temporary closures, construction, indoor passages, and step-free accessibility are not modelled. The public Valhalla demo server has a fair-use policy and is not a production backend.
+
+## Exports
+
+Persisted research runs under `runs/<run_id>/` can be exported as a Markdown report, a
+self-contained printable HTML report (use **Print / Save as PDF** in a browser), a sources CSV,
+or a BibTeX bibliography. The CLI writes to standard output by default or to a file with `-o`:
+
+```sh
+uv run location-data export ../runs/demo-coffee --format md
+uv run location-data export ../runs/demo-coffee --format html --mode future -o report.html
+uv run location-data export ../runs/demo-coffee --format csv -o sources.csv
+```
+
+Area reports accept `--layers layer_a,layer_b` and `--mode present|future`; report formats also
+accept `--share-url URL`. The API serves the same formats from
+`GET /api/v1/runs/{run_id}/export/{fmt}` where `fmt` is `report.md`, `report.html`,
+`sources.csv`, or `sources.bib`. Set `RISALITE_RUNS_DIR` to select the run store; it defaults to
+the repository-root `runs/` directory. API filters `layers` and `mode` customize area findings.

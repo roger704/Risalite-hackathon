@@ -1,6 +1,7 @@
 """Public local-snapshot reads. Acquisition is deliberately a CLI operation."""
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -8,14 +9,15 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.routing import routing_router
 from app.application.service import DataService
 from app.connectors.valhalla import ValhallaWalkingClient
-from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
+from app.domain import ConnectorError, NormalizedRecord, NotFoundError, SnapshotManifest
 from app.domain.routing import load_routing_config
+from app.export import EXPORT_FORMATS, Mix, load_run
 from app.infrastructure.routing_cache import RoutingCache, default_routing_cache_path
 
 
@@ -51,7 +53,14 @@ def default_data_dir() -> Path:
 
 
 def _error_status(code: str) -> int:
-    if code in {"NOT_FOUND", "UNKNOWN_DATASET", "DATASET_NOT_FOUND", "SNAPSHOT_NOT_FOUND"}:
+    if code in {
+        "NOT_FOUND",
+        "UNKNOWN_DATASET",
+        "DATASET_NOT_FOUND",
+        "SNAPSHOT_NOT_FOUND",
+        "RUN_NOT_FOUND",
+        "UNKNOWN_FORMAT",
+    }:
         return 404
     if code in {"SNAPSHOT_INCOMPATIBLE", "INCOMPATIBLE_SNAPSHOTS", "BOUNDARY_EDITION_MISMATCH"}:
         return 409
@@ -67,6 +76,7 @@ def create_app(
     data_dir: Path | str | None = None,
     config_dir: Path | str | None = None,
     routing_client: ValhallaWalkingClient | None = None,
+    runs_dir: Path | str | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
@@ -99,6 +109,16 @@ def create_app(
         client = application.state.routing_client
         if client is not None and client._owns_client:
             await client.__aexit__(None, None, None)
+
+    def get_runs_dir() -> Path:
+        configured = os.environ.get("RISALITE_RUNS_DIR", "").strip()
+        return (
+            Path(runs_dir).expanduser()
+            if runs_dir is not None
+            else Path(configured).expanduser()
+            if configured
+            else Path(__file__).resolve().parents[3] / "runs"
+        )
 
     @application.middleware("http")
     async def request_context(request: Request, call_next):
@@ -184,6 +204,40 @@ def create_app(
         )
 
     application.include_router(routing_router(get_routing_client))
+
+    @application.get("/api/v1/runs/{run_id:path}/export/{fmt}")
+    def export_run(request: Request, run_id: str, fmt: str):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", run_id):
+            raise NotFoundError("Research run not found", "RUN_NOT_FOUND")
+        if fmt not in EXPORT_FORMATS:
+            raise NotFoundError("Unknown export format", "UNKNOWN_FORMAT")
+        unknown = set(request.query_params) - {"layers", "mode"}
+        if unknown:
+            raise ConnectorError(
+                "UNSUPPORTED_FILTER", "Unsupported query filters: " + ", ".join(sorted(unknown))
+            )
+        mode = request.query_params.get("mode")
+        if mode is not None and mode not in {"present", "future"}:
+            raise ConnectorError("INVALID_REQUEST", "mode must be present or future")
+        layers_value = request.query_params.get("layers")
+        layers = (
+            frozenset(layer.strip() for layer in layers_value.split(",") if layer.strip())
+            if layers_value is not None
+            else None
+        )
+        mix = Mix(layers_on=layers, mode=mode)
+        bundle = load_run(get_runs_dir() / run_id)
+        media_type, renderer = EXPORT_FORMATS[fmt]
+        if fmt.startswith("report."):
+            body = renderer(bundle, mix=mix)
+        else:
+            body = renderer(bundle)
+        if fmt == "sources.csv":
+            body = "\ufeff" + body
+        disposition = "inline" if fmt == "report.html" else "attachment"
+        headers = {"Content-Disposition": f'{disposition}; filename="risalite-{run_id}-{fmt}"'}
+        return Response(content=body, media_type=media_type, headers=headers)
+
     return application
 
 
