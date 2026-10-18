@@ -278,8 +278,8 @@ with zero rejected rows and 11 WFS pages. In the measured run it took 10.43 s
 6.4 MiB and 3.0 MiB, respectively, and `records.parquet` was 3,077,663 bytes.
 The quality report records the source limitations, DTV-source breakdown,
 missing-volume count, and total metric network length. On the imported road
-and LOR snapshots, the Alexanderplatz 300 m nearby query returned five roads
-in 0.22 s; the area summary covered all 542 PLRs in 0.91 s (525 with road
+and LOR snapshots, the Alexanderplatz 300 m nearby query (five nearest roads listed)
+ran in 0.22 s; the area summary covered all 542 PLRs in 0.91 s (525 with road
 segments, 17 without).
 
 ## Development checks
