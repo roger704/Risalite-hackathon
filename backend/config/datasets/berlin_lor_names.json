@@ -1,0 +1,78 @@
+{
+  "dataset_id": "berlin_lor_names",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin / Amt für Statistik Berlin-Brandenburg",
+  "adapter": "berlin_wfs",
+  "landing_url": "https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848",
+  "resource_url": "https://gdi.berlin.de/services/wfs/lor_2021?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=lor_2021:a_lor_plr_2021&OUTPUTFORMAT=application/json&SORTBY=plr_id",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "CC-BY-3.0-DE",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/de/",
+  "attribution": "Amt für Statistik Berlin-Brandenburg; Lebensweltlich orientierte Räume (LOR) 01.01.2021, WFS lor_2021, CC BY 3.0 DE; transformed to EPSG:4326.",
+  "boundary_edition": "2021",
+  "source_edition": "2021-01-01",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed_with_attribution",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "typename": "lor_2021:a_lor_plr_2021",
+    "page_size": 200,
+    "max_pages": 10,
+    "max_total_bytes": 30000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "expected_properties": [
+      "plr_id",
+      "plr_name",
+      "bzr_id",
+      "bzr_name",
+      "pgr_id",
+      "pgr_name",
+      "bez",
+      "finhalt",
+      "stadtraum_id",
+      "stadtraum_name",
+      "stand"
+    ],
+    "id_field": "plr_id",
+    "id_pattern": "^\\d{8}$",
+    "expected_count": 542,
+    "record_type": "area",
+    "field_map": {
+      "area_code": "plr_id",
+      "name": "plr_name"
+    },
+    "attribute_fields": [
+      "bzr_id",
+      "bzr_name",
+      "pgr_id",
+      "pgr_name",
+      "bez",
+      "stadtraum_id",
+      "stadtraum_name",
+      "stand"
+    ],
+    "hierarchy": "planungsraum",
+    "geometry_difference_threshold": 0.01,
+    "limitations": [
+      "WFS layer stand 01.01.2021; berlin_lor geometry is the 2023-01-01 release of the same 2021 scheme. Codes must match exactly; geometry differences are reported in coverage, not reconciled.",
+      "Names are official LOR names, not marketing neighborhood names.",
+      "Source access, CRS, paging and field mapping checked 2026-10-18."
+    ]
+  }
+}
