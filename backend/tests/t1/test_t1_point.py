@@ -185,6 +185,31 @@ def test_dimensions_without_ledger_have_no_evidence_ids():
     assert result["space"]["evidence_id"] is None
 
 
+def test_area_risk_does_not_change_hypothesis_confidence_or_rank():
+    prepared = prepare_point("Wrangelstraße 10", readers=readers())
+    target = prepared["hypotheses"][0]["id"]
+    area_risk = {
+        "finding_id": "f_area_risk",
+        "claim": "An area-level concern.",
+        "quote": "An area-level concern.",
+        "evidence_ids": ["ev_area"],
+        "claim_type": "risk",
+        "localization": "area",
+        "hypothesis_id": target,
+        "agent": f"skeptic:{target}",
+        "severity": "high",
+        "status": "accepted",
+        "verification": "verified",
+    }
+
+    baseline = build_candidates(prepared, [], {})
+    with_area_risk = build_candidates(prepared, [area_risk], {})
+
+    assert [(item.id, item.rank_final, item.confidence) for item in baseline.hypotheses] == [
+        (item.id, item.rank_final, item.confidence) for item in with_area_risk.hypotheses
+    ]
+
+
 def test_zero_resident_catchment_is_finite_flagged_and_low_confidence():
     result = prepare_point(lat=PARK[1], lon=PARK[0], readers=readers())
     assert result["catchment"]["residents"] == 0

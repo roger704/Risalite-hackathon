@@ -93,7 +93,92 @@ def _score(item: dict) -> str:
     return f" — {', '.join(parts)}" if parts else ""
 
 
-def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
+def _item_allowed(
+    item: dict,
+    result: dict,
+    allowed: set[str],
+    findings: Sequence[Finding],
+    entries: Sequence[dict[str, Any]] = (),
+) -> set[str]:
+    cell_id = str(item.get("id") or item.get("cell_id") or "")
+    item_cells = {cell_id} if cell_id else set()
+    space = result.get("space") if isinstance(result.get("space"), dict) else {}
+    space_cell = space.get("cell_id") or space.get("plr_id")
+    if space_cell:
+        item_cells.add(str(space_cell))
+    item_citations = _cited_ids(item) & allowed
+    area_citations: set[str] = set()
+    item_finding_citations: set[str] = set()
+    allowed_ids = {evidence_id for evidence_id in allowed if evidence_id.startswith("ds_")}
+    for finding in findings:
+        if finding.status == "rejected" or finding.verification == "unsupported":
+            continue
+        localization = finding.localization
+        finding_citations = set(finding.evidence_ids) & allowed
+        if localization == "area":
+            area_citations.update(finding_citations)
+        cell_finding = localization in {cell_id, f"plr:{cell_id}"}
+        hypothesis_finding = getattr(
+            finding, "hypothesis_id", None
+        ) == cell_id and localization in {"address", str(space_cell) if space_cell else None}
+        if cell_finding or hypothesis_finding:
+            item_finding_citations.update(finding_citations)
+            allowed_ids.update(finding_citations)
+    item_citations -= area_citations - item_finding_citations
+    allowed_ids.update(item_citations)
+
+    entries_by_id = {entry.get("evidence_id"): entry for entry in entries}
+    known_cells = {
+        str(candidate.get("id") or candidate.get("cell_id"))
+        for candidate in top_items(result)
+        if candidate.get("id") or candidate.get("cell_id")
+    }
+    known_cells.update(item_cells)
+
+    def dataset_cells(entry: dict[str, Any] | None) -> set[str]:
+        if not entry:
+            return set()
+        query = entry.get("query")
+        if not isinstance(query, dict):
+            return set()
+        cells: set[str] = set()
+        for key in ("cell_id", "plr_id", "plr", "cell"):
+            value = query.get(key)
+            if isinstance(value, str) and value:
+                cells.add(value)
+            elif isinstance(value, (list, tuple, set)):
+                cells.update(str(item) for item in value if item)
+        value = query.get("area_code")
+        area_codes = (
+            [value]
+            if isinstance(value, str)
+            else list(value)
+            if isinstance(value, (list, tuple, set))
+            else []
+        )
+        for area_code in area_codes:
+            area_code = str(area_code)
+            if area_code in known_cells or (len(area_code) == 8 and area_code.isdigit()):
+                cells.add(area_code)
+        return cells
+
+    for evidence_id in list(allowed_ids):
+        if not evidence_id.startswith("ds_") or evidence_id in item_citations:
+            continue
+        entry_cells = dataset_cells(entries_by_id.get(evidence_id))
+        if entry_cells and not (entry_cells & item_cells):
+            allowed_ids.discard(evidence_id)
+    return allowed_ids
+
+
+def render(
+    report: Report,
+    result: dict,
+    allowed: set[str],
+    title: str,
+    findings: Sequence[Finding] = (),
+    entries: Sequence[dict[str, Any]] = (),
+) -> str:
     lines = [f"# {title}", ""]
     summary = [s for s in (_sentence(x, allowed) for x in report.summary) if s]
     if summary:
@@ -108,8 +193,11 @@ def render(report: Report, result: dict, allowed: set[str], title: str) -> str:
         section = sections.get(cell_id) or CellSection(cell_id=cell_id)
         name = item.get("name") or section.name or cell_id
         lines += [f"### {rank}. {name} ({cell_id}){_score(item)}", ""]
-        reasons = [s for s in (_sentence(x, allowed) for x in section.reasons[:4]) if s]
-        risks = [s for s in (_sentence(x, allowed) for x in section.risks) if s]
+        section_allowed = (
+            _item_allowed(item, result, allowed, findings, entries) if findings else allowed
+        )
+        reasons = [s for s in (_sentence(x, section_allowed) for x in section.reasons[:4]) if s]
+        risks = [s for s in (_sentence(x, section_allowed) for x in section.risks) if s]
         if reasons:
             lines += ["**Why**", "", *(f"- {r}" for r in reasons), ""]
         if risks:
@@ -236,12 +324,22 @@ async def write_report(
         model = chat_model(cfg.writer_model, cfg)
         user = _writer_input(question, result, live)
         report = await structured_call(
-            model, cfg.writer_model, prompts.WRITER, user, Report, events, "write report"
+            model,
+            cfg.writer_model,
+            prompts.WRITER
+            + f"\n\nToday's date is {prompts.today()}; describe developments completed before "
+            "today in the past tense.",
+            user,
+            Report,
+            events,
+            "write report",
         )
     deterministic = report is None
     if report is None:
         report = deterministic_report(result, live)
-    stripped = strip_unknown_citations(render(report, result, allowed, title), entries)
+    stripped = strip_unknown_citations(
+        render(report, result, allowed, title, findings=live, entries=entries), entries
+    )
     await events(
         "write",
         why="report rendered with ledger citations",
