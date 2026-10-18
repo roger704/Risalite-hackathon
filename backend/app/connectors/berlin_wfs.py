@@ -235,8 +235,15 @@ def _options(config: DatasetConfig) -> dict:
         raise SchemaError("WFS expected_count_range must contain ordered nonnegative integers")
     if options["record_type"] == "address":
         return options
-    if options["record_type"] not in {"area", "road_traffic_segment"}:
+    if options["record_type"] == "residential_location_class":
+        return options
+    if options["record_type"] not in {"area", "facility", "road_traffic_segment"}:
         raise SchemaError(f"unsupported record_type: {options['record_type']}")
+    if options["record_type"] == "facility":
+        from app.connectors.berlin_wfs_facility import check_facility_options
+
+        check_facility_options(options)
+        return options
     if options["record_type"] == "area":
         field_map = options["field_map"]
         if not isinstance(field_map, dict) or any(
@@ -264,7 +271,7 @@ def _options(config: DatasetConfig) -> dict:
 class BerlinWFSConnector(FileConnector):
     """Reviewed WFS 2.0 GeoJSON paging and polygon normalization."""
 
-    adapter_version = "1.1.0"
+    adapter_version = "1.2.0"
 
     async def fetch(self, request: FetchRequest) -> RawBundle:
         if request.config.parser_options.get("record_type") == "development_plan":
@@ -347,6 +354,18 @@ class BerlinWFSConnector(FileConnector):
             next_url = href
         else:
             raise SchemaError("WFS page cap exceeded before all features were received")
+        if options.get("edition_metadata_url"):
+            from app.connectors.berlin_wfs_facility import EDITION_METADATA_NAME
+
+            urls.append(options["edition_metadata_url"])
+            metadata = await self.fetcher.download(
+                replace(config, resource_url=options["edition_metadata_url"]),
+                Path(request.staging_dir) / EDITION_METADATA_NAME,
+            )
+            total_bytes += metadata.size_bytes
+            if total_bytes > max_total_bytes:
+                raise SchemaError("WFS cumulative download exceeded max_total_bytes")
+            assets.append(metadata)
 
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -377,6 +396,8 @@ class BerlinWFSConnector(FileConnector):
         pages = []
         matched = None
         for asset in raw.assets:
+            if asset.path.endswith("edition-metadata.json"):
+                continue
             try:
                 with Path(asset.path).open("rb") as source:
                     collection = parse_page(source.read(), options)
@@ -405,6 +426,12 @@ class BerlinWFSConnector(FileConnector):
 
         source_bounds = _bbox(options, "source_bbox")
         allowed_bounds = _bbox(options, "allowed_bbox", [13.0, 52.3, 13.9, 52.8])
+        if options["record_type"] == "facility":
+            from app.connectors.berlin_wfs_facility import normalize_facilities
+
+            return normalize_facilities(
+                features, raw, config, options, source_bounds, allowed_bounds
+            )
         geometry_types = options.get("geometry_types", ["Polygon", "MultiPolygon"])
         required_properties = set(options["expected_properties"])
         required_properties.update(
@@ -501,6 +528,10 @@ class BerlinWFSConnector(FileConnector):
         )
 
     def validate(self, batch: NormalizedBatch) -> QualityReport:
+        if any(getattr(record, "record_type", None) == "facility" for record in batch.records):
+            from app.connectors.berlin_wfs_facility import validate_facilities
+
+            return validate_facilities(batch)
         if batch.records and batch.records[0].record_type == "development_plan":
             from app.connectors.berlin_wfs_plans import validate_development_plans
 
@@ -553,6 +584,10 @@ class BerlinWFSConnector(FileConnector):
 
             return check_development_plan_parent(records, parent_records)
         options = _options(config)
+        if options["record_type"] == "facility":
+            from app.connectors.berlin_wfs_facility import check_facility_parent
+
+            return check_facility_parent(config, options, records, parent_records)
         invalid_records = sum(
             not isinstance(record, Area) for record in (*records, *parent_records)
         )
