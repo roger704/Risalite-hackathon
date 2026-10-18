@@ -635,6 +635,79 @@ class ForecastObservation(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Building(Record):
+    """An official ALKIS building footprint (WGS84 Polygon/MultiPolygon). Function is the cadastral
+    building function, not current use; storeys are recorded counts; no floor-area claim."""
+
+    geometry: dict[str, Any]
+    alkis_object_type: str
+    function_code: str | None = None
+    function_label: str | None = None
+    storeys_above_ground: int | None = None
+    storeys_below_ground: int | None = None
+    building_name: str | None = None
+    footprint_area_m2: float | None = None
+    street_codes: tuple[str, ...] = ()
+    address_labels: tuple[str, ...] = ()
+    address_reference_kind: str | None = None
+    source_url: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="building", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _text("alkis_object_type", self.alkis_object_type)
+        for name in ("function_code", "function_label", "building_name", "address_reference_kind"):
+            _optional_text(name, getattr(self, name))
+        _optional_text("source_url", self.source_url)
+        for name in ("storeys_above_ground", "storeys_below_ground"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValidationError(f"{name} must be a nonnegative integer or null")
+        area = self.footprint_area_m2
+        if area is not None and (
+            isinstance(area, bool)
+            or not isinstance(area, (int, float))
+            or not isfinite(area)
+            or area < 0
+        ):
+            raise ValidationError("footprint_area_m2 must be finite and nonnegative or null")
+        for name in ("street_codes", "address_labels"):
+            values = getattr(self, name)
+            if not isinstance(values, (tuple, list)) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValidationError(f"{name} must contain nonempty strings")
+            object.__setattr__(self, name, tuple(values))
+        if not isinstance(self.geometry, dict) or self.geometry.get("type") not in {
+            "Polygon",
+            "MultiPolygon",
+        }:
+            raise ValidationError("Building geometry must be a Polygon or MultiPolygon")
+        from shapely.geometry import shape
+
+        try:
+            geometry = shape(self.geometry)
+        except Exception as exc:
+            raise ValidationError("Building geometry is invalid") from exc
+        if (
+            geometry.is_empty
+            or not geometry.is_valid
+            or geometry.geom_type
+            not in {
+                "Polygon",
+                "MultiPolygon",
+            }
+        ):
+            raise ValidationError("Building geometry must be a valid nonempty polygon")
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class ResidentialLocationClass(Record):
     geometry: dict[str, Any]
     address_key: str
@@ -906,6 +979,7 @@ NormalizedRecord: TypeAlias = (
     | GridObservation
     | Address
     | Facility
+    | Building
     | ResidentialLocationClass
 )
 RECORD_TYPES: dict[str, type] = {
@@ -922,6 +996,7 @@ RECORD_TYPES: dict[str, type] = {
     "area_indicator_class": AreaIndicatorClass,
     "grid_observation": GridObservation,
     "facility": Facility,
+    "building": Building,
 }
 
 
@@ -1424,6 +1499,7 @@ class PopulationBlock(Record):
 
 RECORD_TYPES["population_block"] = PopulationBlock
 NormalizedRecord = NormalizedRecord | PopulationBlock
+NormalizedRecord = NormalizedRecord | Address | Building
 
 
 @dataclass(frozen=True, kw_only=True)
