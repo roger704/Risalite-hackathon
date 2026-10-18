@@ -33,13 +33,27 @@ function show(id) {
   if (step && pill) { pill.style.width = `${step.offsetWidth}px`; pill.style.transform = `translateX(${step.offsetLeft - 3}px)`; }
   window.scrollTo(0, 0);
 }
-function err(sel, msg) { const e = $(sel); e.textContent = msg; e.classList.toggle('hidden', !msg); }
+function err(sel, msg) { const e = $(sel); (e.querySelector('[data-error-message]') || e).textContent = msg; e.classList.toggle('hidden', !msg); }
 const apiUrl = path => API + path;
 const headers = extra => ({ ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}), ...extra });
 async function getJSON(path, opt = {}) {
-  const response = await fetch(apiUrl(path), { ...opt, headers: headers(opt.headers || {}) });
+  let response;
+  try { response = await fetch(apiUrl(path), { ...opt, headers: headers(opt.headers || {}) }); }
+  catch (error) {
+    if (error.name === 'AbortError') throw error;
+    throw new Error('We couldn’t reach SpotWise. Check your connection and try again.');
+  }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${opt.method || 'GET'} ${path} → HTTP ${response.status}: ${payload.detail || payload.error?.message || 'request failed'}`);
+  if (!response.ok) {
+    const detail = typeof payload.detail === 'string' ? payload.detail : payload.error?.message || '';
+    let message = detail || 'SpotWise couldn’t complete this request. Please try again.';
+    if (response.status === 503) message = 'SpotWise is briefly unavailable. Please try again in a moment.';
+    if (response.status === 429) message = /budget/i.test(detail)
+      ? 'The public demo’s research limit has been reached. Please contact the team.'
+      : 'Another investigation is running. Please try again when it finishes.';
+    const error = new Error(message); error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 const post = (path, body) => getJSON(path, {
@@ -280,6 +294,7 @@ $('#q').addEventListener('input', () => { stopTyping(); clearHint(); });
 $('#op').addEventListener('input', () => { stopTyping(true); clearHint(); });
 $('#role').addEventListener('change', () => { if (typingExample) stopTyping(true); clearHint(); });
 $('#go').onclick = () => { if (typingExample) finishTyping(); clearHint(); ask($('#q').value.trim()); };
+$('#ask-retry').onclick = () => $('#go').click();
 $('#print-report').onclick = () => exportRun('report.html', true);
 $('#restart').onclick = () => {
   stopTyping(); clearHint(); activeHash = '';
@@ -331,11 +346,17 @@ async function ask(q) {
   const gen = GEN;
   err('#ask-err', ''); $('#clar').classList.add('hidden');
   const body = { question: q, role: $('#role').value || null, profile: $('#op').value || null };
+  const button = $('#go'); button.disabled = true; button.textContent = 'Preparing plan…';
   try {
     RUN = await post('/research', body);
   } catch (e) {
-    if (gen === GEN) err('#ask-err', 'Could not start research: ' + e.message + ' — is the API running?');
+    if (gen === GEN) {
+      $('#ask-err').classList.toggle('notice', e.status === 503 || e.status === 429);
+      err('#ask-err', e.message);
+    }
     return;
+  } finally {
+    button.disabled = false; button.textContent = 'Research ›';
   }
   if (gen !== GEN) return;
   acceptRun(RUN);
