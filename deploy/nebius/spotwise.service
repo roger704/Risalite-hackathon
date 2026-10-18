@@ -1,0 +1,32 @@
+[Unit]
+Description=SpotWise public review application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=spotwise
+Group=spotwise
+WorkingDirectory=/opt/spotwise/backend
+EnvironmentFile=/etc/spotwise.env
+Environment=PYTHONUNBUFFERED=1
+Environment=LOCATION_DATA_DIR=/var/lib/spotwise
+Environment=RISALITE_RUNS_DIR=/var/lib/spotwise/runs
+Environment=RISALITE_RUNS=live
+Environment=RISALITE_AREA_DATA=summary
+Environment=RISALITE_MAX_ACTIVE_RUNS=1
+Environment=RISALITE_PUBLIC_MAX_RUNS=20
+ExecStart=/opt/spotwise/backend/.venv/bin/python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=600
+KillSignal=SIGINT
+StateDirectory=spotwise
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/spotwise
+
+[Install]
+WantedBy=multi-user.target
