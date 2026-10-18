@@ -88,7 +88,9 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)
 .map text{font-size:10px;fill:#1d1d1f;pointer-events:none;font-weight:600;paint-order:stroke;stroke:rgba(255,255,255,.95);stroke-width:3px}
 .tip{position:absolute;pointer-events:none;background:rgba(28,28,30,.8);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);color:#f2f2f7;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;font-size:12px;min-width:210px;display:none;z-index:5;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .tip b{color:#fff}.tip td{border:0;padding:1px 4px;color:#d1d1d6}
-.legend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);margin-top:8px}
+.legend{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--mut);margin-top:8px}
+.legend>span{white-space:nowrap;margin-left:0!important}
+.legend>span:last-child{flex:1 1 100%;white-space:normal}
 .legend .bar{flex:0 0 160px;height:9px;border-radius:999px}
 .layer{display:grid;grid-template-columns:22px 1fr 54px 50px;align-items:center;gap:6px;padding:7px 4px;border-bottom:1px solid var(--line);border-radius:8px;transition:background .25s}
 .layer:hover{background:rgba(255,255,255,.5)}
@@ -325,7 +327,6 @@ header .mode.mock{background:rgba(255,149,0,.14);color:#914100}
 .fixture-notice{border:1px solid rgba(255,149,0,.3)}.null{color:var(--mut);font-style:italic}
 #map,#map3d{height:510px;width:100%;border-radius:18px;background:#eef1f8;overflow:hidden}
 .map-ctl{gap:8px;flex-wrap:wrap;margin-bottom:10px}.leaflet-container{font:inherit}
-.leaflet-tooltip.rtip{max-width:300px;white-space:normal;border:1px solid var(--glass-b);border-radius:14px;background:rgba(255,255,255,.96);box-shadow:var(--shadow);padding:12px}
 .lbl{background:transparent;border:0;box-shadow:none;font-weight:700;text-shadow:0 0 3px white}
 .layer{grid-template-columns:22px minmax(80px,1fr) 54px 50px}.layer-hist{display:flex;gap:2px;height:15px;align-items:flex-end;margin-top:3px}.layer-hist i{flex:1;background:rgba(0,122,255,.3);border-radius:2px 2px 0 0;min-height:2px}
 .layer-previewing{background:rgba(0,122,255,.07);border-radius:10px}
@@ -353,3 +354,32 @@ header .mode.mock{background:rgba(255,149,0,.14);color:#914100}
 .layer-preview.hidden{display:block!important;visibility:hidden;pointer-events:none}
 .top.new-card{animation:rankFade .35s var(--ease) both}
 @keyframes rankFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Map hover tooltip (body-level, never clipped by the map frame). */
+.maptip{position:fixed;left:0;top:0;z-index:1100;pointer-events:none;width:max-content;min-width:230px;max-width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 20px);overflow:hidden;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-b);box-shadow:0 12px 32px rgba(15,30,45,.22);font-size:12px;line-height:1.35;color:var(--ink);opacity:0;visibility:hidden;transition:opacity .12s,visibility .12s}
+.maptip.on{opacity:1;visibility:visible}
+.tt-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.tt-h b{font-size:13px}
+.tt-s{font-weight:800;font-size:15px;color:var(--acc)}
+.tt-m{color:var(--mut);font-size:11px;margin:1px 0 6px}
+table.tt{width:100%}
+table.tt td{padding:2px 0;border:0;vertical-align:baseline}
+table.tt td.v{text-align:right;white-space:nowrap;font-weight:700;padding-left:10px}
+table.tt td.v .mut{font-weight:400}
+table.tt td.c,.tt-n .c{color:var(--mut);font-size:10px;white-space:nowrap}
+table.tt td.c{padding-left:6px}
+table.tt tr.off{opacity:.45}
+.tt-n{list-style:none;margin:6px 0 0;padding:6px 0 0;border-top:1px solid var(--line)}
+.tt-n li{margin:2px 0}.tt-n .rs{color:var(--warn)}.tt-n .uk{color:var(--mut)}
+.tt-f{margin-top:6px;color:var(--mut);font-size:11px}
+/* Marker decluttering. */
+.mk3.cl .bd.nm{display:none}
+.mk3.ch{visibility:hidden}.mk3.ch .bds{pointer-events:none}
+/* Expanded map. */
+#map-expand{margin-left:auto;padding:6px 12px;font-size:12px}
+#map-backdrop{position:fixed;inset:0;z-index:999;background:rgba(15,23,42,.32);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s var(--ease)}
+body.map-open{overflow:hidden}
+body.map-open #map-backdrop{opacity:1;pointer-events:auto}
+#map-card.map-expanded{position:fixed;inset:16px;z-index:1000;margin:0;display:flex;flex-direction:column;background:rgba(255,255,255,.9);animation:mapIn .35s var(--ease) both}
+#map-card.map-expanded #map,#map-card.map-expanded #map3d{flex:1 1 auto;height:auto;min-height:0}
+@keyframes mapIn{from{opacity:.3;transform:scale(.97)}to{opacity:1;transform:none}}

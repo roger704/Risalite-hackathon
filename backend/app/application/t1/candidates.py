@@ -32,6 +32,8 @@ def accepted_ids(finding: dict[str, Any]) -> list[str]:
 
 
 def _hypothesis_of(finding: dict[str, Any], ids: set[str]) -> str | None:
+    if finding.get("localization") == "area":
+        return None
     for key in ("hypothesis_id", "subquestion_id"):
         if finding.get(key) in ids:
             return finding[key]

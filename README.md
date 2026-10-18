@@ -14,7 +14,7 @@
 
 **How it is built:** HTML/CSS/JavaScript, MapLibre GL and Leaflet in the browser; Python/FastAPI, GeoPandas, Shapely, and PyProj on the backend; GeoParquet/Parquet snapshots with a SQLite catalog for storage. DeepAgents research uses **Nebius Token Factory** for hosted models and **Tavily** for web search/extraction. The application runs on a laptop or CPU server.
 
-**Try it online:** [Explore the animated introduction](https://spotwise.81-85-0-244.sslip.io/) or [open the research app](https://spotwise.81-85-0-244.sslip.io/app/). Start with “Where is it smart to open a coffee place in Kreuzberg?”, review the plan, then approve it to run live research. No account is required. The review deployment allows one active run and 20 admitted runs in total, including validation runs; research uses real Nebius and Tavily credits.
+**Try it online:** [Explore the animated introduction](https://spotwise.81-85-0-244.sslip.io/) or [open the research app](https://spotwise.81-85-0-244.sslip.io/app/). Start with “Where is it smart to open a coffee place in Kreuzberg?”, review the plan, then approve it to run live research. No account is required. The review deployment allows three active runs and 60 admitted runs in total, including validation runs; research uses real Nebius and Tavily credits.
 
 **Where we are:** the café workflow connects the demo dashboard to real data snapshots, deterministic scoring, live research agents, verification, maps, and exports. The app runs on a CPU-only Nebius server behind HTTPS. **Coming next:** stronger public-use controls, recovery for interrupted sessions, and broader property-level and childcare workflows. See the [status and roadmap](#status-and-roadmap) and [deployment guide](deploy/nebius/README.md).
 

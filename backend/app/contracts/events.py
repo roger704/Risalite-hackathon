@@ -24,6 +24,7 @@ class ResearchEvent(BaseModel):
         "extract",
         "finding_accepted",
         "finding_rejected",
+        "localization_downgraded",
         "model_call",
         "tool_error",
         "budget_exhausted",

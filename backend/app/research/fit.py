@@ -78,7 +78,11 @@ async def derive_fit(
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """``{hypothesis_id: {"Cost"|"Operator fit"|"Space fit": {score, why, evidence_ids}}}``."""
     hypotheses = list(prepared.get("hypotheses") or [])
-    rows = [_as_dict(f) for f in findings]
+    rows = []
+    for finding in findings:
+        row = _as_dict(finding)
+        if row.get("localization") != "area":
+            rows.append(row)
     events = Events(emit, agent, cfg.model)
     if getattr(cfg, "fake", False):
         result: FitAssessment | None = _fake(hypotheses, rows)

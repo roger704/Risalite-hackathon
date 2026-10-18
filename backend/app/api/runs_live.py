@@ -31,6 +31,7 @@ def default_deps() -> Deps:
     from app.evidence.factcheck import FactChecker
     from app.scoring import v2
 
+    data_service = None
     if os.environ.get("RISALITE_AREA_DATA", "summary") in {"fixtures", "fixture"}:
         port = FixtureAreaData.from_frontend_fixtures(
             Path(__file__).resolve().parents[3] / "frontend" / "fixtures"
@@ -38,7 +39,8 @@ def default_deps() -> Deps:
     else:
         from app.application.service import DataService
 
-        port = SummaryAreaData.from_data_service(DataService())
+        data_service = DataService()
+        port = SummaryAreaData.from_data_service(data_service)
     try:
         from app.application import t1
     except ImportError:
@@ -48,6 +50,11 @@ def default_deps() -> Deps:
         from app.application.t1.demo import demo_readers
 
         t1_readers = demo_readers
+    elif t1 is not None and data_service is not None:
+        from app.application.t1.readers import SnapshotReaders
+
+        def t1_readers():
+            return SnapshotReaders(data_service)
 
     def config():
         return research.ResearchConfig()

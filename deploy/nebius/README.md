@@ -35,7 +35,7 @@ Provisioning and public access require approval; these files do not create a VM 
 
 ## Public research limits
 
-Anyone with the link can plan and approve research. The service allows **one active run** and **20 admitted runs total** for this review deployment. The total is stored in `/var/lib/spotwise/runs/public-budget.sqlite` and survives restarts; an unavailable budget fails closed. Each admitted run can still spend up to the pipeline's 40-search and 40-extract limits plus model inference. This is a run-count cap, not a monetary cap.
+Anyone with the link can plan and approve research. The service allows **three active runs** and **60 admitted runs total** for this review deployment. The total is stored in `/var/lib/spotwise/runs/public-budget.sqlite` and survives restarts; an unavailable budget fails closed. Each admitted run can still spend up to the pipeline's 40-search and 40-extract limits plus model inference. This is a run-count cap, not a monetary cap.
 
 Change `RISALITE_PUBLIC_MAX_RUNS` only deliberately in a systemd override. Set it to `0` to stop new live research while leaving the UI available. A repeated admission of the same run does not count twice. Keep one worker: live run state is process-local. Files persist across a restart, but an in-progress run cannot automatically resume and API run sessions must be recreated; wait for active runs to finish before updates.
 

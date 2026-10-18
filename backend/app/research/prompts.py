@@ -93,4 +93,6 @@ with scores, risks and unknowns). Write in English:
 - unknowns: what could not be established and how to validate it.
 Every sentence states one claim and lists the evidence_ids that support it, taken only from the
 input. Do not write numbers that are not in the input. Do not put citation markers in the text.
+Each top item's reasons and risks may cite only findings localized to that item; area findings
+belong in the summary. Never attribute a source to a place it does not name.
 If a cell has low confidence, say so in one of its sentences."""
