@@ -1,0 +1,58 @@
+{
+  "Classifier": {
+    "model": "gpt-oss-120b",
+    "calls": 1,
+    "tokens_in": 812,
+    "tokens_out": 0,
+    "seconds": 1.1
+  },
+  "Planner": {
+    "model": "gpt-oss-120b",
+    "calls": 2,
+    "tokens_in": 2680,
+    "tokens_out": 0,
+    "seconds": 4.3
+  },
+  "Data researcher": {
+    "model": "tool calls (no LLM)",
+    "calls": 5,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "seconds": 6.900000000000001
+  },
+  "Web researcher": {
+    "model": "Nemotron Lightning",
+    "calls": 1,
+    "tokens_in": 1620,
+    "tokens_out": 0,
+    "seconds": 2.9
+  },
+  "Skeptic": {
+    "model": "gpt-oss-120b",
+    "calls": 2,
+    "tokens_in": 1980,
+    "tokens_out": 0,
+    "seconds": 4.5
+  },
+  "Fact-checker": {
+    "model": "Tavily extract + fuzzy match ≥0.85",
+    "calls": 2,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "seconds": 6.4
+  },
+  "Scorer": {
+    "model": "deterministic",
+    "calls": 1,
+    "tokens_in": 1100,
+    "tokens_out": 0,
+    "seconds": 1.4
+  },
+  "Writer": {
+    "model": "Beam",
+    "calls": 2,
+    "tokens_in": 3400,
+    "tokens_out": 0,
+    "seconds": 5.1
+  }
+}
