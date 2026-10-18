@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 from typing import Annotated, Any, Callable
 
@@ -19,6 +20,7 @@ from app.geo.parcels import (
 )
 
 _INDEX_CACHE: dict[tuple[str, str], ParcelIndex] = {}
+_INDEX_CACHE_LOCK = threading.Lock()
 _MAX_RELATED_RECORDS = 200_000
 
 
@@ -69,25 +71,26 @@ def parcels_router(get_service: Callable[[], DataService]) -> APIRouter:
     def index_for(service: DataService, snapshot_id: str):
         manifest, meta = manifest_and_meta(service, snapshot_id)
         key = (str(service.root), manifest.snapshot_id)
-        index = _INDEX_CACHE.get(key)
-        if index is None:
-            records = []
-            cursor = None
-            while True:
-                page = service.records(
-                    "berlin_alkis_parcels",
-                    snapshot_id,
-                    limit=1000,
-                    cursor=cursor,
-                )
-                records.extend(page["records"])
-                cursor = page["next_cursor"]
-                if cursor is None:
-                    break
-            index = ParcelIndex(records_from_dicts(records))
-            if len(_INDEX_CACHE) >= 8:
-                _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
-            _INDEX_CACHE[key] = index
+        with _INDEX_CACHE_LOCK:
+            index = _INDEX_CACHE.get(key)
+            if index is None:
+                records = []
+                cursor = None
+                while True:
+                    page = service.records(
+                        "berlin_alkis_parcels",
+                        snapshot_id,
+                        limit=1000,
+                        cursor=cursor,
+                    )
+                    records.extend(page["records"])
+                    cursor = page["next_cursor"]
+                    if cursor is None:
+                        break
+                index = ParcelIndex(records_from_dicts(records))
+                if len(_INDEX_CACHE) >= 8:
+                    _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
+                _INDEX_CACHE[key] = index
         return index, manifest, meta
 
     @router.get("/api/v1/parcels/at")

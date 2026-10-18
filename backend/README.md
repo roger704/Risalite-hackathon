@@ -286,7 +286,9 @@ LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
 uv run location-data ingest berlin_alkis_parcels --lor-snapshot "$LOR_SNAPSHOT_ID"
 ```
 
-The manifest coverage records the pinned LOR snapshot, extent, parcel count, PLR codes intersecting the extent, and parcels whose representative points fall outside all PLRs. The source is monthly-updated, edition `2026-09-22`; per-feature `beg` dates do not provide a complete historical edition. Import runtime, maximum RSS, raw/normalized storage, and quality counts from the real bounded import: **TBD**.
+The manifest coverage records the pinned LOR snapshot, extent, parcel count, PLR codes intersecting the extent, and parcels whose representative points fall outside all PLRs. The source is monthly-updated, edition `2026-09-22`; per-feature `beg` dates do not provide a complete historical edition.
+
+Real bounded imports checked **2026-10-18**: LOR published 542 records with 0 rejected in 4.89 seconds (peak RSS 286,892 KB; 812 KB raw and 7.3 MB normalized). ALKIS published 11,434 records, matching `numberMatched=11,434`, with 0 rejected in 16.61 seconds (peak RSS 366,976 KB; 11 MB raw and 10 MB normalized). ALKIS quality counts were 1 missing or invalid official area, 0 geometries repaired after reprojection, and 87 official-to-derived area ratios outside 0.9–1.1.
 
 ## Adding a connector
 
