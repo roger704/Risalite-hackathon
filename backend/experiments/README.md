@@ -33,11 +33,11 @@ The report goes to stdout; progress and a verification line go to stderr, for ex
 ```
 [tavily] search #1: specialty coffee competition Neukölln Berlin
 ...
-[verify] nebius_llm_calls=5 tokens_in=76975 tokens_out=3010 tavily_searches=12 tavily_urls=48 cited_urls=20 cited_from_tavily=20 elapsed_s=20.1
+[verify] nebius_llm_calls=5 tokens_in=76975 tokens_out=3010 tavily_searches=12 tavily_urls=48 cited_from_tavily=20 inline_cited_from_tavily=18 elapsed_s=20.1
 [verify] OK
 ```
 
-The script exits with status 2 unless Token Factory inference happened, Tavily was called, and the report cites at least one URL that Tavily actually returned. Options: `--max-searches` (Tavily budget, default 12), `--max-results` (results per search, default 5), `--recursion-limit` (agent steps, default 150).
+The script exits with status 2 unless Token Factory inference happened, Tavily was called, and the report cites at least one URL that Tavily actually returned as an inline markdown link (a Sources list alone does not count). Error messages are printed with API key values redacted. Options: `--max-searches` (Tavily budget, default 12), `--max-results` (results per search, default 5), `--recursion-limit` (agent steps, default 150).
 
 ## Run in Docker
 
@@ -117,6 +117,6 @@ docker run --rm --env-file .env risalite-research \
 
 ### 4. Verify
 
-A successful run prints a markdown report with inline source links and ends with `[verify] OK` on stderr: `nebius_llm_calls` > 0 confirms Token Factory inference, `tavily_searches` > 0 confirms Tavily was called, and `cited_from_tavily` > 0 confirms the report cites web evidence that Tavily returned. The exit status is 0 only in that case. Keys are read from the environment and are never printed.
+A successful run prints a markdown report with inline source links and ends with `[verify] OK` on stderr: `nebius_llm_calls` > 0 confirms Token Factory inference, `tavily_searches` > 0 confirms Tavily was called, and `inline_cited_from_tavily` > 0 confirms the report's findings cite web evidence that Tavily returned. The exit status is 0 only in that case. Keys are read from the environment and are never printed.
 
 Delete the VM when finished to stop charges (`nebius compute instance delete --id <VM_ID>`, or from the console).

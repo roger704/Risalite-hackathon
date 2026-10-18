@@ -24,7 +24,9 @@ from langgraph.errors import GraphRecursionError
 
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 DEFAULT_MODEL = "MiniMaxAI/MiniMax-M3"
-URL_PATTERN = re.compile(r"https?://[^\s<>\"')\]]+")
+SOURCES_HEADING = re.compile(
+    r"^\s*(#+\s*|\*\*)?(sources|references)\b", re.IGNORECASE | re.MULTILINE
+)
 THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 SYSTEM_PROMPT = """You are a careful web researcher.
@@ -138,8 +140,21 @@ def message_text(message: Any) -> str:
     return THINK_PATTERN.sub("", content or "").strip()
 
 
-def normalize_url(url: str) -> str:
-    return url.rstrip(".,;:").rstrip("/")
+def redact(text: str) -> str:
+    for name in ("NEBIUS_API_KEY", "TAVILY_API_KEY"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            text = text.replace(value, f"<{name}>")
+    return text
+
+
+def cited_urls(report: str, urls: set[str]) -> tuple[set[str], set[str]]:
+    """Return (urls cited anywhere, urls cited as inline markdown links before the Sources list)."""
+    heading = SOURCES_HEADING.search(report)
+    body = report[: heading.start()] if heading else report
+    anywhere = {u for u in urls if u in report or u.rstrip("/") in report}
+    inline = {u for u in urls if f"]({u}" in body or f"]({u.rstrip('/')}" in body}
+    return anywhere, inline
 
 
 def main() -> int:
@@ -165,13 +180,11 @@ def main() -> int:
         log(f"error: agent did not finish within {args.recursion_limit} steps")
         return 1
     except Exception as exc:  # surface provider errors without a traceback
-        log(f"error: {type(exc).__name__}: {exc}")
+        log(f"error: {type(exc).__name__}: {redact(str(exc))}")
         return 1
     report = message_text(result["messages"][-1])
 
-    known = {normalize_url(u) for u in stats.result_urls}
-    cited = {normalize_url(u) for u in URL_PATTERN.findall(report)}
-    sourced = cited & known
+    cited, inline = cited_urls(report, stats.result_urls)
 
     print(report)
     log(
@@ -179,12 +192,14 @@ def main() -> int:
         f"nebius_llm_calls={stats.llm_calls} "
         f"tokens_in={stats.input_tokens} tokens_out={stats.output_tokens} "
         f"tavily_searches={len(stats.searches)} "
-        f"tavily_urls={len(known)} cited_urls={len(cited)} "
-        f"cited_from_tavily={len(sourced)} "
+        f"tavily_urls={len(stats.result_urls)} cited_from_tavily={len(cited)} "
+        f"inline_cited_from_tavily={len(inline)} "
         f"elapsed_s={time.monotonic() - started:.1f}"
     )
-    if stats.llm_calls == 0 or not stats.searches or not sourced:
-        log("[verify] FAILED: expected Nebius inference, Tavily searches and cited Tavily URLs")
+    if stats.llm_calls == 0 or not stats.searches or not inline:
+        log(
+            "[verify] FAILED: expected Nebius inference, Tavily searches and inline Tavily citations"
+        )
         return 2
     log("[verify] OK")
     return 0

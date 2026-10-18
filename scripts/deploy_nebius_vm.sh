@@ -11,9 +11,14 @@ REPO_REF="${REPO_REF:-main}"
 IMAGE="${IMAGE:-risalite-research}"
 QUESTION="${1:-Research specialty coffee competition in Neukölln, Berlin}"
 
-if ! command -v docker >/dev/null 2>&1; then
+packages=()
+command -v git >/dev/null 2>&1 || packages+=(git)
+command -v docker >/dev/null 2>&1 || packages+=(docker.io)
+if [ "${#packages[@]}" -gt 0 ]; then
   sudo apt-get update
-  sudo apt-get install -y docker.io git
+  sudo apt-get install -y "${packages[@]}"
+fi
+if [[ " ${packages[*]} " == *" docker.io "* ]]; then
   sudo systemctl enable --now docker
 fi
 DOCKER=(docker)
