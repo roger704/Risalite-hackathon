@@ -1,5 +1,4 @@
 {$SPOTWISE_DOMAIN} {
-    encode zstd gzip
     request_body {
         max_size 32KB
     }
@@ -8,7 +7,14 @@
         Referrer-Policy strict-origin-when-cross-origin
         X-Frame-Options DENY
     }
-    reverse_proxy 127.0.0.1:8000 {
-        flush_interval -1
+    @events path /runs/*/events
+    handle @events {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1
+        }
+    }
+    handle {
+        encode zstd gzip
+        reverse_proxy 127.0.0.1:8000
     }
 }

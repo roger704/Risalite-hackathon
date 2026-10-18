@@ -16,6 +16,8 @@ Public URL: **https://spotwise.81-85-0-244.sslip.io/**. The marketing page is at
 
 The whole application runs on one dedicated Ubuntu 24.04 Nebius VM: `cpu-d3`, `2vcpu-8gb`, 40 GiB SSD, in the assigned hackathon project. It needs no GPU. Caddy terminates HTTPS and proxies the UI, API and streaming agent events to a single FastAPI worker listening only on `127.0.0.1:8000`.
 
+The `/runs/*/events` route bypasses response compression and flushes immediately so research progress reaches the browser while a run is active. Ordinary pages and API responses remain compressed.
+
 Provisioning and public access require approval; these files do not create a VM automatically. Cloud resource charges and Nebius/Tavily research usage are separate; account credits and exact regional prices must be checked in the cloud console.
 
 ## Setup
