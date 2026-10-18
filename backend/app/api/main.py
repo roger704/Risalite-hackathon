@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.centers import create_centers_router
 from app.api.planning import planning_router
 from app.api.routing import routing_router
 from app.api.runs_fixtures import router as fixture_runs_router
@@ -444,8 +445,10 @@ def create_app(
                 "NOT_FOUND",
                 f"No {scenario} {metric_code} data for area {area_code} and target year "
                 f"{target_year} with the requested age interval.",
-            )
+        )
         return expected_change(bases[0], targets[0])
+
+    application.include_router(create_centers_router(get_service))
 
     def get_area_summaries(
         data: Annotated[DataService, Depends(get_service)],

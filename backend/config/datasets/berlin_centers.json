@@ -1,0 +1,86 @@
+{
+  "dataset_id": "berlin_centers",
+  "provider": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin",
+  "adapter": "berlin_centers",
+  "landing_url": "https://daten.berlin.de/datensaetze/stadtentwicklungsplan-step-zentren-2040-wfs-7eb416eb",
+  "resource_url": "https://gdi.berlin.de/services/wfs/step_zen_2040?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities",
+  "allowed_hosts": [
+    "gdi.berlin.de"
+  ],
+  "license_id": "dl-de-zero-2.0",
+  "license_url": "https://www.govdata.de/dl-de/zero-2-0",
+  "attribution": "Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin – Stadtentwicklungsplan (StEP) Zentren 2040 (WFS step_zen_2040), Datenlizenz Deutschland – Zero – Version 2.0; reprojected to EPSG:4326",
+  "boundary_edition": "not_applicable",
+  "source_edition": "2026-01-13",
+  "source_crs": "EPSG:25833",
+  "access_validation": "validated",
+  "redistribution_status": "allowed",
+  "max_download_bytes": 10000000,
+  "timeout_seconds": 60.0,
+  "parser_options": {
+    "parent_dataset": "berlin_lor",
+    "category_mapping": "step_zentren_2040_v1",
+    "category_mapping_sha256": "be22529cb30524a93cc025f272ba8892029cbd45b9b6f536862204ce11d94228",
+    "page_size": 200,
+    "max_pages": 5,
+    "max_total_bytes": 10000000,
+    "expected_crs": "EPSG:25833",
+    "source_bbox": [
+      360000,
+      5790000,
+      420000,
+      5850000
+    ],
+    "allowed_bbox": [
+      13.0,
+      52.3,
+      13.9,
+      52.8
+    ],
+    "limitations": [
+      "StEP Zentren 2040 (dataset reference date 2026-01-13) is a planning designation of Berlin's retail-center hierarchy by SenSBW; it does not measure footfall, sales, revenue, rents, vacancy, or shop counts.",
+      "Boundaries are published only for the two Zentrumsbereich polygons (zh layer); all other centers and all Fachmarkt sites are representative points. No boundary is inferred; membership can only be tested for published polygons.",
+      "Parcel-exact boundaries of zentrale Versorgungsbereiche and Nahversorgungszentren are set in district center concepts and are not part of this WFS.",
+      "Fachmarkt sites (fma layer) are planning sites for large specialist stores with non-center-relevant assortments (furniture, DIY, garden); they are not städtische Zentren.",
+      "Proximity to a center is commercial context only; it is not measured footfall, revenue, or a guarantee of location suitability. Distances are straight-line metres in EPSG:25833, not walking distance or time."
+    ],
+    "layers": {
+      "zh": {
+        "typename": "step_zen_2040:step_zen_2040_zh",
+        "resource_url": "https://gdi.berlin.de/services/wfs/step_zen_2040?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=step_zen_2040:step_zen_2040_zh&OUTPUTFORMAT=application/json&SORTBY=id",
+        "expected_properties": [
+          "id",
+          "typ",
+          "name"
+        ],
+        "id_pattern": "^Z40(\\d{2}|F\\d)$",
+        "geometry_types": [
+          "Point",
+          "Polygon",
+          "MultiPolygon"
+        ],
+        "expected_count_range": [
+          70,
+          95
+        ]
+      },
+      "fma": {
+        "typename": "step_zen_2040:step_zen_2040_fma",
+        "resource_url": "https://gdi.berlin.de/services/wfs/step_zen_2040?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=step_zen_2040:step_zen_2040_fma&OUTPUTFORMAT=application/json&SORTBY=id",
+        "expected_properties": [
+          "id",
+          "typ",
+          "name"
+        ],
+        "id_pattern": "^F40\\d{2}$",
+        "geometry_types": [
+          "Point"
+        ],
+        "expected_count_range": [
+          25,
+          45
+        ]
+      }
+    }
+  }
+}

@@ -129,6 +129,7 @@ Source resources and mappings were checked on **18 October 2026**. The checked f
 | `berlin_population_density_blocks` | [Umweltatlas Einwohnerdichte 2023](https://www.berlin.de/umweltatlas/nutzung/einwohnerdichte/), WFS `ua_einwohnerdichte_2023:einwohnerdichte2023` | 26,422 ISU5 block or block-part polygons, reference date 31 December 2023; licensed [CC BY 3.0 DE](https://creativecommons.org/licenses/by/3.0/de/). Counts published as zero are suppressed 0–2 values and stored as missing. Blocks are assigned whole to their largest-overlap LOR Planungsraum; partial overlaps are flagged, not split. This is separate from `berlin_population`. |
 | `berlin_kitas` | [Official Kita WFS metadata](https://daten.berlin.de/datensaetze/kindertagesstatten-wfs-d03b94d2) ([CKAN record](https://datenregister.berlin.de/api/3/action/package_show?id=kindertagesstatten-wfs-d03b94d2)), WFS `kita:kita` at `https://gdi.berlin.de/services/wfs/kita` | 2,905 publicly funded day-care facilities (`numberMatched` 2,905 on 18 October 2026), Point geometry in EPSG:25833, stable 8-digit `e_nr` IDs. Revision `2025-12-31` (annual updates); no per-record date. `capacity` = `e_platz` "Erlaubte Platzzahl" (licensed maximum, 2,883 of 2,905 present), never available places; vacancies are not provided. Excludes private facilities and Kindertagespflege. Licensed [Datenlizenz Deutschland – Zero 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Bildung, Jugend und Familie Berlin. |
 | `berlin_environment` | [Umweltgerechtigkeit 2023/2024 package](https://daten.berlin.de/datensaetze/umweltgerechtigkeit-2023-2024-umweltatlas-wfs-2d02ba21), WFS `ua_umweltgerechtigkeit2023` | Eight 542-Planungsraum WFS layers provide nine ordinal `AreaIndicatorClass` indicators and a shared `Area` geometry set. Source CRS EPSG:25833; layers and classes are validated against one another. Licensed [DL-DE-ZERO-2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Umweltatlas Berlin, Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin. Historical/modelled area indicators are context only and are not part of any opportunity score. |
+| `berlin_centers` | [StEP Zentren 2040 dataset](https://daten.berlin.de/datensaetze/stadtentwicklungsplan-step-zentren-2040-wfs-7eb416eb), [WFS service](https://gdi.berlin.de/services/wfs/step_zen_2040) | Source edition/reference date `2026-01-13`: 81 `zh` features (79 Points, 2 MultiPolygons) and 33 `fma` Points. Mapping `step_zentren_2040_v1`; source CRS EPSG:25833 and stored geometry WGS84. DL-DE-Zero-2.0, attributed to Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. Specialist-retail sites are complementary planning sites, not städtische Zentren; only two Zentrumsbereich polygons have published boundaries. |
 | `berlin_traffic_volumes_2019` | [Umweltatlas Verkehrsmengen](https://www.berlin.de/umweltatlas/verkehr-laerm/verkehrsmengen/), WFS `ua_verkehrsmengen_2019:verkehrsmengen_2019` | 10,420 road segments with 2019 average daily motor-vehicle counts (DTV), source CRS EPSG:25833; WFS 2.0 GeoJSON paging (1,000 features/page). Licensed [Datenlizenz Deutschland – Zero – 2.0](https://www.govdata.de/dl-de/zero-2-0), attributed to Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin (Umweltatlas). |
 | `ihk_businesses` | [IHKBerlin_Gewerbedaten](https://github.com/IHKBerlin/IHKBerlin_Gewerbedaten), [CSV at commit `75957615`](https://media.githubusercontent.com/media/IHKBerlin/IHKBerlin_Gewerbedaten/75957615265716ec8549d04d63ed76bd6d6c547a/data/IHKBerlin_Gewerbedaten.csv) | Source edition `2026-10` (update of 1 October 2026), 125,464,561 bytes, SHA-256 `64456f92…8181e`. UTF-8 with BOM, comma-delimited, 20 columns, `NULL` for missing values. 366,374 rows; 366,368 published businesses; 6 rows without valid coordinates excluded and listed in the quality report. 1,343 `coffee_shop` records under mapping `ihk_v1`. Supplied PLR codes: 11 missing, 0 unknown to LOR, 1 point outside its supplied polygon. Attribution: IHK Berlin, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). |
 | `berlin_population` | [Official population page](https://www.statistik-berlin-brandenburg.de/a-i-16-hj/), [June 2026 workbook](https://download.statistik-berlin-brandenburg.de/fca0a030166493d0/1289b0921aa2/SB_A01-16-00_2026h01_BE.xlsx), worksheet `T2` | Reference date **30 June 2026**, source edition `2026h01`: 542 areas and 4,878 observations, consisting of one total plus eight age bands per area. The checked population totals sum to 3,917,196 registered residents. The workbook's imprint provides the source legend and [CC BY 3.0 DE license](https://creativecommons.org/licenses/by/3.0/de/). |
@@ -490,6 +491,48 @@ Read endpoints for the childcare view (the frontend can show both datasets side 
 Facility counts and permitted places are not available places, vacancies, or proof of a childcare shortage. The registry has no per-record date, excludes private facilities and Kindertagespflege, and children attend across area borders. Kita-Navigator is not used as a bulk vacancy source: no supported bulk access or reuse terms are established.
 
 Opt-in live check (5 features): `RUN_LIVE_TESTS=1 uv run pytest -m live tests/live/test_berlin_kitas_live.py`.
+
+## Berlin retail centers (`berlin_centers`)
+
+`berlin_centers` imports both layers from the Berlin StEP Zentren 2040 WFS,
+`step_zen_2040:step_zen_2040_zh` (Zentrenhierarchie) and
+`step_zen_2040:step_zen_2040_fma` (Fachmarktagglomerationen). The reviewed source
+edition and reference date is `2026-01-13`. The source contains 81 hierarchy features
+(79 Points and two MultiPolygons) and 33 specialist-retail Points. Source geometries
+are validated in EPSG:25833, transformed to WGS84 GeoJSON for storage, and retain
+their feature IDs, source links, mapped categories, and source attributes. Category
+semantics are versioned in `config/categories/step_zentren_2040_v1.json`.
+
+Import against a pinned Berlin LOR snapshot so the point and representative-point
+locations can be checked for coverage:
+
+```sh
+LOR_SNAPSHOT_ID='replace-with-lor-snapshot_id'
+uv run location-data ingest berlin_centers --lor-snapshot "$LOR_SNAPSHOT_ID"
+CENTERS_SNAPSHOT_ID='replace-with-berlin_centers-snapshot_id'
+uv run location-data records berlin_centers --snapshot "$CENTERS_SNAPSHOT_ID" --limit 100
+```
+
+The nearby API is
+`GET /api/v1/datasets/berlin_centers/nearby?snapshot_id=...&lon=...&lat=...&radius_m=...`.
+It returns centers within a straight-line radius (metres). Distances are computed in
+EPSG:25833 to the published polygon area (zero when the candidate is inside it) or
+to the published center point. Membership is determined only when the candidate is
+covered by a published Zentrumsbereich polygon. Point records have no boundary and
+are not treated as membership areas. The response labels the result as planning
+context, not footfall, revenue, or suitability, and explicitly distinguishes
+straight-line distance from walking distance or time.
+
+StEP Zentren 2040 is a planning designation, not a measurement of customer traffic,
+sales, rents, vacancy, or shop counts. Only two Zentrumsbereich polygons have
+published boundaries; boundaries are not inferred for point features. Parcel-exact
+boundaries for central supply areas and Nahversorgungszentren belong to district
+center concepts and are not present in this WFS. The `fma` layer describes
+complementary sites for large specialist stores with non-center-relevant assortments;
+these sites are not städtische Zentren. Missing source names and unmapped source
+types remain explicitly missing or flagged. License: [Datenlizenz Deutschland –
+Zero – Version 2.0](https://www.govdata.de/dl-de/zero-2-0); attribution to
+Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin.
 
 ### Road traffic volumes 2019 (`berlin_traffic_volumes_2019`, `berlin_wfs`)
 

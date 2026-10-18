@@ -14,6 +14,7 @@ ADAPTERS: dict[str, str] = {
     "gtfs": "app.connectors.gtfs:GTFSConnector",
     "berlin_wfs": "app.connectors.berlin_wfs:BerlinWFSConnector",
     "berlin_environment": "app.connectors.berlin_environment:BerlinEnvironmentConnector",
+    "berlin_centers": "app.connectors.berlin_centers:BerlinCentersConnector",
     "zensus_grid": "app.connectors.zensus:ZensusGridConnector",
     "berlin_wfs_addresses": "app.connectors.berlin_addresses:BerlinAddressConnector",
     "households": "app.connectors.households:HouseholdsConnector",
