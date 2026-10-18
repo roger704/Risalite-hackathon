@@ -664,6 +664,6 @@ class BerlinWFSConnector(FileConnector):
     def assign_parent(
         self, config: DatasetConfig, batch: NormalizedBatch, parent_records: tuple
     ) -> NormalizedBatch:
-        if _options(config)["record_type"] == "population_block":
+        if config.parser_options.get("record_type") == "population_block":
             return assign_population_block_parent(config, batch, parent_records)
         return batch
