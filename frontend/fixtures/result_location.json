@@ -1,0 +1,33 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t2",
+  "status": "done",
+  "question": "Where is it smart to open a coffee place in Kreuzberg?",
+  "role": "coffee operator",
+  "shape": "location",
+  "summary": "The strongest default locations are Köpenicker Straße, Oranienplatz, and Lausitzer Platz, ranked from the PLR cell mix [e1]. Dense, younger cells score well on demand, while the IHK-registered and OSM café inventories remain separate measures of competition [e2] [e3] [e4]. The announced Moritzplatz office campus and Köpenicker Straße housing project raise future potential in their respective cells [e9] [e10]. Wrangelkiez has a high-severity rent risk reflecting the reported 18 % rise [e11].",
+  "models": {
+    "Classifier": "gpt-oss-120b",
+    "Planner": "gpt-oss-120b",
+    "Data researcher": "tool calls (no LLM)",
+    "Web researcher": "Nemotron Lightning",
+    "Skeptic": "gpt-oss-120b",
+    "Fact-checker": "Tavily extract + fuzzy match ≥0.85",
+    "Writer": "Beam",
+    "Scorer": "deterministic"
+  },
+  "self_grade": [
+    {
+      "ok": true,
+      "text": "All inline citations resolve to the evidence ledger."
+    },
+    {
+      "ok": true,
+      "text": "Missing OSM data is represented as null, not zero."
+    },
+    {
+      "ok": false,
+      "text": "Actual pedestrian footfall is unknown; hystreet was skipped."
+    }
+  ]
+}

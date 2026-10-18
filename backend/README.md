@@ -3,6 +3,22 @@
 The first implementation downloads, validates, stores, and serves Berlin LOR boundaries, official LOR names, and population observations. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 The backend downloads, validates, stores, and serves Berlin LOR boundaries, population observations, and OpenStreetMap points of interest. It includes shared typed contracts, an ingestion CLI, immutable snapshots, provenance manifests, and a FastAPI read API. Scoring, location recommendations, research agents, and the other proposed connectors are still to be implemented.
 
+## Dashboard
+
+Run the local dashboard with the synthetic demo fixtures:
+
+```sh
+cd backend
+uv run uvicorn app.api.main:app --port 8000
+```
+
+Open [http://localhost:8000/?mock=1](http://localhost:8000/?mock=1). The app and
+fixtures are served from `frontend/app` and `frontend/fixtures`; set
+`RISALITE_FRONTEND_DIR` to override the frontend root directory. The bundled
+Leaflet assets are version 1.9.4; see
+[`frontend/app/vendor/leaflet/VERSION.md`](../frontend/app/vendor/leaflet/VERSION.md)
+for locally computed SHA-384 SRI hashes and the published CDN integrity check.
+
 ## Setup
 
 Use Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Run these commands from the repository root:

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Risalite — Berlin location research</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="logo">Risal<span>ite</span></div>
+  <div class="tag">Don't just research a location. Discover where opportunity exists.</div>
+  <div class="mode" id="mode-badge"></div>
+  <button id="restart">New question</button>
+</header>
+<main>
+
+<section id="s-ask">
+  <div class="card">
+    <h1>Ask a question about a place in Berlin</h1>
+    <p class="mut" style="margin:0 0 12px">Risalite classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web. Every claim is fact-checked and cited.</p>
+    <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
+    <div class="row" style="margin-top:10px">
+      <label class="mut">Role (optional)
+        <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
+      </label>
+      <label class="mut">Operator profile (point questions)
+        <input type="text" id="op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
+      </label>
+      <button class="btn" id="go" style="margin-left:auto">Research ›</button>
+    </div>
+    <div id="clar" class="clar hidden">
+      <b>Clarifying question from the planner</b>
+      <p style="margin:4px 0 8px" id="clar-text">Which district or neighbourhood?</p>
+      <div class="row"><input type="text" id="clar-in" size="30" placeholder="e.g. Kreuzberg"><button class="btn ghost" id="clar-go">Continue</button></div>
+    </div>
+    <div id="ask-err" class="err hidden"></div>
+    <div class="tpl">
+      <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="badge b-point">T1 · point</span><b>Property / storefront</b><span class="mut small">"This storefront at Wiener Straße 12 just became available — what is the best use?"</span></div>
+      <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="badge b-location">T2 · location</span><b>Business location</b><span class="mut small">"Where is it smart to open a coffee place in Kreuzberg?"</span></div>
+      <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="badge b-gap">T3 · gap</span><b>Kita gap</b><span class="mut small">"Where are Kitas missing in Neukölln?"</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="s-plan" class="hidden">
+  <div class="card">
+    <div class="mut small">Question</div><h1 id="p-q"></h1>
+    <div id="p-note" class="demo-note hidden"></div>
+    <div class="grid2" style="margin-top:12px">
+      <div><h3>Classification</h3><div id="p-class"></div></div>
+      <div><h3>Derived area</h3><div id="p-area"></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Research plan <span class="badge">awaiting approval</span></h2>
+    <table id="p-sub"><thead><tr><th></th><th>Sub-question</th><th>Source class</th><th>Layers / domains</th></tr></thead><tbody></tbody></table>
+    <div id="p-layers-wrap" style="margin-top:16px"></div>
+    <div style="margin-top:16px"><h3>Optional paid sources</h3><table id="p-paid"><thead><tr><th>Source</th><th>Used for</th><th>Status</th><th>API key</th></tr></thead><tbody></tbody></table></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="approve">Approve &amp; start research</button>
+      <button class="btn ghost" id="back">Edit question</button>
+      <span class="mut small">Untick a sub-question or layer, or change a weight, to edit the plan before approving.</span>
+    </div>
+    <div id="plan-err" class="err hidden"></div>
+  </div>
+</section>
+
+<section id="s-live" class="hidden">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Live investigation <span class="mut small" id="l-src" style="font-weight:400"></span></h2><button class="btn ghost" id="skip">Skip to result ›</button></div>
+    <div class="stages" id="stages"></div>
+    <div class="prog"><div id="bar"></div></div>
+    <div class="row small mut" style="margin:8px 0"><span id="l-stat"></span></div>
+    <div class="trace" id="l-trace"></div>
+    <div id="live-err" class="err hidden"></div>
+  </div>
+</section>
+
+<section id="s-dash" class="hidden">
+  <div class="card">
+    <h2><span class="n">1</span> Question &amp; approved plan</h2>
+    <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
+    <details style="margin-top:8px"><summary class="small">Approved plan</summary><div id="d-plan" class="small" style="margin-top:6px"></div></details>
+    <div id="d-note" class="demo-note hidden"></div>
+  </div>
+  <div class="dash">
+    <div>
+      <div class="card"><h2><span class="n">2</span> Summary of findings <span id="d-mix" class="badge"></span></h2><div id="d-sum"></div></div>
+      <div class="card"><h2><span class="n">3</span> <span id="d-ftitle">Findings</span></h2><div id="d-find"></div></div>
+      <div class="card" id="battle-card"><h2 id="battle-title"></h2><div id="d-battle"></div></div>
+    </div>
+    <div>
+      <div class="card"><h2><span class="n">4</span> Map <span class="mut small" id="d-maparea" style="font-weight:400"></span></h2>
+        <div id="map"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
+        <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
+        <div id="layers"></div>
+        <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add their bonus (+0.10); high-severity skeptic risks subtract their demotion. Missing values are skipped, never counted as zero. Recomputed in the browser; the summary stays "default mix".</p>
+      </div>
+    </div>
+  </div>
+  <div class="card"><h2><span class="n">6</span> Sources <span class="mut small" style="font-weight:400">from evidence.jsonl only</span></h2><div id="d-src"></div>
+    <details style="margin-top:10px" open><summary>Could not verify (dropped by the fact-checker)</summary><div id="d-nover" style="margin-top:6px"></div></details></div>
+  <div class="grid2">
+    <div class="card"><h2><span class="n">7</span> Trace</h2><div id="d-models" style="margin-bottom:10px"></div><div class="trace" id="d-trace"></div></div>
+    <div class="card"><h2>Self-grade</h2><table class="grade" id="d-grade"></table></div>
+  </div>
+</section>
+</main>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="scoring.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

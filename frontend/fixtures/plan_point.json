@@ -1,0 +1,341 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t1",
+  "status": "awaiting_approval",
+  "question": "This storefront at Wiener Straße 12 just became available — what is the best use?",
+  "classification": {
+    "shape": "point",
+    "why": "The question is about one specific storefront → evaluate business hypotheses.",
+    "address": "Wiener Straße 12"
+  },
+  "plan": {
+    "sub_questions": [
+      {
+        "id": "s1",
+        "text": "Where exactly is the space, and which PLR is it in?",
+        "source_class": "official geodata",
+        "sources": "adressen_berlin, lor_2021",
+        "layer_ids": []
+      },
+      {
+        "id": "s2",
+        "text": "Which competitors are within 500 m, per hypothesis?",
+        "source_class": "official geodata + OSM",
+        "sources": "gewerbedaten (NACE), Geofabrik",
+        "layer_ids": []
+      },
+      {
+        "id": "s3",
+        "text": "What is the land value / Wohnlage?",
+        "source_class": "official geodata",
+        "sources": "brw2026, wohnlagenadr2026",
+        "layer_ids": []
+      },
+      {
+        "id": "s4",
+        "text": "FOR / AGAINST: Craft bakery-café",
+        "source_class": "web (Tavily)",
+        "sources": "competitor sites, menus, IHK, local press",
+        "layer_ids": []
+      },
+      {
+        "id": "s5",
+        "text": "FOR / AGAINST: Natural-wine bar",
+        "source_class": "web (Tavily)",
+        "sources": "competitor sites, menus, IHK, local press",
+        "layer_ids": []
+      },
+      {
+        "id": "s6",
+        "text": "FOR / AGAINST: Zero-waste grocery",
+        "source_class": "web (Tavily)",
+        "sources": "competitor sites, menus, IHK, local press",
+        "layer_ids": []
+      },
+      {
+        "id": "s7",
+        "text": "Which rules apply (Außengastronomie, hours)?",
+        "source_class": "web (Tavily)",
+        "sources": "berlin.de",
+        "layer_ids": []
+      }
+    ],
+    "layers": [],
+    "hypotheses": [
+      {
+        "id": "h1",
+        "name": "Craft bakery-café",
+        "score": 7.8,
+        "rank_initial": 1,
+        "rank_final": 1,
+        "dimensions": [
+          {
+            "name": "Demand",
+            "score": 8,
+            "why": "Dense, young PLR [e21]",
+            "evidence_ids": [
+              "e21"
+            ]
+          },
+          {
+            "name": "Competition gap",
+            "score": 9,
+            "why": "Last craft bakery closed [e18]; only 4 registered bakeries [e14]",
+            "evidence_ids": [
+              "e14",
+              "e15",
+              "e18"
+            ]
+          },
+          {
+            "name": "Operator fit",
+            "score": 10,
+            "why": "6 yrs bakery experience — direct fit",
+            "evidence_ids": []
+          },
+          {
+            "name": "Space fit",
+            "score": 7,
+            "why": "~70 m² fits a counter + oven; ventilation unknown",
+            "evidence_ids": []
+          },
+          {
+            "name": "Cost",
+            "score": 6,
+            "why": "BRW 2,900 €/m² [e17] — mid-range",
+            "evidence_ids": [
+              "e17"
+            ]
+          },
+          {
+            "name": "Regulation / risk",
+            "score": 7,
+            "why": "Standard Gaststätte rules [e19]",
+            "evidence_ids": [
+              "e19"
+            ]
+          }
+        ],
+        "for": [
+          {
+            "text": "Last craft bakery on Lausitzer Platz closed",
+            "evidence_id": "e18"
+          },
+          {
+            "text": "Few bakeries within 500 m (4)",
+            "evidence_id": "e14"
+          },
+          {
+            "text": "Operator has 6 yrs bakery experience",
+            "evidence_id": null
+          }
+        ],
+        "against": [
+          {
+            "text": "3 OSM bakeries still within 500 m",
+            "evidence_id": "e15"
+          },
+          {
+            "text": "Morning-only demand peak",
+            "evidence_id": null
+          }
+        ],
+        "unknowns": [
+          {
+            "text": "Oven ventilation permitted in this building?",
+            "suggested_validation": "Ask landlord for Abluft spec; Bauaufsicht check"
+          }
+        ]
+      },
+      {
+        "id": "h2",
+        "name": "Natural-wine bar",
+        "score": 5.9,
+        "rank_initial": 2,
+        "rank_final": 2,
+        "dimensions": [
+          {
+            "name": "Demand",
+            "score": 7,
+            "why": "Strong evening footfall",
+            "evidence_ids": [
+              "e21"
+            ]
+          },
+          {
+            "name": "Competition gap",
+            "score": 3,
+            "why": "11 NACE bars nearby [e14]",
+            "evidence_ids": [
+              "e14",
+              "e15",
+              "e18"
+            ]
+          },
+          {
+            "name": "Operator fit",
+            "score": 4,
+            "why": "No bar experience in profile",
+            "evidence_ids": []
+          },
+          {
+            "name": "Space fit",
+            "score": 8,
+            "why": "Layout suits a bar",
+            "evidence_ids": []
+          },
+          {
+            "name": "Cost",
+            "score": 6,
+            "why": "Mid rents",
+            "evidence_ids": [
+              "e17"
+            ]
+          },
+          {
+            "name": "Regulation / risk",
+            "score": 4,
+            "why": "Late-night noise complaints risk",
+            "evidence_ids": [
+              "e19"
+            ]
+          }
+        ],
+        "for": [
+          {
+            "text": "Young evening audience",
+            "evidence_id": "e21"
+          },
+          {
+            "text": "Competitor prices €7–9 / glass sustain margins",
+            "evidence_id": "e20"
+          }
+        ],
+        "against": [
+          {
+            "text": "High bar saturation (11 + 13 OSM)",
+            "evidence_id": "e14"
+          },
+          {
+            "text": "Operator lacks bar experience",
+            "evidence_id": null
+          },
+          {
+            "text": "Weak-tier menu evidence cannot carry a recommendation alone",
+            "evidence_id": "e20"
+          }
+        ],
+        "unknowns": [
+          {
+            "text": "Licensing hours for this street",
+            "suggested_validation": "Ordnungsamt enquiry"
+          }
+        ]
+      },
+      {
+        "id": "h3",
+        "name": "Zero-waste grocery",
+        "score": 5.2,
+        "rank_initial": 3,
+        "rank_final": 3,
+        "dimensions": [
+          {
+            "name": "Demand",
+            "score": 5,
+            "why": "Medium demand signal",
+            "evidence_ids": [
+              "e21"
+            ]
+          },
+          {
+            "name": "Competition gap",
+            "score": 7,
+            "why": "1 organic shop nearby [e15]",
+            "evidence_ids": [
+              "e14",
+              "e15",
+              "e18"
+            ]
+          },
+          {
+            "name": "Operator fit",
+            "score": 3,
+            "why": "No retail experience",
+            "evidence_ids": []
+          },
+          {
+            "name": "Space fit",
+            "score": 6,
+            "why": "Space OK",
+            "evidence_ids": []
+          },
+          {
+            "name": "Cost",
+            "score": 5,
+            "why": "Thin margins [e17]",
+            "evidence_ids": [
+              "e17"
+            ]
+          },
+          {
+            "name": "Regulation / risk",
+            "score": 8,
+            "why": "Low regulatory burden",
+            "evidence_ids": [
+              "e19"
+            ]
+          }
+        ],
+        "for": [
+          {
+            "text": "Only one organic shop nearby",
+            "evidence_id": "e15"
+          }
+        ],
+        "against": [
+          {
+            "text": "Low operator fit",
+            "evidence_id": null
+          },
+          {
+            "text": "Margins thin at this rent level",
+            "evidence_id": "e17"
+          }
+        ],
+        "unknowns": [
+          {
+            "text": "Willingness to pay for zero-waste in this Kiez",
+            "suggested_validation": "10 short customer interviews"
+          }
+        ]
+      }
+    ],
+    "paid_sources": [],
+    "area_cells": null,
+    "synthetic": true,
+    "evidence_titles": {
+      "e1": "Official PLR geometries (lor_2021)",
+      "e2": "Population density & age groups (ua_einwohnerdichte_2025)",
+      "e3": "IHK Berlin registered businesses (CSV)",
+      "e4": "OpenStreetMap café inventory (Geofabrik Berlin PBF)",
+      "e5": "Undisturbed public transport access (oepnv_ungestoert)",
+      "e6": "Standard land values 2026 (brw2026)",
+      "e7": "IHK Berlin — Gastronomie-Report",
+      "e8": "Zentren- und Einzelhandelskonzept Friedrichshain-Kreuzberg",
+      "e9": "News: office campus at Moritzplatz",
+      "e10": "News: housing project Köpenicker Straße",
+      "e11": "Commercial rent report Berlin (retail, ground floor)",
+      "e12": "Rejected footfall claim (mockup fact-checker)",
+      "e13": "Address geocode (adressen_berlin)",
+      "e14": "Competitors within 500 m (gewerbedaten, by NACE)",
+      "e15": "OSM shops & amenities within 500 m",
+      "e16": "Residential location quality (wohnlagenadr2026)",
+      "e17": "Standard land value (brw2026)",
+      "e18": "Neighbourhood bakery closes (local press)",
+      "e19": "Bezirk: Ausschank & Außengastronomie rules",
+      "e20": "Competitor menus & prices (3 natural-wine bars)",
+      "e21": "Population density & age groups (ua_einwohnerdichte_2025)",
+      "e22": "Rejected rent-doubling claim (mockup fact-checker)"
+    }
+  }
+}

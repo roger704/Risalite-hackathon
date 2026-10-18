@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.service import DataService
@@ -54,6 +55,19 @@ def _error_status(code: str) -> int:
     if code in {"SOURCE_UNAVAILABLE", "DATA_UNAVAILABLE", "DATASET_UNAVAILABLE"}:
         return 503
     return 422
+
+
+def mount_frontend(application: FastAPI) -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    frontend_root = Path(
+        os.environ.get("RISALITE_FRONTEND_DIR", str(repo_root / "frontend"))
+    ).expanduser()
+    fixtures_dir = frontend_root / "fixtures"
+    app_dir = frontend_root / "app"
+    if fixtures_dir.is_dir():
+        application.mount("/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
+    if app_dir.is_dir():
+        application.mount("/", StaticFiles(directory=str(app_dir), html=True), name="frontend")
 
 
 def create_app(
@@ -155,6 +169,8 @@ def create_app(
             cursor=cursor,
         )
 
+    # Keep this last: the "/" mount catches every otherwise-unmatched route.
+    mount_frontend(application)
     return application
 
 

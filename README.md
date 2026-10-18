@@ -6,6 +6,8 @@
 
 **"Don't just research a location. Discover where opportunity exists."**
 
+**Dashboard demo:** `cd backend && uv run uvicorn app.api.main:app --port 8000`, then open `http://localhost:8000/?mock=1`.
+
 ## Key documents
 
 | Document | Purpose |
