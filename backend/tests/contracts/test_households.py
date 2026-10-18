@@ -77,7 +77,63 @@ def test_synthetic_workbook_emits_reviewed_metrics_and_derived_ratio(tmp_path):
     zero_share = records[DEFAULT_CODES[2], "households_with_children_share"]
     assert zero_share.value is None
     assert zero_share.value_status == "not_applicable"
+    assert "denominator_zero" in zero_share.quality_flags
     assert batch.warnings[-1] == "Code directory: Stand  Dezember 2024"
+
+
+@pytest.mark.parametrize("zero_value", [0, "–"])
+def test_published_ratios_with_zero_denominators_are_not_applicable(tmp_path, zero_value):
+    config = households_config()
+    table_by_name = {table["worksheet"]: table for table in config.parser_options["tables"]}
+    zero_index = len(DEFAULT_CODES) - 1
+    path = build_workbook(
+        tmp_path,
+        edits={
+            "T1.2": {
+                f"H{area_row(table_by_name['T1.2'], zero_index)}": zero_value,
+            },
+            "T4": {
+                f"I{area_row(table_by_name['T4'], zero_index)}": zero_value,
+            },
+        },
+    )
+    batch = HouseholdsConnector().normalize(raw(path, config), config)
+    assert HouseholdsConnector().validate(batch).valid
+    records = {(record.area_code, record.metric_code): record for record in batch.records}
+    for metric_code in (
+        "average_household_size",
+        "single_parent_share_of_households_with_children",
+    ):
+        record = records[DEFAULT_CODES[zero_index], metric_code]
+        assert record.value is None
+        assert record.value_status == "not_applicable"
+        assert "denominator_zero" in record.quality_flags
+        if zero_value == "–":
+            assert "source_marker:–" in record.quality_flags
+
+
+def test_nonzero_published_ratio_with_zero_denominator_rejects_the_area(tmp_path):
+    config = households_config()
+    table = next(table for table in config.parser_options["tables"] if table["worksheet"] == "T4")
+    zero_index = len(DEFAULT_CODES) - 1
+    path = build_workbook(
+        tmp_path,
+        edits={
+            "T4": {
+                f"D{area_row(table, zero_index)}": 0,
+                f"H{area_row(table, zero_index)}": 0,
+                f"I{area_row(table, zero_index)}": 25,
+            }
+        },
+    )
+    batch = HouseholdsConnector().normalize(raw(path, config), config)
+    assert not HouseholdsConnector().validate(batch).valid
+    assert batch.rejected_rows == 1
+    assert not any(record.area_code == DEFAULT_CODES[zero_index] for record in batch.records)
+    assert any(
+        f"{DEFAULT_CODES[zero_index]}: ratio check T4!I has zero denominator T4!D" in rejection
+        for rejection in batch.rejections
+    )
 
 
 @pytest.mark.parametrize(
@@ -236,6 +292,41 @@ def test_area_consistency_and_berlin_totals_are_enforced(tmp_path):
     assert any(
         "PLR sum" in rejection and "Berlin total" in rejection for rejection in batch.rejections
     )
+
+
+def test_berlin_total_rows_must_be_unique_and_observed(tmp_path):
+    config = households_config()
+    table = next(table for table in config.parser_options["tables"] if table["worksheet"] == "T1.2")
+    total_row = berlin_row(table, len(DEFAULT_CODES))
+
+    missing_path = build_workbook(
+        tmp_path,
+        edits={
+            "T1.2": {
+                f"A{total_row}": None,
+                **{f"{column}{total_row}": None for column in table["check_columns"]},
+            }
+        },
+    )
+    missing = HouseholdsConnector().normalize(raw(missing_path, config), config)
+    assert not HouseholdsConnector().validate(missing).valid
+    assert any("T1.2: Berlin total row is missing" in item for item in missing.rejections)
+
+    duplicate_path = build_workbook(
+        tmp_path,
+        edits={"T1.2": {f"A{total_row + 1}": config.parser_options["total_label"]}},
+    )
+    duplicate = HouseholdsConnector().normalize(raw(duplicate_path, config), config)
+    assert not HouseholdsConnector().validate(duplicate).valid
+    assert any("T1.2: duplicate Berlin total row" in item for item in duplicate.rejections)
+
+    suppressed_path = build_workbook(
+        tmp_path,
+        edits={"T1.2": {f"B{total_row}": "•"}},
+    )
+    suppressed = HouseholdsConnector().normalize(raw(suppressed_path, config), config)
+    assert not HouseholdsConnector().validate(suppressed).valid
+    assert any("T1.2!B: Berlin total is not observed" in item for item in suppressed.rejections)
 
 
 def _areas(codes=DEFAULT_CODES, edition="2021"):

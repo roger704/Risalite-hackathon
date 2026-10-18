@@ -136,6 +136,7 @@ class HouseholdsConnector(FileConnector):
                 area_column = options["area_code_column"]
                 area_codes: set[str] = set()
                 total_values = None
+                total_row_count = 0
                 first_data_row = table["first_data_row"]
                 for row_number, values in enumerate(
                     sheet.iter_rows(
@@ -172,6 +173,12 @@ class HouseholdsConnector(FileConnector):
                         "total_label"
                     ):
                         if label == options.get("total_label"):
+                            total_row_count += 1
+                            if total_row_count > 1:
+                                structural_rejections.append(
+                                    f"{sheet_name}: duplicate Berlin total row"
+                                )
+                                continue
                             total_values = self._parse_check_values(
                                 row,
                                 table,
@@ -233,11 +240,14 @@ class HouseholdsConnector(FileConnector):
                         f"{sheet_name}: code directory mismatch; missing {len(missing)} "
                         f"{sorted(missing)[:5]}, extra {len(extra)} {sorted(extra)[:5]}"
                     )
-                if total_values is not None:
+                if total_row_count == 0:
+                    structural_rejections.append(f"{sheet_name}: Berlin total row is missing")
+                elif total_values is not None:
                     total_rows[sheet_name] = total_values
 
             # Every configured table must contain the same complete area set.
             all_codes = set().union(*table_codes.values()) if table_codes else set()
+            zero_denominator_refs: dict[str, set[str]] = {}
             for code in all_codes & directory_codes:
                 cells = {}
                 for table in tables:
@@ -261,22 +271,35 @@ class HouseholdsConnector(FileConnector):
                             )
                             rejected_areas.add(code)
                 for check in options.get("ratio_checks", []):
-                    refs = (check["value"], check["numerator"], check["denominator"])
-                    if not all(
-                        cells.get(ref, (None, "missing", ()))[1] == "observed" for ref in refs
-                    ):
+                    value = cells.get(check["value"], (None, "missing", ()))
+                    numerator = cells.get(check["numerator"], (None, "missing", ()))
+                    denominator = cells.get(check["denominator"], (None, "missing", ()))
+                    if denominator[1] != "observed":
                         continue
-                    value = cells[check["value"]][0]
-                    numerator = cells[check["numerator"]][0]
-                    denominator = cells[check["denominator"]][0]
-                    if denominator == 0:
+                    if denominator[0] == 0:
+                        if (
+                            value[1] == "observed"
+                            and value[0] != 0
+                            or numerator[1] == "observed"
+                            and numerator[0] != 0
+                        ):
+                            area_rejections.append(
+                                f"{code}: ratio check {check['value']} has zero denominator "
+                                f"{check['denominator']} but value {value[0]} "
+                                f"(numerator {numerator[0]})"
+                            )
+                            rejected_areas.add(code)
+                        else:
+                            zero_denominator_refs.setdefault(code, set()).add(check["value"])
                         continue
-                    expected = check["scale"] * numerator / denominator
-                    if abs(value - expected) > check["tolerance"]:
+                    if value[1] != "observed" or numerator[1] != "observed":
+                        continue
+                    expected = check["scale"] * numerator[0] / denominator[0]
+                    if abs(value[0] - expected) > check["tolerance"]:
                         area_rejections.append(
                             f"{code}: ratio check {check['value']} = "
                             f"{check['scale']} × {check['numerator']} / "
-                            f"{check['denominator']} failed ({value} vs {expected})"
+                            f"{check['denominator']} failed ({value[0]} vs {expected})"
                         )
                         rejected_areas.add(code)
 
@@ -288,9 +311,6 @@ class HouseholdsConnector(FileConnector):
                     if not metric.get("integer", True):
                         continue
                     if total is None:
-                        warnings.append(
-                            f"{sheet_name}!{column}: total check skipped; Berlin total row is missing"
-                        )
                         continue
                     observations = [
                         area_rows.get(code, {})
@@ -306,8 +326,8 @@ class HouseholdsConnector(FileConnector):
                         continue
                     total_value, total_status, _ = total.get(column, (None, "missing", ()))
                     if total_status != "observed":
-                        warnings.append(
-                            f"{sheet_name}!{column}: total check skipped; Berlin total is not observed"
+                        structural_rejections.append(
+                            f"{sheet_name}!{column}: Berlin total is not observed"
                         )
                         continue
                     area_sum = sum(value for value, _, _ in observations)
@@ -337,6 +357,11 @@ class HouseholdsConnector(FileConnector):
                                     "source_published_ratio",
                                 )
                             )
+                        if f"{sheet_name}!{metric['column']}" in zero_denominator_refs.get(
+                            code, set()
+                        ):
+                            value, status = None, "not_applicable"
+                            extra_flags.append("denominator_zero")
                         lower = metric.get("age_min")
                         upper = metric.get("age_max_exclusive")
                         record_id = (
