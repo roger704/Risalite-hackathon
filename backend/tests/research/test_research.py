@@ -228,7 +228,7 @@ async def test_t1_hypotheses_are_ranked_in_fake_and_model_reports(tmp_path, fake
     ledger = EvidenceLedger(tmp_path)
     fake_report = await write_report("q", result, [], ledger, Recorder(), fake_cfg)
 
-    assert "## Top locations" in fake_report
+    assert "## Top business hypotheses" in fake_report
     assert "### 1. Café am Platz (h1)" in fake_report
     assert "### 2. Café am Park (h2)" in fake_report
 
@@ -248,7 +248,7 @@ async def test_t1_hypotheses_are_ranked_in_fake_and_model_reports(tmp_path, fake
     )
     model_report = await write_report("q", result, [], ledger, Recorder(), cfg_with(model, None))
 
-    assert "## Top locations" in model_report
+    assert "## Top business hypotheses" in model_report
     assert "### 1. Café am Platz (h1)" in model_report
     assert "### 2. Café am Park (h2)" in model_report
 
