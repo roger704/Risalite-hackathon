@@ -22,7 +22,8 @@ CSV_COLUMNS = [
 
 def _guard_spreadsheet(value: object) -> str:
     text = "" if value is None else str(value)
-    return "'" + text if text.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")) else text
+    risky = text.startswith(("\t", "\r")) or text.lstrip(" \t\r\n").startswith(("=", "+", "-", "@"))
+    return "'" + text if risky else text
 
 
 def sources_csv(bundle) -> str:
