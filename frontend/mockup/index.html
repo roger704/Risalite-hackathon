@@ -210,6 +210,14 @@ details[open]>:not(summary){animation:pop .4s var(--ease) both}
 .tpl .t{text-align:center;padding:22px 16px}
 .tpl .t .emo{display:block;width:auto;font-size:36px;line-height:1;transition:transform .45s var(--ease)}
 .tpl .t:hover .emo{transform:scale(1.18) rotate(-5deg)}
+.qrow{display:flex;align-items:center;gap:10px}.q-ico{font-size:20px}
+.qtext{font-size:18px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;transition:color .3s}
+.qtext:hover{color:var(--acc)}
+#p-qin{font-size:16px;border-radius:12px;padding:9px 14px;animation:pop .35s var(--ease) both}
+.btn.sm{padding:7px 14px;font-size:13px}
+#go,#role,#op{transition:box-shadow .8s var(--ease),transform .8s var(--ease),border-color .8s var(--ease),background .3s}
+.hint{border-color:rgba(0,122,255,.6)!important;box-shadow:0 0 0 4px rgba(0,122,255,.2),0 0 26px rgba(0,122,255,.4)!important}
+#go.hint{transform:scale(1.07)}
 .eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-bottom:4px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line)}
@@ -300,8 +308,8 @@ input.switch:checked{background:#34c759}input.switch:checked::after{transform:tr
 <!-- 2 · PLAN -->
 <section id="s-plan" class="view hidden">
   <div class="card">
-    <div class="eyebrow">Your question</div>
-    <h1 id="p-q"></h1>
+    <div class="qrow" id="p-qview"><span class="q-ico">🔎</span><div class="qtext grow" id="p-q" title="Click to edit"></div><button class="btn ghost sm" id="p-edit">✏️ Edit</button></div>
+    <div class="qrow hidden" id="p-qedit"><span class="q-ico">✏️</span><input type="text" id="p-qin" class="grow" aria-label="Edit your question"><button class="btn ghost sm" id="p-cancel">Cancel</button><button class="btn sm" id="p-save">↻ Re-plan</button></div>
     <div class="chips" style="margin-top:10px"><span id="p-class"></span><span id="p-area" class="chips"></span></div>
     <div id="p-why" class="why small" style="margin-top:8px"></div>
     <div id="p-note" class="demo-note hidden"></div>
@@ -584,13 +592,46 @@ function flip(sel,render){const prev={};$$(sel).forEach(e=>prev[e.dataset.id]=e.
     else if(Math.abs(p-n)>1)e.animate([{transform:`translateY(${p-n}px)`},{transform:'none'}],{duration:600,easing:'cubic-bezier(.22,.9,.24,1)'})})}
 addEventListener('resize',()=>steps(curView));requestAnimationFrame(()=>steps(curView));
 let C=null;
-$$('.tpl .t').forEach(t=>t.onclick=()=>{$('#q').value=t.dataset.q;$('#op').value=t.dataset.op||'';$('#clar').classList.add('hidden')});
-$('#go').onclick=()=>{const q=$('#q').value.trim();if(!q){$('#q').focus();return}
+let typeTok=0,typeDone=null,guideT=null,guideI=0;
+function typeSeq(steps,done){
+  const tok=++typeTok,fine=matchMedia('(pointer:fine)').matches;
+  typeDone=()=>{typeTok++;typeDone=null;steps.forEach(([e,s])=>e.value=s);done()};
+  if(reduceMotion()){typeDone();return}
+  steps.forEach(([e])=>e.value='');
+  let si=0,ci=0;
+  const tick=()=>{
+    if(tok!==typeTok)return;
+    const [e,s]=steps[si];
+    if(ci===0&&fine)e.focus({preventScroll:true});
+    e.value=s.slice(0,++ci);
+    if(ci>=s.length){si++;ci=0;if(si>=steps.length){typeDone=null;if(fine)e.blur();done();return}}
+    setTimeout(tick,ci===0?380:18+Math.random()*48)};
+  setTimeout(tick,200)}
+const finishTyping=()=>typeDone&&typeDone();
+const guideTargets=()=>[$('#go'),...($('#role').value?[]:[$('#role')]),...($('#op').value.trim()?[]:[$('#op')])];
+function stopGuide(){clearInterval(guideT);guideT=null;$$('.hint').forEach(e=>e.classList.remove('hint'))}
+function startGuide(){
+  stopGuide();guideI=0;
+  const step=()=>{const ts=guideTargets();$$('.hint').forEach(e=>e.classList.remove('hint'));ts[guideI++%ts.length].classList.add('hint')};
+  step();guideT=setInterval(step,1900)}
+['#q','#op'].forEach(s=>$(s).addEventListener('input',e=>{if(typeDone){const v=e.target.value;finishTyping();e.target.value=v}}));
+$$('.tpl .t').forEach(t=>t.onclick=()=>{
+  stopGuide();$('#clar').classList.add('hidden');$('#op').value='';
+  const s=[[$('#q'),t.dataset.q]];if(t.dataset.op)s.push([$('#op'),t.dataset.op]);
+  typeSeq(s,startGuide)});
+$('#go').onclick=()=>{finishTyping();stopGuide();const q=$('#q').value.trim();if(!q){$('#q').focus();return}
   C=classify(q);C.q=q;C.role=$('#role').value;C.op=$('#op').value;
-  if(!C.area&&C.shape!=='point'){$('#clar').classList.remove('hidden');return}
+  if(!C.area&&C.shape!=='point'){if(curView!=='s-ask')show('s-ask');$('#clar').classList.remove('hidden');return}
   if(C.shape==='point')C.area='kreuzberg';
   plan()};
 $$('#clar [data-area]').forEach(b=>b.onclick=()=>{C.area=b.dataset.area==='Kreuzberg'?'kreuzberg':'neukoelln';C.q+=` (${b.dataset.area})`;$('#clar').classList.add('hidden');plan()});
+function qEdit(on){
+  $('#p-qview').classList.toggle('hidden',on);$('#p-qedit').classList.toggle('hidden',!on);
+  if(on){const i=$('#p-qin');i.value=C.q;i.focus();i.select()}}
+$('#p-edit').onclick=$('#p-q').onclick=()=>qEdit(true);
+$('#p-cancel').onclick=()=>qEdit(false);
+$('#p-save').onclick=()=>{const v=$('#p-qin').value.trim();if(!v){$('#p-qin').focus();return}$('#q').value=v;qEdit(false);$('#go').onclick()};
+$('#p-qin').onkeydown=e=>{if(e.key==='Enter')$('#p-save').onclick();else if(e.key==='Escape')qEdit(false)};
 $('#restart').onclick=()=>{show('s-ask')};
 $('#back').onclick=()=>show('s-ask');
 $('#d-more').onclick=()=>{const c=$('#d-sum').classList.toggle('clamp');$('#d-more').textContent=c?'Read more':'Show less'};
@@ -617,6 +658,8 @@ function plan(){
     if(i.dataset.sh)$(`#p-layers-wrap input[data-h="${i.dataset.sh}"]`).checked=i.checked});
   $$('#p-layers-wrap input[data-h]').forEach(i=>i.onchange=()=>{$(`#p-sub input[data-sh="${i.dataset.h}"]`).checked=i.checked});
   SC.note=demoNote();$('#p-note').innerHTML=SC.note;$('#p-note').classList.toggle('hidden',!SC.note);
+  qEdit(false);
+  if(curView==='s-plan'&&!reduceMotion())$$('#s-plan .card').forEach(c=>{c.style.animation='none';c.offsetWidth;c.style.animation=''});
   show('s-plan');
 }
 function demoNote(){
