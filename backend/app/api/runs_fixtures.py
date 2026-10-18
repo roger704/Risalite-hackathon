@@ -539,6 +539,8 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
     findings = _path_jsonl(run_dir / "findings.jsonl")
     for entry in web_entries:
         evidence_id = entry.get("evidence_id")
+        passage = entry.get("passage") or ""
+        snippet = entry.get("snippet") or ""
         quote = next(
             (
                 finding.get("quote")
@@ -547,11 +549,12 @@ def _live_result_payload(run: dict, run_dir: Path) -> dict | None:
                 and finding.get("verification") in {"verified", "partial"}
                 and evidence_id in (finding.get("evidence_ids") or [])
                 and finding.get("quote")
+                and any(finding["quote"] in source for source in (passage, snippet))
             ),
             None,
         )
         if quote is None:
-            entry["quote"] = (entry.get("passage") or entry.get("snippet") or "").strip()[:300]
+            entry["quote"] = (passage or snippet).strip()[:300]
             entry["quote_source"] = "snippet"
         else:
             entry["quote"] = quote

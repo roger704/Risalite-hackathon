@@ -377,8 +377,16 @@ def _write_canned_live_run(run_dir):
             "evidence_id": "ev_live",
             "method": "tavily-search",
             "url": "https://live.example.org/source",
-            "title": "Live source",
-            "snippet": "Stored snippet without the quote",
+            "title": "Primary source",
+            "snippet": "Oranienstraße sees high pedestrian traffic.",
+            "status": "verified",
+        },
+        {
+            "evidence_id": "ev_secondary",
+            "method": "tavily-search",
+            "url": "https://live.example.org/secondary",
+            "title": "Secondary source",
+            "snippet": "The street attracts many visitors daily.",
             "status": "verified",
         },
         {
@@ -403,8 +411,8 @@ def _write_canned_live_run(run_dir):
         {
             "finding_id": "f_1",
             "claim": "A live finding.",
-            "quote": "Live source quote",
-            "evidence_ids": ["ev_live"],
+            "quote": "Oranienstraße sees high pedestrian traffic.",
+            "evidence_ids": ["ev_live", "ev_secondary"],
             "claim_type": "demand",
             "localization": "Kreuzberg",
             "agent": "web_researcher",
@@ -484,15 +492,17 @@ def test_live_api_streams_run_and_orders_citable_evidence(tmp_path, monkeypatch)
         assert result.status_code == 200
         payload = result.json()
         evidence_ids = [item["evidence_id"] for item in payload["evidence"]]
-        assert evidence_ids[:2] == ["ev_live", "ev_unsupported"]
-        assert evidence_ids[2] == "ev_snippet"
-        assert payload["evidence"][0]["quote"] == "Live source quote"
-        assert payload["evidence"][1]["quote"] == "Unsupported quote"
+        assert evidence_ids[:3] == ["ev_live", "ev_secondary", "ev_unsupported"]
+        assert evidence_ids[3] == "ev_snippet"
+        assert payload["evidence"][0]["quote"] == "Oranienstraße sees high pedestrian traffic."
+        assert payload["evidence"][1]["quote"] == "The street attracts many visitors daily."
         assert payload["evidence"][1]["quote_source"] == "snippet"
-        assert payload["evidence"][1]["quote"] != payload["findings"][1]["quote"]
-        assert payload["evidence"][2]["quote"] == ("Snippet fallback " + "x" * 400)[:300]
+        assert payload["evidence"][2]["quote"] == "Unsupported quote"
         assert payload["evidence"][2]["quote_source"] == "snippet"
-        assert payload["evidence"][3]["method"] == "wfs"
+        assert payload["evidence"][2]["quote"] != payload["findings"][1]["quote"]
+        assert payload["evidence"][3]["quote"] == ("Snippet fallback " + "x" * 400)[:300]
+        assert payload["evidence"][3]["quote_source"] == "snippet"
+        assert payload["evidence"][4]["method"] == "wfs"
         assert payload["findings"][1]["status"] == "rejected"
         ledger = [
             json.loads(line)
