@@ -168,7 +168,7 @@ def _read_jsonl(name: str) -> list[dict]:
     path = _fixture_dir() / name
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line]
 
 
 def _shape_fixture(shape: str, kind: str) -> str:
