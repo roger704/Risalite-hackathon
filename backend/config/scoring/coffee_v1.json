@@ -1,0 +1,20 @@
+{
+  "template": "coffee",
+  "version": "coffee_v1",
+  "label": "T2 coffee place (area)",
+  "categories": {"osm": ["coffee_shop"], "ihk": ["coffee_shop"]},
+  "future_modifier_bonus": 0.10,
+  "skew_threshold": 1.0,
+  "layers": [
+    {"id": "demand_density", "label": "Resident density (residents/km²)", "direction": "+", "weight_default": 0.30, "required": true, "normalization": "auto",
+     "why": "Cafés need resident footfall; registered-resident density is the cheapest proxy."},
+    {"id": "young_adult_share", "label": "Residents aged 18–45 (share)", "direction": "+", "weight_default": 0.15, "required": false, "normalization": "auto",
+     "why": "Young adults are the core café audience."},
+    {"id": "competition_osm", "label": "Existing cafés (OSM)", "direction": "-", "weight_default": 0.15, "required": true, "normalization": "auto",
+     "why": "Mapped cafés in the cell; separate inventory from IHK, never summed."},
+    {"id": "competition_ihk", "label": "Registered cafés (IHK 56114/561141)", "direction": "-", "weight_default": 0.15, "required": true, "normalization": "auto",
+     "why": "IHK-registered cafés in the cell; separate inventory from OSM, never summed."},
+    {"id": "transit", "label": "Scheduled departures 07–10 (supply, not footfall)", "direction": "+", "weight_default": 0.25, "required": true, "normalization": "auto",
+     "why": "Morning scheduled departures within 400 m indicate commuter flow past the cell; this is scheduled supply, not measured footfall."}
+  ]
+}
