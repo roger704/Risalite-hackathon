@@ -383,7 +383,9 @@ def _fake_service(tmp_path, wohnlage_record, address_rows=()):
         def _snapshot_path(snapshot):
             return paths[snapshot.snapshot_id]
 
-    return Service(), config, wohnlage_path, address_path
+    service = Service()
+    service.manifest = manifest
+    return service, config, wohnlage_path, address_path
 
 
 def test_lookup_matched_unclassified_not_found_and_suffix_candidates(tmp_path):
@@ -430,6 +432,24 @@ def test_lookup_matched_unclassified_not_found_and_suffix_candidates(tmp_path):
     assert not_found["evidence"]["lookup_key"] == "00001004"
     assert "schluessel" not in not_found["evidence"]
     assert "provider_feature_id" not in not_found["evidence"]
+
+
+@pytest.mark.parametrize("valid_from", [None, "2026", "2026-02-30"])
+def test_lookup_rejects_missing_or_malformed_snapshot_validity(tmp_path, valid_from):
+    _, _, batch = normalized_records()
+    record = batch.records[0]
+    service, _, _, _ = _fake_service(tmp_path, record)
+    service.manifest.valid_from = valid_from
+
+    with pytest.raises(ConnectorError, match="missing or malformed valid_from") as error:
+        lookup_wohnlage(
+            service,
+            "berlin_mietspiegel_wohnlagen",
+            "wohnlagen-snapshot",
+            address_key=record.address_key,
+        )
+
+    assert error.value.code == "SNAPSHOT_INCOMPATIBLE"
 
 
 def test_lookup_address_mode_ambiguous_and_not_joinable(tmp_path):
@@ -655,6 +675,81 @@ def test_service_ingest_preserves_previous_snapshot_and_api_records(tmp_path):
             ).status_code
             == 422
         )
+
+        current_config = service.configs["berlin_mietspiegel_wohnlagen"]
+        moved_url = current_config.resource_url.replace("wohnlagenadr2026", "wohnlagenadr2028")
+        moved_landing_url = current_config.landing_url.replace("2026", "2028")
+        moved_options = {
+            **current_config.parser_options,
+            "edition_year": 2028,
+            "typename": "wohnlagenadr2028:wohnlagenadr2028",
+            "edition": "Berliner Mietspiegel 2028",
+            "source_links": [moved_landing_url],
+            "limitations": ["2028 registry limitation"],
+        }
+        service.configs["berlin_mietspiegel_wohnlagen"] = replace(
+            current_config,
+            resource_url=moved_url,
+            landing_url=moved_landing_url,
+            parser_options=moved_options,
+        )
+
+        historical = api.get(
+            "/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage",
+            params={"snapshot_id": first.snapshot_id, "address_key": "00001004A"},
+        )
+        assert historical.status_code == 200
+        historical_body = historical.json()
+        assert historical_body["join_status"] == "matched"
+        assert historical_body["edition"] == "Berliner Mietspiegel 2026"
+        assert historical_body["evidence"]["typename"] == "wohnlagenadr2026:wohnlagenadr2026"
+        assert historical_body["evidence"]["provider_feature_id"] == "wohnlagenadr2026.00001004A"
+        assert historical_body["source_links"] == [first.landing_url]
+        assert historical_body["limitations"] == list(first.quality_report.warnings)
+        moved_warning = (
+            "Registry configuration has moved to a different edition; response metadata is "
+            "taken from the pinned snapshot."
+        )
+        assert moved_warning in historical_body["warnings"]
+
+        historical_not_found = api.get(
+            "/api/v1/datasets/berlin_mietspiegel_wohnlagen/wohnlage",
+            params={"snapshot_id": first.snapshot_id, "address_key": "00001004"},
+        )
+        assert historical_not_found.status_code == 200
+        historical_not_found_body = historical_not_found.json()
+        assert historical_not_found_body["join_status"] == "not_found"
+        assert historical_not_found_body["edition"] == "Berliner Mietspiegel 2026"
+        assert [row["address_key"] for row in historical_not_found_body["candidates"]] == [
+            "00001004A"
+        ]
+        assert moved_warning in historical_not_found_body["warnings"]
+
+
+def test_wohnlage_endpoint_rejects_published_non_wohnlage_dataset(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    values = json.loads((BACKEND / "config/datasets/berlin_lor.json").read_text())
+    values.update(
+        resource_url="https://example.org/synthetic/berlin_lor",
+        allowed_hosts=["example.org"],
+        source_crs="EPSG:4326",
+    )
+    values["parser_options"].update(expected_rows=2, name_field="PLR_NAME")
+    (config_dir / "berlin_lor.json").write_text(json.dumps(values))
+    service = DataService(data_dir=tmp_path / "data", config_dir=config_dir)
+    snapshot = asyncio.run(
+        service.ingest("berlin_lor", local_file=BACKEND / "tests/fixtures/lor/areas.geojson")
+    )
+
+    with TestClient(create_app(service=service)) as api:
+        response = api.get(
+            "/api/v1/datasets/berlin_lor/wohnlage",
+            params={"snapshot_id": snapshot.snapshot_id, "address_key": "00001004A"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_rejects_parent_outside_threshold():
