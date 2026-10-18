@@ -1,0 +1,9 @@
+{
+  "run_id": "demo-point",
+  "question": "Which address best fits a small coffee shop?",
+  "role": "location researcher",
+  "shape": "point",
+  "created_at": "2026-10-18T12:30:00Z",
+  "plan": {"subquestions": [], "paid_sources": []},
+  "summary": "A ranked point-path fixture."
+}
