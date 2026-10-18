@@ -1,12 +1,16 @@
 """Fixture-backed snapshot ingestion and building API contract."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 from fastapi.testclient import TestClient
+from pyproj import Transformer
 from shapely.geometry import shape
 
+from app.api.buildings import _metadata
 from app.api.main import create_app
 from app.application.service import DataService
 from app.connectors.berlin_alkis_buildings import BerlinALKISBuildingsConnector
@@ -25,6 +29,7 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
         max_pages=10,
         expected_count_range=[4, 4],
     )
+    snapshot_bbox = list(values["parser_options"]["extent"]["bbox_25833"])
     (config_dir / "berlin_alkis_buildings.json").write_text(json.dumps(values))
 
     async def handler(request):
@@ -75,6 +80,28 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
         assert at_body["source_edition"] == "2026-09-25"
         assert "current use" in at_body["notice"]
         assert at_body["extent_coverage"]["name"] == "kreuzberg_kottbusser_tor"
+        assert at_body["coverage_partial"] is False
+
+        metric_to_wgs84 = Transformer.from_crs("EPSG:25833", "EPSG:4326", always_xy=True)
+        edge_lon, edge_lat = metric_to_wgs84.transform(
+            snapshot_bbox[0] + 10,
+            (snapshot_bbox[1] + snapshot_bbox[3]) / 2,
+        )
+        edge_at = client.get(
+            "/api/v1/datasets/berlin_alkis_buildings/at",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "lon": edge_lon,
+                "lat": edge_lat,
+                "radius_m": 25,
+            },
+        )
+        assert edge_at.status_code == 200, edge_at.text
+        assert edge_at.json()["coverage_partial"] is True
+        assert (
+            "search radius extends beyond imported extent; buildings outside it are missing"
+            in edge_at.json()["warnings"]
+        )
 
         by_id = client.get(
             f"/api/v1/datasets/berlin_alkis_buildings/buildings/{first['record_id']}",
@@ -107,6 +134,50 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
         assert by_address_body["own_address_match_count"] == 1
         assert by_address_body["pseudonumber_match_count"] == 1
         assert len(by_address_body["matches"]) == 2
+        assert by_address_body["coverage_partial"] is False
+
+        outside_lon, outside_lat = metric_to_wgs84.transform(
+            snapshot_bbox[0] - 1,
+            (snapshot_bbox[1] + snapshot_bbox[3]) / 2,
+        )
+        by_address_outside = client.get(
+            "/api/v1/datasets/berlin_alkis_buildings/by-address",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "street": street,
+                "house_number": number,
+                "lon": outside_lon,
+                "lat": outside_lat,
+            },
+        )
+        assert by_address_outside.status_code == 200, by_address_outside.text
+        assert by_address_outside.json()["coverage_partial"] is True
+        assert (
+            "outside imported extent; absence of a building is not evidence"
+            in by_address_outside.json()["warnings"]
+        )
+
+        invalid_number = client.get(
+            "/api/v1/datasets/berlin_alkis_buildings/by-address",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "street": street,
+                "house_number": "abc",
+            },
+        )
+        assert invalid_number.status_code == 400
+        assert invalid_number.json()["error"]["code"] == "INVALID_FILTER"
+        invalid_suffix = client.get(
+            "/api/v1/datasets/berlin_alkis_buildings/by-address",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "street": street,
+                "house_number": number,
+                "house_number_suffix": "!",
+            },
+        )
+        assert invalid_suffix.status_code == 400
+        assert invalid_suffix.json()["error"]["code"] == "INVALID_FILTER"
 
         unsupported = client.get(
             "/api/v1/datasets/berlin_alkis_buildings/at",
@@ -123,7 +194,7 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
                 "lon": lon,
             },
         )
-        assert unpaired.status_code == 422
+        assert unpaired.status_code == 400
 
         outside = client.get(
             "/api/v1/datasets/berlin_alkis_buildings/at",
@@ -139,3 +210,59 @@ async def test_ingests_fixture_pages_and_serves_building_endpoints(tmp_path):
             "outside imported extent; absence of a building is not evidence"
             in (outside.json()["warnings"])
         )
+
+    changed_bbox = [
+        snapshot_bbox[0] + 100,
+        snapshot_bbox[1] + 100,
+        snapshot_bbox[2] + 100,
+        snapshot_bbox[3] + 100,
+    ]
+    values["parser_options"]["extent"]["name"] = "current_config_extent"
+    values["parser_options"]["extent"]["bbox_25833"] = changed_bbox
+    parts = urlsplit(values["resource_url"])
+    params = parse_qsl(parts.query, keep_blank_values=True)
+    changed_filter = (
+        f"bezeich='AX_Gebaeude' AND BBOX(geom,{','.join(str(value) for value in changed_bbox)})"
+    )
+    params = [
+        (key, changed_filter if key.upper() == "CQL_FILTER" else value) for key, value in params
+    ]
+    values["resource_url"] = urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(params), parts.fragment)
+    )
+    values["source_edition"] = "current-config-edition"
+    values["license_id"] = "CURRENT-CONFIG-LICENSE"
+    values["attribution"] = "Current config attribution"
+    (config_dir / "berlin_alkis_buildings.json").write_text(json.dumps(values))
+    changed_service = DataService(tmp_path / "data", config_dir)
+    with TestClient(create_app(service=changed_service)) as client:
+        historical = client.get(
+            "/api/v1/datasets/berlin_alkis_buildings/at",
+            params={
+                "snapshot_id": manifest.snapshot_id,
+                "lon": lon,
+                "lat": lat,
+                "radius_m": 0,
+            },
+        )
+        assert historical.status_code == 200, historical.text
+        historical_body = historical.json()
+        assert historical_body["extent_coverage"]["bbox_25833"] == snapshot_bbox
+        assert historical_body["extent_coverage"]["name"] is None
+        assert historical_body["source_edition"] == manifest.source_edition
+        assert historical_body["license_id"] == manifest.license_id
+        assert historical_body["attribution"] == manifest.attribution
+
+        unreconstructable_manifest = replace(
+            manifest,
+            raw_assets=tuple(
+                replace(asset, resource_url="https://gdi.berlin.de/services/wfs/alkis_gebaeude")
+                for asset in manifest.raw_assets
+            ),
+        )
+        unreconstructable = _metadata(
+            changed_service._config("berlin_alkis_buildings"), unreconstructable_manifest
+        )
+        assert unreconstructable["extent_coverage"] is None
+        assert unreconstructable["complete"] is False
+        assert "extent of this snapshot cannot be reconstructed" in unreconstructable["warnings"]

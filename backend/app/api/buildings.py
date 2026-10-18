@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import threading
 from collections import OrderedDict
+from dataclasses import asdict
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
@@ -12,6 +13,8 @@ from pyproj import Transformer
 from shapely.geometry import box
 from shapely.ops import transform
 
+from app.application.service import _hash
+from app.connectors.berlin_alkis_buildings import extent_from_resource_url
 from app.domain import Building, ConnectorError, NotFoundError, record_to_dict
 from app.geo.buildings import BuildingIndex, address_to_buildings, buildings_at_point
 from app.infrastructure.storage import read_records
@@ -19,6 +22,7 @@ from app.infrastructure.storage import read_records
 DATASET_ID = "berlin_alkis_buildings"
 _CACHE: OrderedDict[tuple[str, str, int], BuildingIndex] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
+_TO_METRIC = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
 _TO_WGS84 = Transformer.from_crs("EPSG:25833", "EPSG:4326", always_xy=True)
 
 
@@ -42,30 +46,63 @@ def _index_for_snapshot(service, snapshot_id: str):
     return config, manifest, index
 
 
-def _extent(config, manifest) -> dict[str, Any]:
-    extent = config.parser_options["extent"]
-    minx, miny, maxx, maxy = extent["bbox_25833"]
+def _extent(config, manifest) -> dict[str, Any] | None:
+    asset_extents = [extent_from_resource_url(asset.resource_url) for asset in manifest.raw_assets]
+    if (
+        not asset_extents
+        or asset_extents[0] is None
+        or any(extent != asset_extents[0] for extent in asset_extents[1:])
+    ):
+        return None
+    minx, miny, maxx, maxy = asset_extents[0]
     polygon = transform(_TO_WGS84.transform, box(minx, miny, maxx, maxy))
+    config_matches_snapshot = manifest.parser_config_hash == _hash(asdict(config))
+    configured_extent = config.parser_options.get("extent", {})
+    configured_bbox = configured_extent.get("bbox_25833")
+    name = (
+        configured_extent.get("name")
+        if config_matches_snapshot
+        and isinstance(configured_bbox, (list, tuple))
+        and tuple(float(value) for value in configured_bbox) == asset_extents[0]
+        else None
+    )
     return {
-        "name": extent["name"],
-        "bbox_25833": list(extent["bbox_25833"]),
+        "name": name,
+        "bbox_25833": list(asset_extents[0]),
         "bbox": list(polygon.bounds),
         "complete": manifest.quality_report.valid,
     }
 
 
 def _metadata(config, manifest) -> dict[str, Any]:
+    config_matches_snapshot = manifest.parser_config_hash == _hash(asdict(config))
+    warnings = list(manifest.quality_report.warnings)
+
+    def snapshot_value(name: str):
+        value = getattr(manifest, name, None)
+        if value is not None or hasattr(manifest, name):
+            return value
+        if config_matches_snapshot:
+            return getattr(config, name, None)
+        warnings.append("metadata reflects current config because snapshot metadata is unavailable")
+        return getattr(config, name, None)
+
+    extent = _extent(config, manifest)
+    complete = extent is not None and manifest.quality_report.valid
+    if extent is None:
+        warnings.append("extent of this snapshot cannot be reconstructed")
     return {
         "dataset_id": DATASET_ID,
         "snapshot_id": manifest.snapshot_id,
         "retrieved_at": manifest.retrieved_at,
-        "source_edition": config.source_edition,
-        "license_id": config.license_id,
-        "license_url": config.license_url,
-        "attribution": config.attribution,
-        "landing_url": config.landing_url,
-        "extent_coverage": _extent(config, manifest),
-        "warnings": list(manifest.quality_report.warnings),
+        "source_edition": snapshot_value("source_edition"),
+        "license_id": snapshot_value("license_id"),
+        "license_url": snapshot_value("license_url"),
+        "attribution": snapshot_value("attribution"),
+        "landing_url": snapshot_value("landing_url"),
+        "extent_coverage": extent,
+        "complete": complete,
+        "warnings": warnings,
         "notice": (
             "ALKIS function is not current use, tenant, vacancy, or permitted use. "
             "Footprint area multiplied by storeys is not usable or rentable floor area."
@@ -84,9 +121,25 @@ def _validate_lon_lat(lon: float, lat: float, allowed_bbox: list[float]) -> None
         raise ConnectorError("INVALID_FILTER", "lon and lat must fall within the Berlin bbox")
 
 
-def _outside_extent(lon: float, lat: float, extent: dict) -> bool:
-    west, south, east, north = extent["bbox"]
-    return not west <= lon <= east or not south <= lat <= north
+def _point_inside_extent(lon: float, lat: float, extent: dict | None) -> bool:
+    if extent is None:
+        return False
+    minx, miny, maxx, maxy = extent["bbox_25833"]
+    x, y = _TO_METRIC.transform(lon, lat)
+    return minx <= x <= maxx and miny <= y <= maxy
+
+
+def _radius_inside_extent(lon: float, lat: float, radius_m: float, extent: dict | None) -> bool:
+    if extent is None:
+        return False
+    minx, miny, maxx, maxy = extent["bbox_25833"]
+    x, y = _TO_METRIC.transform(lon, lat)
+    return (
+        x - radius_m >= minx
+        and x + radius_m <= maxx
+        and y - radius_m >= miny
+        and y + radius_m <= maxy
+    )
 
 
 def _check_unknown(request: Request, allowed: set[str]) -> None:
@@ -114,9 +167,15 @@ def create_buildings_router(get_service) -> APIRouter:
         _validate_lon_lat(lon, lat, config.parser_options["allowed_bbox"])
         matches = buildings_at_point(index, lon, lat, radius_m)
         response = _metadata(config, manifest)
-        if _outside_extent(lon, lat, response["extent_coverage"]):
+        extent = response["extent_coverage"]
+        if extent is not None and not _point_inside_extent(lon, lat, extent):
             response["warnings"].append(
                 "outside imported extent; absence of a building is not evidence"
+            )
+        response["coverage_partial"] = not _radius_inside_extent(lon, lat, radius_m, extent)
+        if response["coverage_partial"] and extent is not None:
+            response["warnings"].append(
+                "search radius extends beyond imported extent; buildings outside it are missing"
             )
         response.update(
             {
@@ -174,20 +233,26 @@ def create_buildings_router(get_service) -> APIRouter:
         config, manifest, index = _index_for_snapshot(service, snapshot_id)
         if lon is not None:
             _validate_lon_lat(lon, lat, config.parser_options["allowed_bbox"])
-        result = address_to_buildings(
-            index,
-            street,
-            house_number,
-            house_number_suffix=house_number_suffix,
-            street_code=street_code,
-            lon=lon,
-            lat=lat,
-        )
-        response = _metadata(config, manifest)
-        if lon is not None and _outside_extent(lon, lat, response["extent_coverage"]):
-            response["warnings"].append(
-                "outside imported extent; absence of a building is not evidence"
+        try:
+            result = address_to_buildings(
+                index,
+                street,
+                house_number,
+                house_number_suffix=house_number_suffix,
+                street_code=street_code,
+                lon=lon,
+                lat=lat,
             )
+        except ValueError as exc:
+            raise ConnectorError("INVALID_FILTER", str(exc)) from exc
+        response = _metadata(config, manifest)
+        if lon is not None:
+            extent = response["extent_coverage"]
+            response["coverage_partial"] = not _point_inside_extent(lon, lat, extent)
+            if extent is not None and response["coverage_partial"]:
+                response["warnings"].append(
+                    "outside imported extent; absence of a building is not evidence"
+                )
         own_address_match_count = sum(
             item["reference_kind"] == "house_number"
             and "address_reference" in item["match_methods"]

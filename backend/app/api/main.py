@@ -88,6 +88,8 @@ def _error_status(code: str) -> int:
         return 409
     if code in {"SOURCE_UNAVAILABLE", "DATA_UNAVAILABLE", "DATASET_UNAVAILABLE"}:
         return 503
+    if code == "INVALID_FILTER":
+        return 400
     return 422
 
 

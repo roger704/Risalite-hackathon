@@ -76,6 +76,10 @@ _ATTRIBUTE_FIELDS = (
     "namlag",
 )
 _TO_METRIC = Transformer.from_crs("EPSG:4326", "EPSG:25833", always_xy=True)
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+_BBOX_FILTER = re.compile(
+    rf"bezeich='AX_Gebaeude' AND BBOX\(geom,({_NUMBER}),({_NUMBER}),({_NUMBER}),({_NUMBER})\)"
+)
 
 
 def _query_values(url: str) -> dict[str, list[str]]:
@@ -83,6 +87,22 @@ def _query_values(url: str) -> dict[str, list[str]]:
     for key, value in parse_qsl(urlsplit(url).query, keep_blank_values=True):
         values.setdefault(key.upper(), []).append(value)
     return values
+
+
+def extent_from_resource_url(resource_url: str) -> tuple[float, float, float, float] | None:
+    try:
+        filters = _query_values(resource_url).get("CQL_FILTER", ())
+    except (TypeError, ValueError):
+        return None
+    if len(filters) != 1:
+        return None
+    match = _BBOX_FILTER.fullmatch(filters[0])
+    if match is None:
+        return None
+    bbox = tuple(float(value) for value in match.groups())
+    if not all(math.isfinite(value) for value in bbox) or bbox[0] > bbox[2] or bbox[1] > bbox[3]:
+        return None
+    return bbox
 
 
 def _extent_filter(options: dict) -> str:
@@ -117,7 +137,11 @@ def _check_config(config: DatasetConfig) -> dict:
         raise ConfigError("ALKIS buildings object_type must be AX_Gebaeude")
     query = _query_values(config.resource_url)
     expected_filter = _extent_filter(options)
-    if query.get("CQL_FILTER") != [expected_filter]:
+    expected_bbox = tuple(float(value) for value in options["extent"]["bbox_25833"])
+    if (
+        query.get("CQL_FILTER") != [expected_filter]
+        or extent_from_resource_url(config.resource_url) != expected_bbox
+    ):
         raise ConfigError(
             "ALKIS buildings resource_url CQL_FILTER must match the configured extent"
         )

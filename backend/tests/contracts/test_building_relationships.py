@@ -42,6 +42,27 @@ def test_point_query_returns_all_overlapping_containers():
     assert all(item["relation"] == "contains" and item["distance_m"] == 0 for item in results)
 
 
+def test_point_and_address_queries_include_footprint_edge():
+    record = building(
+        "edge",
+        (13.4, 52.5, 13.401, 52.501),
+        address_labels=("Known Street 1",),
+        address_reference_kind="house_number",
+    )
+    index = BuildingIndex([record])
+
+    point_results = buildings_at_point(index, 13.4, 52.5, 0)
+    assert len(point_results) == 1
+    assert point_results[0]["record"].record_id == record.record_id
+    assert point_results[0]["relation"] == "contains"
+    assert point_results[0]["distance_m"] == 0
+
+    address_result = address_to_buildings(index, "Different Street", "99", lon=13.4, lat=52.5)
+    assert address_result["status"] == "unique"
+    assert address_result["matches"][0]["record_id"] == record.record_id
+    assert address_result["matches"][0]["match_methods"] == ["contains_address_point"]
+
+
 def test_address_multiple_buildings_is_ambiguous_and_suffix_match_wins():
     base = building(
         "base",

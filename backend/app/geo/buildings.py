@@ -78,7 +78,7 @@ def buildings_at_point(index: BuildingIndex, lon: float, lat: float, radius_m: f
     for position in candidate_indices:
         geometry = index.geometries[int(position)]
         distance = geometry.distance(point)
-        if geometry.contains(point):
+        if geometry.covers(point):
             relation = "contains"
             distance = 0.0
         elif distance <= radius_m:
@@ -115,7 +115,12 @@ def _address_number(number: str, suffix: str | None) -> tuple[str, str | None]:
     match = re.fullmatch(r"\s*(\d+)\s*([A-Za-z]*)\s*", number)
     if not match:
         raise ValueError("house_number must contain a numeric base and optional suffix")
-    return match.group(1), (suffix or match.group(2) or "").strip().upper() or None
+    if suffix is not None and not isinstance(suffix, str):
+        raise ValueError("house_number_suffix must contain letters only")
+    explicit_suffix = (suffix or "").strip()
+    if explicit_suffix and not re.fullmatch(r"[A-Za-z]+", explicit_suffix):
+        raise ValueError("house_number_suffix must contain letters only")
+    return match.group(1), (explicit_suffix or match.group(2) or "").upper() or None
 
 
 def address_to_buildings(
