@@ -579,6 +579,51 @@ class DevelopmentPlan(Record):
 
 
 @dataclass(frozen=True, kw_only=True)
+class Address(Record):
+    """An official address point (WGS84). Never implies vacancy, availability or permitted use."""
+
+    geometry: dict[str, Any]
+    street_name: str
+    address_type: str
+    street_code: str | None = None
+    house_number: int | None = None
+    house_number_suffix: str | None = None
+    postcode: str | None = None
+    district_code: str | None = None
+    district_name: str | None = None
+    locality_code: str | None = None
+    locality_name: str | None = None
+    area_code: str | None = None
+    area_name: str | None = None
+    attributes: dict[str, str] = field(default_factory=dict)
+    record_type: str = field(default="address", init=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _point(self.geometry)
+        _text("street_name", self.street_name)
+        _text("address_type", self.address_type)
+        for name in (
+            "street_code",
+            "house_number_suffix",
+            "postcode",
+            "district_code",
+            "district_name",
+            "locality_code",
+            "locality_name",
+            "area_code",
+            "area_name",
+        ):
+            _optional_text(name, getattr(self, name))
+        _optional_count("house_number", self.house_number)
+        if not isinstance(self.attributes, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in self.attributes.items()
+        ):
+            raise ValidationError("attributes must map strings to strings")
+
+
+@dataclass(frozen=True, kw_only=True)
 class ForecastObservation(Record):
     area_code: str
     hierarchy: str
@@ -935,6 +980,7 @@ NormalizedRecord: TypeAlias = (
     | DevelopmentPlan
     | AreaIndicatorClass
     | GridObservation
+    | Address
     | Facility
     | ResidentialLocationClass
 )
@@ -947,6 +993,7 @@ RECORD_TYPES: dict[str, type] = {
     "transit_stop": TransitStop,
     "stop_service": StopService,
     "green_space": GreenSpace,
+    "address": Address,
     "residential_location_class": ResidentialLocationClass,
     "development_plan": DevelopmentPlan,
     "area_indicator_class": AreaIndicatorClass,

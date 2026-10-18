@@ -55,7 +55,7 @@ Implement reusable transport/parser families, then configure datasets within the
 | `tavily_research` | Authenticated search/extraction API | `WebEvidence` | MVP | On demand, within research budget |
 | `berlin_kitas` | Berlin WFS | `Facility` | Next | Weekly |
 | `berlin_households` | Tabular file | `AreaObservation` | Next | Monthly check for new period |
-| `berlin_addresses` | Berlin WFS | `Address` | Next | Monthly |
+| `berlin_addresses` | Berlin WFS | `Address` | Implemented | Monthly |
 | `berlin_mietspiegel_wohnlagen` | Berlin WFS | `ResidentialLocationClass` | Next | Check each Mietspiegel edition |
 | `berlin_planning` | Berlin WFS, plus linked documents | `PlanningFeature`, `WebEvidence` | Next | Weekly |
 | `berlin_centers` | Berlin WFS | `RetailCenter` | Next | Monthly |
@@ -231,6 +231,7 @@ Public servers apply shared-resource limits; cache broad extractions and follow 
 - Handle WFS axis order explicitly. Validate known Berlin features before trusting coordinates; GeoJSON output must be longitude/latitude.
 - Every layer has its own field mapping and version. Preserve provider facility IDs and plan statuses without assuming field names before inspection.
 - Kita capacity/vacancies remain null unless the source actually provides a dated, documented value. A facility registry supports provision analysis, not a claim that places are available.
+- `berlin_addresses` normalizes the live Berlin address-point layer to WGS84, preserves provider-supplied LOR codes, and validates those links against the pinned 2021 LOR snapshot. Address points are not premises or evidence of availability.
 - Use WMS only as a display/reference layer; do not derive numeric scoring data from rendered map colors.
 
 The official [Berlin service migration notes](https://www.berlin.de/sen/sbw/_assets/stadtdaten/geoportal/aktuelles/austausch-diente-server-allgemein.pdf?ts=1691689866) show the current service URL pattern. Resolve actual endpoints through the dataset listing rather than copying obsolete FIS-Broker URLs.
@@ -320,6 +321,7 @@ Dataset listing, manifest, record, and area-summary routes below are implemented
 | `GET /api/v1/datasets` | List registered datasets, access-validation states, latest valid snapshots, freshness, coverage, and attribution |
 | `GET /api/v1/datasets/{dataset_id}/snapshots/{snapshot_id}` | Read an immutable manifest and quality summary |
 | `GET /api/v1/datasets/{dataset_id}/records` | Query a required `snapshot_id`, supported filters, `limit`, and opaque cursor |
+| `GET /api/v1/datasets/{dataset_id}/address-search` | Search one pinned `berlin_addresses` snapshot by street and optional house number, postcode, or district |
 | `GET /api/v1/areas/{area_code}/summary` | One frontend-ready Planungsraum summary (schema `1.0`, calculation `area_summary_v1`) built from pinned LOR, name, population, OSM, IHK, and GTFS snapshots; see [Area Summary](#area-summary) |
 | `POST /api/v1/analyses` | Validate a use case and area; pin snapshots; create an analysis and return `202` with a status URL |
 | `GET /api/v1/analyses/{analysis_id}` | Return status, ranked results when available, input snapshots, warnings, and missing metrics |
@@ -327,6 +329,22 @@ Dataset listing, manifest, record, and area-summary routes below are implemented
 | `GET /api/v1/analyses/{analysis_id}/events` | Server-sent events with persisted event IDs and replay after reconnect |
 
 Ingestion remains a maintainer CLI operation for the MVP. A future ingestion HTTP endpoint must require maintainer authentication and run outside public read requests.
+
+### Address search contract
+
+`GET /api/v1/datasets/{dataset_id}/address-search` searches only a published `berlin_addresses` snapshot. `snapshot_id` and `q` are required; `q` contains 1–200 characters. Optional filters are `postcode` (exact five-digit string), `district` (district code or case/umlaut-insensitive name), `limit` (1–50, default 10), and opaque `cursor`. Unknown query parameters return `422 UNSUPPORTED_FILTER`; other dataset adapters and unparseable street queries return `422 INVALID_FILTER`; an unknown snapshot returns `404`.
+
+Matching is local and deterministic:
+
+1. Normalize street names with Unicode compatibility normalization, case folding, German umlaut expansion, punctuation/spacing removal, and `str`/`-str` to `strasse` expansion. Use an exact street-key match; if none exists and the key has at least four characters, search matching street-key prefixes (`street_prefix`).
+2. Apply exact postcode and district-code or normalized district-name filters before house-number selection.
+3. With a house number and suffix, match that exact number/suffix (`exact`).
+4. With a house number and no suffix, prefer exact no-suffix entries (`exact`); only when none exist within the filtered entries, return all suffixed variants (`house_number_suffix_variant`).
+5. Without a house number, return all addresses on matching street key(s), labelled `street` for an exact street-key match or `street_prefix` when using the prefix fallback. Numbered queries keep their house-number match type.
+6. Sort by street name, postcode, house number (null first), suffix (null first), and stable `record_id`.
+7. `ambiguous` is true when an exact or suffix-variant query yields more than one point. `candidates` lists up to 20 distinct postcode/district-name pairs. The API never auto-selects an ambiguous address.
+
+The cursor is a base64-encoded opaque offset bound to the dataset, snapshot, normalized query, and filters; reuse it only for the same search. The response includes `schema_version`, `dataset_id`, `snapshot_id`, retrieval/source/reference dates, the parsed query, paged address records with `match_type`, WGS84 point, stable/source IDs and nullable validated `area_link`, total/count/next cursor, ambiguity/candidates, quality warnings, and attribution. An address result marks an official address point only; it never implies vacant premises, commercial availability, rental terms, or permitted use.
 
 Use typed internal tools such as `get_population`, `find_competitors`, `get_transit_access`, `get_planning_context`, `search_web`, and `get_evidence`. Tools receive the analysis context and therefore its pinned snapshots; they do not expose provider-specific query syntax to the LLM.
 
