@@ -42,7 +42,7 @@ async def main(
         return 2
     research = None
     async with httpx.AsyncClient(
-        timeout=30.0, follow_redirects=True, transport=transport
+        timeout=30.0, follow_redirects=False, transport=transport
     ) as client:
         if os.environ.get("TAVILY_API_KEY", "").strip():
             from app.connectors.tavily import TavilyClient, TavilyConfig

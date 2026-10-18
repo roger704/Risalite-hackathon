@@ -56,3 +56,14 @@ async def test_verify_citations_flags_unresolvable_url(tmp_path, monkeypatch):
         [str(run_dir), "--threshold", "0.5"], transport=transport, resolver=public_resolver
     )
     assert code == 1
+
+
+async def test_judge_rejects_private_urls():
+    from app.evidence.judge import _resolves
+
+    async def resolver(host, port):
+        return ["127.0.0.1"]
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        ok, detail = await _resolves(client, "https://intranet.example/x", resolver)
+    assert not ok and "url rejected" in detail

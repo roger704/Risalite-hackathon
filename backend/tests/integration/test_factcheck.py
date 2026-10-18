@@ -6,7 +6,7 @@ import pytest
 
 from app.connectors.tavily import TavilyClient, TavilyConfig
 from app.domain.research import EvidencePage, ResearchBudget, WebEvidence, canonicalize_url
-from app.evidence.factcheck import FactChecker, fact_check_run
+from app.evidence.factcheck import FactChecker, fact_check_run, prune_result
 from app.evidence.ledger import EvidenceLedger, snapshot_fields, value_hash
 from app.evidence.trace import TraceWriter
 
@@ -269,6 +269,7 @@ async def test_fact_check_run_classifies_prunes_and_traces(tmp_path):
     summary = json.loads((run_dir / "factcheck.json").read_text())
     assert summary["thresholds"] == {"verified": 0.85, "partial": 0.6}
 
+    assert cells["rescore_required"] is True
     again = await fact_check_run(run_dir, checker)  # idempotent: nothing left to check
     assert again.results == [] and "[1][5]" in (run_dir / "report.md").read_text()
     await http.aclose()
@@ -304,7 +305,7 @@ async def test_snapshot_without_reader_and_value_hash(tmp_path):
             snapshot_id="s",
             query={},
             value=[1, 2],
-            quote="two",
+            quote="values 1 and 2",
             retrieved_at=NOW,
         )
     )
@@ -404,3 +405,125 @@ async def test_live_fact_check_real_page(tmp_path):
         [result] = await FactChecker(research=client).check(ledger.entries())
     print(result)
     assert result.status == "verified"
+
+
+async def test_requery_rejects_ports_and_redirects(tmp_path):
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.host)
+        return httpx.Response(302, headers={"location": "http://169.254.169.254/latest"})
+
+    ledger = EvidenceLedger(tmp_path)
+    for url in ("https://gdi.berlin.de:8443/wfs", WFS):
+        ledger.append(url=url, quote="x", method="wfs", tier="official", confidence="high")
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
+    port, redirect = await FactChecker(http=http).check(ledger.entries())
+    assert port.status == "unsupported" and "not allow-listed" in port.reason
+    assert redirect.status == "unsupported" and "HTTP 302" in redirect.reason
+    assert seen == ["gdi.berlin.de"]
+    await http.aclose()
+
+
+async def test_web_fallback_revalidates_redirect_hops(tmp_path):
+    def handler(request):
+        if request.url.host == "www.berlin.de":
+            return httpx.Response(301, headers={"location": "http://internal.example/secret"})
+        return httpx.Response(200, text=PAGES[NEWS])
+
+    async def resolver(host, port):
+        return ["10.0.0.5"] if host == "internal.example" else ["93.184.216.34"]
+
+    ledger = EvidenceLedger(tmp_path)
+    ledger.append(
+        url=NEWS, quote="300 Wohnungen", method="tavily-extract", tier="official", confidence="high"
+    )
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    [result] = await FactChecker(http=http, resolver=resolver).check(ledger.entries())
+    assert result.status == "unsupported" and "UnsafeURLError" in result.reason
+    await http.aclose()
+
+
+async def test_feature_count_alone_is_only_partial(tmp_path):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.append(
+        url=WFS,
+        quote="one planning area",
+        method="wfs",
+        tier="official",
+        confidence="high",
+        source_ref={"feature_count": 1},
+    )
+    http = httpx.AsyncClient(transport=httpx.MockTransport(wfs_transport))
+    [result] = await FactChecker(http=http).check(ledger.entries())
+    assert result.status == "partial" and "cited 1 features" in result.reason
+    await http.aclose()
+
+
+@pytest.mark.parametrize(
+    ("quote", "status"),
+    [
+        ("4200 residents", "verified"),
+        ("4.200 Einwohner", "verified"),
+        ("4,200 residents", "verified"),
+        ("9000 residents", "partial"),
+    ],
+)
+async def test_snapshot_quote_must_state_the_value(tmp_path, quote, status):
+    ledger = EvidenceLedger(tmp_path)
+    ledger.append(
+        **snapshot_fields(
+            url="https://example.org/pop.xlsx",
+            dataset_id="d",
+            snapshot_id="s",
+            query={},
+            value=4200,
+            quote=quote,
+            retrieved_at=NOW,
+        )
+    )
+    [result] = await FactChecker(snapshot_reader=lambda ref: 4200).check(ledger.entries())
+    assert result.status == status
+
+
+def test_prune_flags_nested_claims_and_replaces_rejected_singular_id():
+    result = {
+        "summary": {"claim": "Footfall rose", "evidence_ids": ["e4"]},
+        "risks": [{"label": "Rents", "evidence_id": "e4", "evidence_ids": ["e4", "e1"]}],
+    }
+    pruned, records = prune_result(result, {"e1"})
+    assert pruned["summary"]["fact_check"] == "unsupported"
+    assert pruned["summary"]["evidence_ids"] == []
+    assert pruned["risks"][0]["evidence_id"] == "e1"
+    assert pruned["risks"][0]["evidence_ids"] == ["e1"]
+    assert [(r["path"], r["action"]) for r in records] == [("summary", "flagged")]
+    again, _ = prune_result(pruned | {"summary": {"claim": "ok", "evidence_ids": ["e1"]}}, {"e1"})
+    assert "fact_check" not in again["summary"]
+
+
+async def test_recheck_restores_claims_from_originals(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    ledger = build_run(run_dir)
+    http = httpx.AsyncClient(transport=httpx.MockTransport(wfs_transport))
+    checker = FactChecker(research=FakeTavily(), http=http, snapshot_reader=snapshot_reader)
+    await fact_check_run(run_dir, checker)
+    assert "[4]" not in (run_dir / "report.md").read_text()
+    monkeypatch.setitem(PAGES, BLOG, "Footfall on Oranienstraße rose 30 % in 2026.")
+    await fact_check_run(run_dir, checker, recheck=True)
+    assert ledger.get("e4").status == "verified"
+    cell = json.loads((run_dir / "cells.json").read_text())["cells"][0]
+    assert [m["evidence_id"] for m in cell["modifiers"]] == ["e2", "e4"]
+    assert "Footfall rose [4]" in (run_dir / "report.md").read_text()
+    await http.aclose()
+
+
+async def test_checker_closes_only_its_own_client():
+    owned = FactChecker()
+    client = await owned._client()
+    await owned.aclose()
+    assert client.is_closed and owned.http is None
+    injected = httpx.AsyncClient()
+    async with FactChecker(http=injected) as checker:
+        await checker._client()
+    assert not injected.is_closed
+    await injected.aclose()

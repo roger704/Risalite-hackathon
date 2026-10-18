@@ -13,9 +13,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx
 
+from app.connectors.tavily import validate_public_url
+from app.domain.research import UnsafeURLError
 from app.evidence.citations import citation_numbers
 from app.evidence.factcheck import FactChecker
 from app.evidence.ledger import EvidenceLedger
@@ -58,7 +61,11 @@ class JudgeReport:
         return "\n".join(lines)
 
 
-async def _resolves(client: httpx.AsyncClient, url: str) -> tuple[bool, str]:
+async def _resolves(client: httpx.AsyncClient, url: str, resolver: Any = None) -> tuple[bool, str]:
+    try:
+        await validate_public_url(url, resolver)
+    except UnsafeURLError as exc:
+        return False, f"url rejected ({exc.message})"
     try:
         async with client.stream("GET", url, follow_redirects=False) as response:
             status = response.status_code
@@ -83,7 +90,7 @@ async def judge_run(run_dir: Path | str, client: httpx.AsyncClient, checker: Fac
         rows.append(JudgeRow("citation", f"[{number}]", "pass" if entry else "fail", detail))
     checked = list(citable.values())
     for entry in checked:
-        ok, detail = await _resolves(client, entry.url)
+        ok, detail = await _resolves(client, entry.url, checker.resolver)
         rows.append(
             JudgeRow("url", entry.evidence_id, "pass" if ok else "fail", f"{detail} {entry.url}")
         )
