@@ -29,12 +29,19 @@ def test_frontend_static_routes_and_health(tmp_path, monkeypatch):
     frontend_root.mkdir()
     (frontend_root / "app").symlink_to(APP, target_is_directory=True)
     (frontend_root / "fixtures").symlink_to(FIXTURES, target_is_directory=True)
+    (frontend_root / "landing").symlink_to(APP.parent / "landing", target_is_directory=True)
     monkeypatch.setenv("RISALITE_FRONTEND_DIR", str(frontend_root))
     client = TestClient(create_app(data_dir=tmp_path))
 
     response = client.get("/")
     assert response.status_code == 200
     assert "SpotWise" in response.text
+    assert 'class="search"' in response.text
+    landing = client.get("/landing/")
+    assert landing.status_code == 200
+    assert 'href="/"' in landing.text
+    assert "Try the demo" in landing.text
+    assert client.get("/mockup/index.html").status_code == 404
     assert client.get("/fixtures/cells.json").status_code == 200
     for asset in (
         "/app.js",

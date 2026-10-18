@@ -1,0 +1,33 @@
+{
+  "synthetic": true,
+  "run_id": "mock-t3",
+  "status": "done",
+  "question": "Where are Kitas missing in Neukölln?",
+  "role": "urban planner",
+  "shape": "gap",
+  "report_md": "Across 21 Planungsräume in Neukölln [1], the largest Kita gap is in **Bouchéstraße** [2] [3], followed by **Alt-Rixdorf** [2] [3] and **Reuterplatz** [2] [3]. These cells combine many children under six with relatively few approved places per child. The district's Kita planning reports a deficit in northern planning areas [6]. Announced changes include ~420 planned housing units at Weichselplatz [7] and two Kita closures affecting 85 places in Rollberg [8] in Present + future mode. The claim that Neukölln has the lowest Kita coverage in Berlin could not be verified and was dropped [9].",
+  "models": {
+    "Classifier": "gpt-oss-120b",
+    "Planner": "gpt-oss-120b",
+    "Data researcher": "tool calls (no LLM)",
+    "Web researcher": "Nemotron Lightning",
+    "Skeptic": "gpt-oss-120b",
+    "Fact-checker": "Tavily extract + fuzzy match ≥0.85",
+    "Writer": "Beam",
+    "Scorer": "deterministic"
+  },
+  "self_grade": [
+    {
+      "ok": true,
+      "text": "The report ranks all 21 Neukölln PLR cells using the approved layer mix."
+    },
+    {
+      "ok": true,
+      "text": "Future developments and the two Kita closures cite their source entries."
+    },
+    {
+      "ok": false,
+      "text": "A city-wide Kita coverage ranking could not be verified and was rejected."
+    }
+  ]
+}

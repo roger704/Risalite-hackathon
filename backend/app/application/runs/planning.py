@@ -49,7 +49,7 @@ LAYER_WHY = {
     "young_adult_share": "18–45 year olds are the core café audience.",
     "footfall_proxy": "Bakeries, restaurants and takeaways signal existing footfall.",
     "transit": "Departures in the morning and evening peaks bring passing customers.",
-    "centre_proximity": "Shopping centres concentrate footfall.",
+    "centre_proximity": "Nearby retail centres provide commercial context; this is not a footfall measurement.",
     "cafe_saturation": "Many cafés per resident means a saturated market.",
     "cafe_crosscheck": "IHK register is only a cross-check for the OSM café count.",
 }
@@ -193,7 +193,10 @@ def build_plan(
         "template_id": template.id,
     }
     if unmapped:
+        labels = {layer.id: layer.label for layer in template.layers}
         plan["note"] = (
-            "No data source for layer(s): " + ", ".join(unmapped) + " (shown as missing)."
+            "Not included in scoring: "
+            + ", ".join(labels.get(layer_id, layer_id.replace("_", " ")) for layer_id in unmapped)
+            + ". Data is unavailable for this run."
         )
     return plan

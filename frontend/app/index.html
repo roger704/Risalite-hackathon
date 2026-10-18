@@ -12,25 +12,26 @@
 <body>
 <header>
   <div class="logo">Spot<span>Wise</span></div>
-  <div class="tag">Don't just research a location. Discover where opportunity exists.</div>
+  <nav class="steps" id="steps" aria-label="Workflow"><i class="pill"></i><span data-v="s-ask">Ask</span><span data-v="s-plan">Plan</span><span data-v="s-live">Research</span><span data-v="s-dash">Results</span></nav>
   <div class="mode" id="mode-badge"></div>
-  <button id="restart">New question</button>
+  <button id="restart">+ New question</button>
 </header>
 <main>
 
-<section id="s-ask">
+<section id="s-ask" class="view">
+  <div class="hero">
+    <div class="mf" id="mf" aria-hidden="true" title="Ask → research → score → cited answer"><span class="mf-n mf-ask"><i></i><i></i><i></i></span><span class="mf-c"></span><span class="mf-n mf-hub"><b></b><u></u></span><span class="mf-c"></span><span class="mf-n mf-map"><i style="--c:#e0f2fe;transition-delay:0ms"></i><i style="--c:#a78bfa;transition-delay:60ms"></i><i style="--c:#7dd3fc;transition-delay:120ms"></i><i style="--c:#f472b6;transition-delay:180ms"></i><i style="--c:#fb923c;transition-delay:240ms"></i><i style="--c:#a78bfa;transition-delay:300ms"></i><i style="--c:#7dd3fc;transition-delay:360ms"></i><i style="--c:#e0f2fe;transition-delay:420ms"></i><i style="--c:#f472b6;transition-delay:480ms"></i></span><span class="mf-c"></span><span class="mf-n mf-doc">📄<b>✓</b></span></div>
+    <h1>What's up <span class="brand">SpotWise</span>?</h1>
+    <p class="mut">Ask a question → approve the plan → get a cited answer.</p>
+  </div>
   <div class="card">
-    <h1>Ask a question about a place in Berlin</h1>
-    <p class="mut" style="margin:0 0 12px">SpotWise classifies your question, proposes a research plan for approval, then researches Berlin open geodata and the web. Every claim is fact-checked and cited.</p>
-    <textarea id="q" placeholder="e.g. Where is it smart to open a coffee place in Kreuzberg?"></textarea>
-    <div class="row" style="margin-top:10px">
-      <label class="mut">Role (optional)
-        <select id="role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
-      </label>
-      <label class="mut">Operator profile (point questions)
-        <input type="text" id="op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
-      </label>
-      <button class="btn" id="go" style="margin-left:auto">Research ›</button>
+    <div class="search"><span class="s-ico" aria-hidden="true">🔎</span>
+      <textarea id="q" rows="2" aria-label="Research question" placeholder="Where is it smart to open a coffee place in Kreuzberg?"></textarea>
+      <button class="btn" id="go">Research ›</button>
+    </div>
+    <div class="row opts">
+      <div class="field"><select id="role" aria-label="Role"><option value="">Role (optional)</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select></div>
+      <label class="field grow" id="opwrap">🧑‍🍳 <input type="text" id="op" aria-label="Experience and budget" placeholder="Your experience &amp; budget (optional)"></label>
     </div>
     <div id="clar" class="clar hidden">
       <b>Clarifying question from the planner</b>
@@ -38,21 +39,41 @@
       <div class="row"><input type="text" id="clar-in" size="30" placeholder="e.g. Kreuzberg"><button class="btn ghost" id="clar-go">Continue</button></div>
     </div>
     <div id="ask-err" class="err hidden"></div>
-    <div class="tpl">
-      <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="badge b-point">T1 · point</span><b>Property / storefront</b><span class="mut small">"This storefront at Wiener Straße 12 just became available — what is the best use?"</span></div>
-      <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="badge b-location">T2 · location</span><b>Business location</b><span class="mut small">"Where is it smart to open a coffee place in Kreuzberg?"</span></div>
-      <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="badge b-gap">T3 · gap</span><b>Kita gap</b><span class="mut small">"Where are Kitas missing in Neukölln?"</span></div>
-    </div>
   </div>
+  <div class="tpl-h mut small anim">✨ Or try an example</div>
+  <div class="tpl anim">
+    <div class="t" data-q="This storefront at Wiener Straße 12 just became available — what is the best use?" data-op="6 yrs bakery experience, budget €80k, 2 staff"><span class="emo">🏬</span><b>Best use for a storefront</b><span class="mut small">Wiener Straße 12</span></div>
+    <div class="t" data-q="Where is it smart to open a coffee place in Kreuzberg?"><span class="emo">☕</span><b>Where to open a café</b><span class="mut small">Kreuzberg</span></div>
+    <div class="t" data-q="Where are Kitas missing in Neukölln?"><span class="emo">🧸</span><b>Where Kitas are missing</b><span class="mut small">Neukölln</span></div>
+  </div>
+  <p class="small mut center anim" style="margin-top:18px">💡 Leave out the area and SpotWise will ask.</p>
 </section>
 
-<section id="s-plan" class="hidden">
+<section id="s-plan" class="view hidden">
   <div class="card">
-    <div class="mut small">Question</div><h1 id="p-q"></h1>
+    <div class="plan-question-row">
+      <div class="plan-question-copy">
+        <div class="mut small">Question</div><div id="p-q" class="plan-question"></div>
+        <div id="p-chips" class="plan-chips"></div>
+      </div>
+      <button class="btn ghost" id="plan-edit-open">✏️ Edit</button>
+    </div>
+    <div id="plan-edit" class="plan-edit hidden">
+      <label>Question<textarea id="plan-edit-q" rows="2"></textarea></label>
+      <div class="row">
+        <label class="mut">Role
+          <select id="plan-edit-role"><option value="">—</option><option>Founder / operator</option><option>Urban planner</option><option>Investor</option><option>Data analyst</option></select>
+        </label>
+        <label class="mut">Operator profile
+          <input type="text" id="plan-edit-op" size="44" placeholder="e.g. 6 yrs bakery experience, budget €80k">
+        </label>
+      </div>
+      <div class="row plan-edit-actions"><button class="btn" id="plan-replan">↻ Re-plan</button><button class="btn ghost" id="plan-edit-cancel">Cancel</button></div>
+    </div>
     <div id="p-note" class="demo-note hidden"></div>
     <div class="grid2" style="margin-top:12px">
-      <div><h3>Classification</h3><div id="p-class"></div></div>
-      <div><h3>Derived area</h3><div id="p-area"></div></div>
+      <div><h3>Research approach</h3><div id="p-class"></div></div>
+      <div><h3>Research area</h3><div id="p-area"></div></div>
     </div>
     <div id="area-change" class="demo-note hidden">Area changed — review and approve again.</div>
   </div>
@@ -70,7 +91,7 @@
   </div>
 </section>
 
-<section id="s-live" class="hidden">
+<section id="s-live" class="view hidden">
   <div class="card">
     <div class="row" style="justify-content:space-between"><h2 style="margin:0">Live investigation <span class="mut small" id="l-src" style="font-weight:400"></span></h2><button class="btn ghost" id="skip">Skip to result ›</button></div>
     <div class="stages" id="stages"></div>
@@ -81,7 +102,7 @@
   </div>
 </section>
 
-<section id="s-dash" class="hidden">
+<section id="s-dash" class="view hidden">
   <div class="card">
     <h2><span class="n">1</span> Question &amp; approved plan</h2>
     <div class="row"><b id="d-q" style="font-size:17px"></b><span id="d-shape"></span><span id="d-role" class="mut small"></span></div>
@@ -96,8 +117,11 @@
           <span class="export-label">Export</span>
           <button class="btn ghost" data-export="report.md">Report (.md)</button>
           <button class="btn ghost" data-export="report.html">Report (HTML)</button>
+          <button class="btn ghost" id="print-report">Print / PDF</button>
           <button class="btn ghost" data-export="sources.csv">Sources (.csv)</button>
           <button class="btn ghost" data-export="sources.bib">Sources (.bib)</button>
+          <button class="btn ghost" id="copy-share">Copy share link</button>
+          <span id="share-status" class="small mut" role="status" aria-live="polite"></span>
         </div>
         <div id="export-err" class="err hidden" role="alert"></div>
       </div>
@@ -113,7 +137,15 @@
       </div>
       <div class="card" id="layer-card"><h2><span class="n">5</span> Layer panel</h2>
         <div class="row" style="margin-bottom:8px"><div class="toggle" id="mode"><button data-m="present" class="on">Present only</button><button data-m="future">Present + future</button></div><button class="btn ghost" id="reset" style="padding:6px 10px;font-size:12px">Reset default mix</button></div>
+        <div id="layer-preview" class="layer-preview hidden"></div>
         <div id="layers"></div>
+        <details id="overlay-panel" class="overlay-panel" open><summary>3D map overlays</summary><div class="overlay-toggles">
+          <label><input type="checkbox" data-overlay="top" checked> Top-3 pins</label>
+          <label><input type="checkbox" data-overlay="future" checked> Future developments ★</label>
+          <label><input type="checkbox" data-overlay="risks" checked> Risks &amp; unknowns</label>
+          <label><input type="checkbox" data-overlay="poi" checked> OpenFreeMap POIs</label>
+          <label><input type="checkbox" data-overlay="transit"> U-/S-Bahn stations</label>
+        </div></details>
         <p class="small mut" style="margin:8px 0 0">Score = Σ weight · (direction · value) over checked layers, re-normalised 0–1 across cells; future modifiers add their bonus (+0.10). High-severity risks change rank, not score. Missing values use the layer mean, or zero if none are observed.</p>
       </div>
     </div>

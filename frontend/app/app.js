@@ -14,11 +14,25 @@ let TOKEN = null;
 let state = { on: {}, w: {}, mode: 'present' };
 let CITE = {};       // evidence_id -> n
 let map = null, timer = null, doneT = null, STREAM_CTRL = null, EXPORT_CTRL = null, EXPORT_WINDOW = null, GEN = 0;
+let typingTimer = null, hintTimer = null, typingExample = null, hintIndex = -1;
+let activeHash = '', RESTORE_DASH = null, CURRENT_RANK = null, previewLayer = null, hoverCell = null;
+const overlayState = { top: true, future: true, risks: true, poi: true, transit: false };
 
 $('#mode-badge').textContent = 'LIVE';
 $('#mode-badge').classList.add('live');
 
-function show(id) { ['s-ask', 's-plan', 's-live', 's-dash'].forEach(s => $('#' + s).classList.toggle('hidden', s !== id)); window.scrollTo(0, 0); }
+function show(id) {
+  const views = ['s-ask', 's-plan', 's-live', 's-dash'];
+  views.forEach(view => $('#' + view).classList.toggle('hidden', view !== id));
+  const current = views.indexOf(id);
+  $$('#steps span').forEach((step, index) => {
+    step.classList.toggle('on', index === current);
+    step.classList.toggle('done', index < current);
+  });
+  const step = $(`#steps span[data-v="${id}"]`), pill = $('#steps .pill');
+  if (step && pill) { pill.style.width = `${step.offsetWidth}px`; pill.style.transform = `translateX(${step.offsetLeft - 3}px)`; }
+  window.scrollTo(0, 0);
+}
 function err(sel, msg) { const e = $(sel); e.textContent = msg; e.classList.toggle('hidden', !msg); }
 const apiUrl = path => API + path;
 const headers = extra => ({ ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}), ...extra });
@@ -33,9 +47,87 @@ const post = (path, body) => getJSON(path, {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body)
 });
+
+const ROLE_ICO = { '': '👤', 'Founder / operator': '🧑‍💼', 'Urban planner': '🏙️', Investor: '📈', 'Data analyst': '📊' };
+function glassSelect(select) {
+  select.classList.add('gs-native');
+  const button = document.createElement('button');
+  button.type = 'button'; button.className = 'gs-trigger gs-btn'; button.setAttribute('role', 'combobox');
+  button.setAttribute('aria-haspopup', 'listbox'); button.setAttribute('aria-expanded', 'false');
+  select.insertAdjacentElement('afterend', button);
+  let menu = null, selected = [...select.options].findIndex(option => option.value === select.value);
+  const close = () => {
+    if (menu) menu.remove();
+    menu = null; button.setAttribute('aria-expanded', 'false');
+  };
+  const position = () => {
+    if (!menu) return;
+    const rect = button.getBoundingClientRect();
+    menu.style.maxHeight = '';
+    menu.style.width = `${rect.width}px`;
+    const height = menu.scrollHeight, below = window.innerHeight - rect.bottom - 16, above = rect.top - 16;
+    const up = height > below && above > below;
+    const menuHeight = Math.max(0, Math.min(height, up ? above : below));
+    menu.style.maxHeight = `${menuHeight}px`;
+    menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = up ? `${rect.top - menuHeight - 8}px` : `${rect.bottom + 8}px`;
+    menu.classList.toggle('up', up);
+  };
+  const choose = index => {
+    selected = index; select.value = select.options[index].value;
+    select.dispatchEvent(new Event('change', { bubbles: true })); select.gsSync(); close(); button.focus();
+  };
+  const open = index => {
+    close(); menu = document.createElement('div'); menu.className = 'gs-menu open'; menu.setAttribute('role', 'listbox');
+    select.style.setProperty('--gs-selected', String(index));
+    [...select.options].forEach((option, i) => {
+      const item = document.createElement('button');
+      item.type = 'button'; item.className = 'gs-option'; item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(i === index)); item.dataset.index = String(i);
+      item.textContent = `${ROLE_ICO[option.value] || '👤'} ${option.textContent.trim()}`;
+      item.onmousedown = event => event.preventDefault();
+      item.onclick = () => choose(i);
+      menu.append(item);
+    });
+    document.body.append(menu); button.setAttribute('aria-expanded', 'true'); position();
+    menu.querySelectorAll('.gs-option')[index]?.classList.add('active');
+    menu.querySelectorAll('.gs-option')[index]?.focus();
+    menu.onkeydown = event => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault(); const delta = event.key === 'ArrowDown' ? 1 : -1;
+        const next = (selected + delta + select.options.length) % select.options.length;
+        menu.querySelectorAll('.gs-option').forEach((option, i) => option.classList.toggle('active', i === next));
+        selected = next; menu.querySelectorAll('.gs-option')[next]?.focus();
+      } else if (event.key === 'Enter') { event.preventDefault(); choose(selected); }
+      else if (event.key === 'Escape' || event.key === 'Tab') { close(); button.focus(); }
+    };
+  };
+  button.onclick = () => menu ? close() : open(select.selectedIndex);
+  button.onkeydown = event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); open(select.selectedIndex); }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); menu ? choose(selected) : open(select.selectedIndex); }
+    else if (event.key === 'Escape' || event.key === 'Tab') close();
+  };
+  document.addEventListener('mousedown', event => { if (menu && !menu.contains(event.target) && event.target !== button) close(); });
+  window.addEventListener('scroll', event => {
+    if (menu && event.target instanceof Node && menu.contains(event.target)) return;
+    close();
+  }, true);
+  window.addEventListener('resize', close);
+  select.gsSync = () => {
+    selected = select.selectedIndex;
+    button.textContent = `${ROLE_ICO[select.value] || '👤'} ${select.options[selected]?.textContent.trim() || '—'}`;
+    button.setAttribute('aria-label', `Role: ${select.options[selected]?.textContent.trim() || 'none'}`);
+  };
+  select.gsSync();
+  return button;
+}
+const rolePicker = glassSelect($('#role'));
+const editRolePicker = glassSelect($('#plan-edit-role'));
+function setRole(select, value) { select.value = [...select.options].some(option => option.value === value) ? value : ''; select.gsSync?.(); }
 $$('[data-export]').forEach(button => { button.onclick = () => exportRun(button.dataset.export); });
 
-async function exportRun(fmt) {
+async function exportRun(fmt, print = false) {
   if (!RUN || !R || !TOKEN) return;
   const gen = GEN, isHtml = fmt === 'report.html';
   const reportWindow = isHtml ? window.open('about:blank', '_blank') : null;
@@ -66,8 +158,33 @@ async function exportRun(fmt) {
     if (gen !== GEN) return;
     objectUrl = URL.createObjectURL(blob);
     if (isHtml) {
-      reportWindow.addEventListener('load', () => URL.revokeObjectURL(objectUrl), { once: true });
+      let printed = false;
+      const revoke = () => URL.revokeObjectURL(objectUrl);
+      const printReport = () => {
+        if (!print || printed) return;
+        printed = true;
+        reportWindow.focus();
+        reportWindow.print();
+      };
+      reportWindow.addEventListener('load', () => {
+        revoke();
+        printReport();
+      }, { once: true });
       reportWindow.location.href = objectUrl;
+      if (print) {
+        const waitForReport = () => {
+          if (printed || reportWindow.closed) return;
+          try {
+            if (reportWindow.location.href === objectUrl && reportWindow.document.readyState === 'complete' && reportWindow.document.body) {
+              revoke();
+              printReport();
+              return;
+            }
+          } catch (_) { /* navigating */ }
+          setTimeout(waitForReport, 50);
+        };
+        setTimeout(waitForReport, 50);
+      }
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       EXPORT_WINDOW = null;
     } else {
@@ -93,14 +210,106 @@ async function exportRun(fmt) {
 }
 
 /* ---------- 1 · ask ---------- */
-$$('.tpl .t').forEach(t => t.onclick = () => { $('#q').value = t.dataset.q; $('#op').value = t.dataset.op || ''; $('#clar').classList.add('hidden'); });
+function clearHint() {
+  clearInterval(hintTimer); hintTimer = null;
+  document.querySelector('.hint')?.classList.remove('hint');
+}
+function pulseHints() {
+  clearHint();
+  const targets = [
+    { element: $('#go'), done: () => !!$('#q').value.trim() },
+    { element: rolePicker, done: () => !!$('#role').value },
+    { element: $('#op'), done: () => !!$('#op').value.trim() }
+  ];
+  const tick = () => {
+    document.querySelector('.hint')?.classList.remove('hint');
+    for (let offset = 1; offset <= targets.length; offset++) {
+      const index = (hintIndex + offset + targets.length) % targets.length;
+      if (!targets[index].done()) {
+        hintIndex = index; targets[index].element.classList.add('hint'); return;
+      }
+    }
+  };
+  tick(); hintTimer = setInterval(tick, 1900);
+}
+function stopTyping(completeQuestion = false) {
+  clearTimeout(typingTimer); typingTimer = null;
+  if (completeQuestion && typingExample) $('#q').value = typingExample.question;
+  typingExample = null;
+}
+function finishTyping() {
+  if (!typingExample) return;
+  clearTimeout(typingTimer); typingTimer = null;
+  $('#q').value = typingExample.question; $('#op').value = typingExample.profile || '';
+  typingExample = null; pulseHints();
+}
+function typeSeq(question, profile) {
+  stopTyping(); clearHint();
+  if (!profile) $('#op').value = '';
+  typingExample = { question, profile };
+  const steps = [[$('#q'), question], ...(profile ? [[$('#op'), profile]] : [])];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    steps.forEach(([field, text]) => { field.value = text; }); typingExample = null; pulseHints(); return;
+  }
+  steps.forEach(([field]) => { field.value = ''; });
+  const fine = matchMedia('(pointer:fine)').matches;
+  const mayFocus = () => !document.activeElement || document.activeElement === document.body || steps.some(([field]) => field === document.activeElement);
+  let step = 0, index = 0;
+  const type = () => {
+    if (!typingExample) return;
+    const [field, text] = steps[step];
+    if (index === 0 && fine && mayFocus()) field.focus({ preventScroll: true });
+    field.value = text.slice(0, ++index);
+    if (index >= text.length) {
+      step++; index = 0;
+      if (step >= steps.length) {
+        typingExample = null; typingTimer = null;
+        if (document.activeElement === field) field.blur();
+        pulseHints(); return;
+      }
+    }
+    typingTimer = setTimeout(type, index === 0 ? 380 : 18 + Math.random() * 48);
+  };
+  typingTimer = setTimeout(type, 200);
+}
+$$('.tpl .t').forEach(template => template.onclick = () => {
+  $('#clar').classList.add('hidden');
+  typeSeq(template.dataset.q, template.dataset.op || '');
+});
+$('#q').addEventListener('input', () => { stopTyping(); clearHint(); });
+$('#op').addEventListener('input', () => { stopTyping(true); clearHint(); });
+$('#role').addEventListener('change', () => { if (typingExample) stopTyping(true); clearHint(); });
+$('#go').onclick = () => { if (typingExample) finishTyping(); clearHint(); ask($('#q').value.trim()); };
+$('#print-report').onclick = () => exportRun('report.html', true);
 $('#restart').onclick = () => {
+  stopTyping(); clearHint(); activeHash = '';
+  history.replaceState(null, '', location.pathname + location.search);
   stopLive(); RUN = R = APPROVAL = TOKEN = null;
+  $('#q').value = ''; setRole($('#role'), ''); $('#op').value = '';
   $('#clar').classList.add('hidden');
   show('s-ask');
 };
 $('#back').onclick = () => show('s-ask');
-$('#go').onclick = () => ask($('#q').value.trim());
+$('#plan-edit-open').onclick = () => {
+  $('#plan-edit-q').value = RUN.question || '';
+  setRole($('#plan-edit-role'), RUN.role || '');
+  $('#plan-edit-op').value = RUN.profile || '';
+  $('#plan-edit').classList.remove('hidden'); $('#plan-edit-q').focus();
+};
+const closePlanEdit = () => $('#plan-edit').classList.add('hidden');
+$('#plan-edit-cancel').onclick = closePlanEdit;
+$('#plan-edit').addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); closePlanEdit(); }
+  if (event.key === 'Enter' && event.target.id === 'plan-edit-q' && !event.shiftKey) {
+    event.preventDefault(); $('#plan-replan').click();
+  }
+});
+$('#plan-replan').onclick = () => {
+  const question = $('#plan-edit-q').value.trim();
+  if (!question) { $('#plan-edit-q').focus(); return; }
+  $('#q').value = question; setRole($('#role'), $('#plan-edit-role').value);
+  $('#op').value = $('#plan-edit-op').value; closePlanEdit(); ask(question);
+};
 $('#clar-go').onclick = async () => {
   const answer = $('#clar-in').value.trim();
   if (!answer || !RUN) return;
@@ -150,13 +359,28 @@ function renderPlan() {
   const P = RUN.plan || { sub_questions: [], layers: [], paid_sources: [] };
   const C = RUN.classification || { shape: RUN.shape };
   $('#p-q').textContent = RUN.question;
-  $('#p-class').innerHTML = `<span class="badge b-${esc(C.shape)}">${esc(C.shape)}</span> <span class="why">${esc(C.why)}</span>`;
+  const chips = [
+    P.area?.name ? `Area · ${P.area.name}` : '',
+    RUN.role ? `Role · ${RUN.role}` : '',
+    RUN.profile ? `Profile · ${RUN.profile}` : ''
+  ].filter(Boolean);
+  $('#p-chips').innerHTML = chips.map(text => `<span class="badge">${esc(text)}</span>`).join('');
+  $('#plan-edit').classList.add('hidden');
+  const approaches = {
+    location: ['Compare locations', 'Compare neighbourhood areas using local demand, competition and access to find promising places.'],
+    gap: ['Find childcare gaps', 'Compare neighbourhood areas to find where childcare provision may fall short of local need.'],
+    point: ['Explore business options', 'Compare possible uses for this address, taking your experience and priorities into account.']
+  };
+  const [approach, explanation] = approaches[C.shape] || [C.shape, C.why];
+  $('#p-class').innerHTML = `<span class="badge b-${esc(C.shape)}">${esc(approach)}</span><p class="mut" style="margin:8px 0 0">${esc(explanation)}</p>`;
+  const areaLevel = level => ({ bezirk: 'district', ortsteil: 'neighbourhood', bezirksregion: 'local area', plr: 'statistical area' }[level] || level);
   const selected = P.area?.area_id || '';
   if (C.shape === 'point') {
     $('#p-area').innerHTML = `<b>${esc(C.address || RUN.question)}</b> → parcel + ~100 m neighbourhood<div class="small mut" style="margin-top:4px">Operator profile: ${esc(RUN.profile || 'none given (operator fit scored neutral)')}</div>`;
   } else {
-    const options = (P.area_candidates || []).map(a => `<option value="${esc(a.area_id)}" ${a.area_id === selected ? 'selected' : ''}>${esc(a.name)} · ${esc(a.level)}</option>`).join('');
-    $('#p-area').innerHTML = `<div class="row"><select id="area-picker">${options}</select><input id="area-search" type="text" placeholder="Search any Berlin area"><select id="area-search-results" class="hidden"></select></div><div class="small mut" style="margin-top:4px">${esc(P.area?.plr_count || '')} PLR cells · Granularity: PLR</div>`;
+    const options = (P.area_candidates || []).map(a => `<option value="${esc(a.area_id)}" ${a.area_id === selected ? 'selected' : ''}>${esc(a.name)} · ${esc(areaLevel(a.level))}</option>`).join('');
+    const count = P.area?.plr_count;
+    $('#p-area').innerHTML = `<div class="row"><select id="area-picker" aria-label="Research area">${options}</select><input id="area-search" type="text" aria-label="Search Berlin areas" placeholder="Search any Berlin area"><select id="area-search-results" aria-label="Matching areas" class="hidden"></select></div><div class="small mut" style="margin-top:8px">${count == null ? 'Compare small neighbourhood areas' : `${esc(count)} neighbourhood areas to compare`} · Based on Berlin’s official statistical boundaries (PLR).</div>`;
     $('#area-search').oninput = search => {
       const query = search.target.value.trim();
       if (!query) return $('#area-search-results').classList.add('hidden');
@@ -164,7 +388,7 @@ function renderPlan() {
       getJSON(`/runs/${encodeURIComponent(RUN.run_id)}/areas?q=${encodeURIComponent(query)}`).then(areas => {
         if (gen !== GEN) return;
         const result = $('#area-search-results');
-        result.innerHTML = areas.map(a => `<option value="${esc(a.area_id)}">${esc(a.name)} · ${esc(a.level)}</option>`).join('');
+        result.innerHTML = areas.map(a => `<option value="${esc(a.area_id)}">${esc(a.name)} · ${esc(areaLevel(a.level))}</option>`).join('');
         result.classList.toggle('hidden', !areas.length);
       }).catch(error => { if (gen === GEN) err('#plan-err', error.message); });
     };
@@ -195,22 +419,27 @@ function renderPlan() {
   show('s-plan');
 }
 
-$('#approve').onclick = async () => {
+function collectApproval() {
   const shape = RUN.classification?.shape || RUN.shape;
   const subs = $$('#p-sub input').filter(i => i.checked).map(i => i.dataset.s);
-  APPROVAL = { subquestions: subs };
+  const approval = { subquestions: subs };
   if (shape === 'point') {
-    APPROVAL.hypothesis_ids = $$('#p-layers-wrap input[data-h]').filter(i => i.checked).map(i => i.dataset.h);
-    if (!APPROVAL.hypothesis_ids.length) return err('#plan-err', 'Keep at least one business hypothesis.');
+    approval.hypothesis_ids = $$('#p-layers-wrap input[data-h]').filter(i => i.checked).map(i => i.dataset.h);
+    if (!approval.hypothesis_ids.length) { err('#plan-err', 'Keep at least one business hypothesis.'); return null; }
   } else {
-    APPROVAL.area_id = $('#area-picker')?.value || RUN.plan.area?.area_id;
-    APPROVAL.layers = $$('#p-layers input[data-l]').map(input => ({
+    approval.area_id = $('#area-picker')?.value || RUN.plan.area?.area_id;
+    approval.layers = $$('#p-layers input[data-l]').map(input => ({
       id: input.dataset.l,
       enabled: input.checked,
       weight: Number($(`#p-layers input[data-w="${CSS.escape(input.dataset.l)}"]`).value)
     }));
-    if (!APPROVAL.layers.some(layer => layer.enabled)) return err('#plan-err', 'Keep at least one scoring layer.');
+    if (!approval.layers.some(layer => layer.enabled)) { err('#plan-err', 'Keep at least one scoring layer.'); return null; }
   }
+  return approval;
+}
+$('#approve').onclick = async () => {
+  APPROVAL = collectApproval();
+  if (!APPROVAL) return;
   const gen = GEN;
   try {
     const response = await post(`/runs/${encodeURIComponent(RUN.run_id)}/approve`, APPROVAL);
@@ -370,6 +599,14 @@ function dash() {
     R.defaultOn = {}; R.defaultW = {};
     R.cells.layers.forEach(l => { R.defaultOn[l.id] = l.enabled !== false; R.defaultW[l.id] = l.weight_default; });
     state = { on: { ...R.defaultOn }, w: { ...R.defaultW }, mode: R.cells.mode_default || 'present' };
+    if (RESTORE_DASH) {
+      const bits = RESTORE_DASH.on;
+      if (bits && /^[01]+$/.test(bits) && bits.length === R.cells.layers.length) {
+        R.cells.layers.forEach((layer, index) => { state.on[layer.id] = bits[index] === '1'; });
+      }
+      if (RESTORE_DASH.mode === 'future' && R.cells.cells.some(cell => (cell.modifiers || []).length)) state.mode = 'future';
+    }
+    RESTORE_DASH = null;
     R.defaultRank = SpotWiseScoring.scoreCells(R.cells, R.defaultOn, R.defaultW, 'present');
     renderLayers(); renderArea();
   } else if ((R.findings || []).length) {
@@ -382,7 +619,7 @@ function dash() {
     const droppedHtml = droppedFindings.length ? `<h3 class="mut">Dropped / unverified</h3><ul class="small mut">${droppedFindings.map(f => `<li>${esc(f.claim || f.statement || '')} <span class="badge">${esc(f.status || 'unknown')} · ${esc(f.verification || 'unverified')}</span></li>`).join('')}</ul>` : '';
     $('#d-find').innerHTML = verifiedHtml + droppedHtml;
   } else { $('#d-find').innerHTML = '<p class="mut">The run returned no cells or candidates.</p>'; }
-  bindCites();
+  bindCites(); syncShareHash();
 }
 
 const cite = id => id && CITE[id] ? `<a class="cite" data-e="${esc(id)}">[${CITE[id]}]</a>` : (id ? `<span class="small mut" title="not in ledger">[?]</span>` : '');
@@ -424,16 +661,76 @@ function color(t) { const st = [[255, 247, 214], [180, 226, 193], [65, 174, 160]
 function bindCites() { $$('.cite').forEach(a => a.onclick = ev => { ev.preventDefault(); const el = document.getElementById('src-' + a.dataset.e); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }); }
 
 /* ---------- area (T2/T3) ---------- */
+function histogramSVG(layer) {
+  const bins = Array(8).fill(0);
+  R.cells.cells.forEach(cell => {
+    const value = cell.values[layer.id];
+    if (value !== null && value !== undefined) bins[Math.min(7, Math.floor(Math.max(0, Math.min(.9999, value)) * 8))]++;
+  });
+  const max = Math.max(1, ...bins);
+  return `<svg class="hist" data-hist="${esc(layer.id)}" viewBox="0 0 92 25" role="img" aria-label="Eight-bin value histogram">${bins.map((count, index) => {
+    const height = 18 * count / max;
+    return `<rect x="${3 + index * 11}" y="${22 - height}" width="8" height="${height}" rx="1"><title>${index / 8}–${(index + 1) / 8}: ${count}</title></rect>`;
+  }).join('')}<line class="hist-marker" x1="3" x2="3" y1="1" y2="23"/></svg>`;
+}
+function updateHistogramMarkers() {
+  $$('.hist').forEach(hist => {
+    const layer = R?.cells?.layers.find(item => item.id === hist.dataset.hist);
+    const cell = R?.cells?.cells.find(item => item.id === hoverCell);
+    const marker = hist.querySelector('.hist-marker'), value = cell && layer ? cell.values[layer.id] : null;
+    marker.classList.toggle('on', value !== null && value !== undefined);
+    if (value !== null && value !== undefined) {
+      const x = 3 + Math.max(0, Math.min(1, value)) * 86;
+      marker.setAttribute('x1', x); marker.setAttribute('x2', x);
+    }
+  });
+}
+function setHoverCell(id) { hoverCell = id; updateHistogramMarkers(); }
+function previewValue(r) {
+  if (!previewLayer) return r.score;
+  const layer = R.cells.layers.find(item => item.id === previewLayer), value = r.cell.values[previewLayer];
+  if (!layer || value === null || value === undefined) return .5;
+  return layer.direction === '-' ? 1 - value : value;
+}
+function previewLabel() {
+  const layer = R?.cells?.layers.find(item => item.id === previewLayer);
+  return layer ? `Previewing ${layer.label} alone` : '';
+}
+function updatePreviewBar() {
+  const label = previewLabel(), bar = $('#layer-preview');
+  bar.textContent = label; bar.classList.toggle('hidden', !label);
+}
+function renderOverlayControls() {
+  $$('[data-overlay]').forEach(input => {
+    const key = input.dataset.overlay; input.checked = overlayState[key];
+    input.onchange = () => {
+      overlayState[key] = input.checked; applyOverlayVisibility();
+      if (CURRENT_RANK) drawAreaMap(CURRENT_RANK.ranked, CURRENT_RANK.byId);
+    };
+  });
+  applyOverlayVisibility();
+}
+function applyOverlayVisibility() {
+  if (!M3.loaded) return;
+  if (M3.map.getLayer('focus-poi')) M3.map.setLayoutProperty('focus-poi', 'visibility', overlayState.poi ? 'visible' : 'none');
+  if (M3.map.getLayer('focus-transit')) M3.map.setLayoutProperty('focus-transit', 'visibility', overlayState.transit ? 'visible' : 'none');
+}
 function renderLayers() {
   const L = R.cells.layers, hasFut = R.cells.cells.some(c => (c.modifiers || []).length);
-  $('#layers').innerHTML = L.map(l => `<div class="layer"><input type="checkbox" id="ly-${esc(l.id)}" ${state.on[l.id] ? 'checked' : ''}><label for="ly-${esc(l.id)}">${esc(l.label)} ${cite(l.evidence_id)}</label><span class="small mut">w ${state.w[l.id].toFixed(2)}</span><span class="small mut">${l.direction === '+' ? '↑ good' : '↓ good'}</span></div>`).join('');
+  $('#layers').innerHTML = L.map(l => `<div class="layer" data-layer-row="${esc(l.id)}"><input type="checkbox" id="ly-${esc(l.id)}" ${state.on[l.id] ? 'checked' : ''}><div class="layer-row"><div class="layer-name"><label for="ly-${esc(l.id)}">${esc(l.label)}</label>${cite(l.evidence_id)}</div>${histogramSVG(l)}</div><span class="small mut">w ${state.w[l.id].toFixed(2)}</span><span class="small mut">${l.direction === '+' ? '↑ good' : '↓ good'}</span></div>`).join('');
   L.forEach(l => $('#ly-' + CSS.escape(l.id)).onchange = e => { state.on[l.id] = e.target.checked; renderArea(); });
+  L.forEach(l => {
+    const row = $(`[data-layer-row="${CSS.escape(l.id)}"]`);
+    row.onmouseenter = () => { previewLayer = l.id; updatePreviewBar(); if (CURRENT_RANK) drawAreaMap(CURRENT_RANK.ranked, CURRENT_RANK.byId); };
+    row.onmouseleave = () => { previewLayer = null; updatePreviewBar(); if (CURRENT_RANK) drawAreaMap(CURRENT_RANK.ranked, CURRENT_RANK.byId); };
+  });
   $$('#mode button').forEach(b => {
     b.classList.toggle('on', b.dataset.m === state.mode);
     b.disabled = b.dataset.m === 'future' && !hasFut; b.title = b.disabled ? 'No future developments found' : '';
     b.onclick = () => { state.mode = b.dataset.m; $$('#mode button').forEach(x => x.classList.toggle('on', x === b)); renderArea(); };
   });
   $('#reset').onclick = () => { state = { on: { ...R.defaultOn }, w: { ...R.defaultW }, mode: 'present' }; renderLayers(); renderArea(); };
+  renderOverlayControls(); updateHistogramMarkers();
   bindCites();
 }
 function layerVal(l, c) {
@@ -441,17 +738,33 @@ function layerVal(l, c) {
   const raw = c.raw_values?.[l.id];
   return `${fmt(c.values[l.id])}${raw !== undefined ? ` <span class="small mut">(${raw === null ? 'missing' : esc(raw) + (l.unit ? ' ' + esc(l.unit) : '')})</span>` : ''}`;
 }
+function animateTopCards(previous) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  $$('#d-find .top').forEach((card, index) => {
+    const old = previous.get(card.dataset.id), next = card.getBoundingClientRect();
+    if (!old) {
+      card.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: index * 65, easing: 'ease-out' });
+    } else {
+      const dy = old.top - next.top;
+      if (Math.abs(dy) > 1) card.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.2,.75,.25,1)' });
+    }
+  });
+}
 function renderArea() {
   const L = R.cells.layers;
+  const previous = new Map($$('#d-find .top').map(card => [card.dataset.id, card.getBoundingClientRect()]));
   if (!L.some(l => state.on[l.id])) {
+    CURRENT_RANK = null;
     $('#d-find').innerHTML = '<p class="mut">Tick at least one layer.</p>';
     $('#battle-card').classList.add('hidden'); $('#legend').innerHTML = '';
     if (map) { const v = map._loaded ? [map.getCenter(), map.getZoom()] : null; resetMap(); if (v) map.setView(...v); }
     clear3D();
+    syncShareHash();
     return;
   }
   const ranked = SpotWiseScoring.scoreCells(R.cells, state.on, state.w, state.mode), byId = {};
   ranked.forEach((r, i) => byId[r.cell.id] = { ...r, rank: i + 1 });
+  CURRENT_RANK = { ranked, byId };
   const defRank = {}; R.defaultRank.forEach((r, i) => defRank[r.cell.id] = i + 1);
   $('#d-ftitle').textContent = R.shape === 'gap' ? 'Top-3 cells by gap score' : 'Top-3 ranked cells';
   $('#d-find').innerHTML = ranked.slice(0, 3).map((r, i) => {
@@ -469,6 +782,7 @@ function renderArea() {
     const findingRows = (R.findings || []).map(f => `<div class="src finding" id="finding-${esc(f.finding_id)}"><div><span class="finding-id">${esc(f.finding_id)}</span><div><b>${esc(f.claim)}</b><div class="quote small">“${esc(f.quote)}”</div><span class="badge">${esc(f.status)} · ${esc(f.verification || 'unverified')}</span> ${(f.evidence_ids || []).map(cite).join(' ')}</div></div></div>`).join('');
     return findingRows ? `<h3>Research findings</h3>${findingRows}` : '';
   })() + (() => { const w = ranked.find(r => (r.cell.risks || []).length); return w && !ranked.slice(0, 3).includes(w) ? `<p class="small mut">Also considered: <b>${esc(w.cell.name)}</b> (#${byId[w.cell.id].rank}): ${esc(w.cell.risks[0].text)} ${cite(w.cell.risks[0].evidence_id)}.</p>` : ''; })();
+  animateTopCards(previous);
   const [a, b] = ranked;
   if (a && b) {
     $('#battle-card').classList.remove('hidden');
@@ -480,7 +794,14 @@ function renderArea() {
       return `<div class="l">${aw ? '<b>✓</b> ' : ''}${bar(va, va !== null && (vb === null || va >= vb))}</div><div class="lab">${esc(l.label)}</div><div>${bar(vb, bw)}${bw ? ' <b>✓</b>' : ''}</div>`;
     }).join('')}<div class="l"><b>${a.score.toFixed(2)}</b></div><div class="lab"><b>score</b></div><div><b>${b.score.toFixed(2)}</b></div></div><p class="small mut" style="margin:8px 0 0">Bars show each checked layer direction-adjusted (longer = better).</p>`;
   }
-  drawAreaMap(ranked, byId); bindCites();
+  drawAreaMap(ranked, byId); bindCites(); syncShareHash();
+}
+function previewColor(r) {
+  if (previewLayer) {
+    const value = r.cell.values[previewLayer];
+    if (value === null || value === undefined) return '#cbd5e1';
+  }
+  return color(previewValue(r));
 }
 function resetMap() { if (map) { map.remove(); map = null; } map = L.map('map', { scrollWheelZoom: false }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map); return map; }
 function drawAreaMap(ranked, byId) {
@@ -496,12 +817,14 @@ function drawAreaMap(ranked, byId) {
   const fid = f => String(f.properties?.id ?? f.id);
   const layer = L.geoJSON(gj, {
     filter: f => byId[fid(f)],
-    style: f => ({ fillColor: color(byId[fid(f)].score), fillOpacity: .78, color: top3.includes(fid(f)) ? '#0b1720' : '#fff', weight: top3.includes(fid(f)) ? 2.5 : 1 }),
+    style: f => ({ fillColor: previewColor(byId[fid(f)]), fillOpacity: .78, color: top3.includes(fid(f)) ? '#0b1720' : '#fff', weight: top3.includes(fid(f)) ? 2.5 : 1 }),
     onEachFeature: (f, lyr) => {
       const r = byId[fid(f)], c = r.cell;
       lyr.bindTooltip(tipHTML(r), { sticky: true, className: 'rtip' });
       lyr.bindPopup(() => srcHTML(c));
       lyr.on('click', () => flashTop(c.id));
+      lyr.on('mouseover', () => setHoverCell(c.id));
+      lyr.on('mouseout', () => setHoverCell(null));
       const center = lyr.getBounds().getCenter();
       const i = top3.indexOf(c.id), star = (c.modifiers || []).length ? (state.mode === 'future' ? '★' : '☆') : '';
       if (i >= 0 || star) L.marker(center, { interactive: false, icon: L.divIcon({ className: 'lbl', html: `${i >= 0 ? '#' + (i + 1) : ''}${star}`, iconSize: [40, 16], iconAnchor: [20, 8] }) }).addTo(map);
@@ -521,7 +844,11 @@ const tipHTML = r => {
 };
 const srcHTML = c => `<b>${esc(c.name)}</b><br>${[...new Set([...R.cells.layers.map(l => l.evidence_id), ...(c.modifiers || []).map(m => m.evidence_id), ...(c.risks || []).map(k => k.evidence_id)])].map(id => { const e = evOf(id); return e ? `<div class="small">[${CITE[id]}] ${link(e.url, e.title || e.url)}</div>` : ''; }).join('')}`;
 function flashTop(id) { const el = document.querySelector(`.top[data-id="${CSS.escape(id)}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
-const legendHTML = is3D => `<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0, .25, .5, .75, 1].map(color).join(',')})"></span><span>high</span><span style="margin-left:10px">☆/★ future development (★ applied)</span>${is3D ? `<span style="margin-left:10px" id="lg-z"></span>` : ''}<span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+const legendHTML = is3D => {
+  const layer = R?.cells?.layers.find(item => item.id === previewLayer);
+  const label = layer ? `${esc(layer.label)} alone` : 'composite score';
+  return `<span>low</span><span class="bar" style="background:linear-gradient(90deg,${[0, .25, .5, .75, 1].map(color).join(',')})"></span><span>high · ${label}</span><span style="margin-left:10px">☆/★ future development (★ applied)</span>${is3D ? `<span style="margin-left:10px" id="lg-z"></span>` : ''}<span style="margin-left:auto" class="small">Boundaries: LOR 2021 PLR, Amt für Statistik Berlin-Brandenburg, CC BY 3.0</span>`;
+};
 
 /* ---------- 3D map: MapLibre GL + OpenFreeMap vector tiles + Berlin TrueDOP 2024 aerial; Leaflet 2D is the fallback ---------- */
 const M3 = { map: null, loaded: false, failed: false, gj: null, cells: [], bCell: new Map(), mk: [], hover: null, hl: null, pending: null, bb: null, tip: null };
@@ -580,6 +907,12 @@ function setup3D() {
   map.addLayer({ id: 'cells-line', type: 'line', source: 'cells', paint: { 'line-color': '#fff', 'line-width': 1.4, 'line-opacity': .9 } }, below);
   map.addLayer({ id: 'cells-hl', type: 'line', source: 'cells', paint: { 'line-color': '#dc2626', 'line-width': ['case', hl, 4, hov, 2.5, 0] } });
   if (M3.bsrc) map.addLayer({ id: 'focus-poi', type: 'circle', source: M3.bsrc, 'source-layer': 'poi', filter: poiFilter3D(), minzoom: 13, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.2, 17, 5], 'circle-color': '#b45309', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+  if (M3.bsrc) map.addLayer({
+    id: 'focus-transit', type: 'circle', source: M3.bsrc, 'source-layer': 'poi',
+    filter: ['all', ['==', ['get', 'class'], 'railway'], ['in', ['get', 'subclass'], ['literal', ['subway', 'station', 'halt']]]],
+    minzoom: 11, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'circle-color': '#2563eb', 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.2 }
+  });
+  applyOverlayVisibility();
   M3.tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'rtip3', offset: 14, maxWidth: '320px' });
   map.on('mousemove', 'cells-fill', e => {
     const f = e.features[0], r = f && M3.byId?.[f.properties.id];
@@ -609,6 +942,7 @@ function hover3D(id) {
   if (M3.hover) M3.map.setFeatureState({ source: 'cells', id: M3.hover }, { hover: false });
   M3.hover = id;
   if (id) M3.map.setFeatureState({ source: 'cells', id }, { hover: true });
+  setHoverCell(id);
 }
 function highlight3D(id) {
   if (!M3.loaded) return;
@@ -667,6 +1001,7 @@ function setCells3D(gj) {
   M3.bb = M3.cells.reduce((a, c) => [Math.min(a[0], c.bb[0]), Math.min(a[1], c.bb[1]), Math.max(a[2], c.bb[2]), Math.max(a[3], c.bb[3])], [180, 90, -180, -90]);
   M3.hover = null; M3.hl = null; M3.gj = gj;
   fit3D(1500);
+  applyOverlayVisibility();
 }
 function paint3D(ranked, byId) {
   M3.pending = [GEN, ranked, byId];
@@ -677,7 +1012,7 @@ function paint3D(ranked, byId) {
   if (M3.gj !== R.cells_geojson) setCells3D(R.cells_geojson);
   M3.byId = byId;
   if (!M3.cells.length) return;
-  const cols = M3.cells.map(c => byId[c.id] ? color(byId[c.id].score) : NEUT3D), ex = inp => ['match', inp, ...cols.flatMap((c, i) => [i, c]), NEUT3D];
+  const cols = M3.cells.map(c => byId[c.id] ? previewColor(byId[c.id]) : NEUT3D), ex = inp => ['match', inp, ...cols.flatMap((c, i) => [i, c]), NEUT3D];
   map.setPaintProperty('cells-fill', 'fill-color', ex(['get', 'i']));
   if (M3.blayer) map.setPaintProperty(M3.blayer, 'fill-extrusion-color', ex(['to-number', ['coalesce', ['feature-state', 'i'], -1]]));
   markers3D(ranked, byId);
@@ -691,13 +1026,31 @@ function markers3D(ranked, byId) {
     const r = byId[c.id];
     if (!r) return;
     const cell = r.cell, k = top3.indexOf(c.id), b = [];
-    if (k >= 0) b.push(`<span class="bd rk" title="Rank ${k + 1}">${k + 1}</span><span class="bd nm">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
-    (cell.modifiers || []).forEach(m => b.push(`<span class="bd fu${state.mode === 'future' ? ' on' : ''}" title="${esc(m.label)}">${state.mode === 'future' ? '★' : '☆'}</span>`));
-    (cell.risks || []).forEach(x => b.push(`<span class="bd rs" title="${esc(x.text)}">⚠</span>`));
+    if (overlayState.top && k >= 0) b.push(`<span class="bd rk" data-kind="top" title="Rank ${k + 1}">${k + 1}</span><span class="bd nm" data-kind="top">${esc(cell.name)} · ${r.score.toFixed(2)}</span>`);
+    if (overlayState.future && state.mode === 'future') (cell.modifiers || []).forEach((m, index) => b.push(`<span class="bd fu on" data-kind="future" data-index="${index}" title="${esc(m.label)}">★</span>`));
+    if (overlayState.risks) {
+      (cell.risks || []).forEach((risk, index) => b.push(`<span class="bd rs" data-kind="risk" data-index="${index}" title="${esc(risk.text)}">⚠</span>`));
+      (cell.unknowns || []).forEach((unknown, index) => b.push(`<span class="bd uk" data-kind="unknown" data-index="${index}" title="${esc(unknown)}">?</span>`));
+    }
     if (!b.length) return;
     const el = document.createElement('div');
     el.className = 'mk3'; el.innerHTML = `<div class="bds">${b.join('')}</div><div class="stem"></div>`;
-    el.querySelector('.bds').onclick = ev => { ev.stopPropagation(); M3.tip.remove(); flashTop(c.id); new maplibregl.Popup({ offset: 30, maxWidth: '300px' }).setLngLat(c.p).setHTML(srcHTML(cell)).addTo(M3.map); };
+    el.querySelector('.bds').onclick = ev => {
+      const badge = ev.target.closest('[data-kind]'); if (!badge) return;
+      ev.stopPropagation(); M3.tip.remove(); flashTop(c.id);
+      const index = Number(badge.dataset.index), kind = badge.dataset.kind;
+      let html = srcHTML(cell);
+      if (kind === 'future') {
+        const modifier = cell.modifiers[index];
+        html = `<b>★ ${esc(modifier.label)}</b>${modifier.quote ? `<p class="quote">“${esc(modifier.quote)}”</p>` : ''}<div class="small">Magnitude: ${esc(JSON.stringify(modifier.magnitude || {}))} [${CITE[modifier.evidence_id] || '?'}]</div>`;
+      } else if (kind === 'risk') {
+        const risk = cell.risks[index];
+        html = `<b>⚠ Risk (${esc(risk.severity)}): ${esc(risk.text)}</b>${risk.quote ? `<p class="quote">“${esc(risk.quote)}”</p>` : ''}<div class="small">${cite(risk.evidence_id)}</div>`;
+      } else if (kind === 'unknown') {
+        html = `<b>? Unknown</b><p>${esc(cell.unknowns[index])}</p>`;
+      }
+      new maplibregl.Popup({ offset: 30, maxWidth: '300px' }).setLngLat(c.p).setHTML(html).addTo(M3.map);
+    };
     M3.mk.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(c.p).addTo(M3.map));
   });
 }
@@ -769,3 +1122,154 @@ function renderGrade() {
   const g = R.self_grade || [];
   $('#d-grade').innerHTML = g.map(r => `<tr><td style="color:${r.ok ? 'var(--ok)' : 'var(--warn)'};font-weight:800">${r.ok ? '✓' : '!'}</td><td>${esc(r.text)}</td></tr>`).join('') || '<tr><td></td><td class="mut">No self-grade in this result.</td></tr>';
 }
+
+const AREA_NAMES = { 'ortsteil:0202': 'Kreuzberg', 'ortsteil:0801': 'Neukölln' };
+const validBits = (value, length) => value && /^[01]+$/.test(value) && value.length === length ? value : null;
+function applyPlanBits(params) {
+  const subs = $$('#p-sub input'), subBits = validBits(params.get('sub'), subs.length);
+  if (subBits) subs.forEach((input, index) => { input.checked = subBits[index] === '1'; });
+  const shape = RUN.classification?.shape || RUN.shape;
+  if (shape === 'point') {
+    const hypotheses = $$('#p-layers-wrap input[data-h]'), bits = validBits(params.get('hyp'), hypotheses.length);
+    if (bits) hypotheses.forEach((input, index) => { input.checked = bits[index] === '1'; });
+    return;
+  }
+  const layers = $$('#p-layers input[data-l]'), layerBits = validBits(params.get('lay'), layers.length);
+  if (layerBits) layers.forEach((input, index) => { input.checked = layerBits[index] === '1'; });
+  const weights = (params.get('w') || '').split(',');
+  if (weights.length === layers.length && weights.every(value => value.trim() !== '' && Number.isFinite(+value) && +value >= 0 && +value <= 1)) {
+    layers.forEach((input, index) => { $(`#p-layers input[data-w="${CSS.escape(input.dataset.l)}"]`).value = weights[index]; });
+  }
+}
+function syncShareHash() {
+  if (!RUN || !R) return;
+  const p = new URLSearchParams();
+  p.set('q', RUN.question || '');
+  if (RUN.role) p.set('role', RUN.role);
+  if (RUN.profile) p.set('op', RUN.profile);
+  const area = APPROVAL?.area_id || RUN.plan?.area?.area_id || R.cells?.area?.area_id;
+  if (area) p.set('area', area);
+  const subs = RUN.plan?.sub_questions || [];
+  if (subs.length) p.set('sub', subs.map(item => APPROVAL?.subquestions?.includes(item.id) === false ? '0' : '1').join(''));
+  if (R.candidates) {
+    const hypotheses = RUN.plan?.hypotheses || [];
+    if (hypotheses.length) p.set('hyp', hypotheses.map(item => APPROVAL?.hypothesis_ids?.includes(item.id) === false ? '0' : '1').join(''));
+  } else if (R.cells) {
+    const layers = RUN.plan?.layers || R.cells.layers;
+    p.set('lay', layers.map(layer => {
+      const approved = APPROVAL?.layers?.find(item => item.id === layer.id);
+      return (approved ? approved.enabled : layer.enabled !== false) ? '1' : '0';
+    }).join(''));
+    p.set('w', layers.map(layer => APPROVAL?.layers?.find(item => item.id === layer.id)?.weight ?? layer.weight_default).join(','));
+    p.set('on', R.cells.layers.map(layer => state.on[layer.id] ? '1' : '0').join(''));
+    p.set('mode', state.mode);
+  }
+  activeHash = p.toString();
+  history.replaceState(null, '', `${location.pathname}${location.search}${activeHash ? `#${activeHash}` : ''}`);
+}
+function shareURL() {
+  syncShareHash();
+  return `${location.origin}${location.pathname}${location.search}#${activeHash}`;
+}
+$('#copy-share').onclick = async () => {
+  if (!RUN || !R) return;
+  const url = shareURL(), status = $('#share-status');
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(url);
+    status.textContent = 'Copied';
+  } catch (_) {
+    window.prompt('Copy this share link', url);
+    status.textContent = 'Select and copy the link';
+  }
+  setTimeout(() => { status.textContent = ''; }, 2600);
+};
+async function restoreShareHash(hash) {
+  const params = new URLSearchParams(hash), question = (params.get('q') || '').trim();
+  if (!question) return;
+  stopTyping(); clearHint(); stopLive(); activeHash = hash;
+  const gen = GEN;
+  RUN = R = APPROVAL = TOKEN = null;
+  $('#q').value = question; setRole($('#role'), params.get('role') || ''); $('#op').value = params.get('op') || '';
+  $('#clar').classList.add('hidden'); err('#ask-err', ''); show('s-ask');
+  try {
+    const research = await post('/research', { question, role: $('#role').value || null, profile: $('#op').value || null });
+    if (gen !== GEN) return;
+    RUN = research;
+    acceptRun(RUN);
+    if (RUN.status === 'needs_clarification') {
+      const areaName = AREA_NAMES[params.get('area')];
+      if (!areaName) throw new Error('The shared area needs clarification but its name is not available.');
+      const clarified = await post(`/runs/${encodeURIComponent(RUN.run_id)}/clarify`, { answer: areaName });
+      if (gen !== GEN) return;
+      RUN = clarified;
+      acceptRun(RUN);
+    }
+    if (RUN.mode !== 'fixtures') {
+      RUN.plan.note = [RUN.plan.note, 'Shared question loaded. Review the plan and approve it to start live research.'].filter(Boolean).join(' ');
+      renderPlan(); applyPlanBits(params);
+      const picker = $('#area-picker'), areaId = params.get('area');
+      if (picker && [...picker.options].some(option => option.value === areaId)) picker.value = areaId;
+      return;
+    }
+    const areaId = params.get('area');
+    if (areaId && RUN.plan?.area?.area_id !== areaId) {
+      const changed = await post(`/runs/${encodeURIComponent(RUN.run_id)}/approve`, { area_id: areaId });
+      if (gen !== GEN) return;
+      if (changed.status === 'awaiting_approval') {
+        RUN.plan = changed.plan; RUN.areaChanged = true;
+      }
+    }
+    if (RUN.status !== 'awaiting_approval') throw new Error('The shared run is not awaiting approval.');
+    renderPlan(); applyPlanBits(params);
+    let approved = false;
+    for (let attempt = 0; attempt < 2 && !approved; attempt++) {
+      APPROVAL = collectApproval();
+      if (!APPROVAL) throw new Error('The shared approval choices are invalid.');
+      const response = await post(`/runs/${encodeURIComponent(RUN.run_id)}/approve`, APPROVAL);
+      if (gen !== GEN) return;
+      if (response.status === 'awaiting_approval') {
+        RUN.plan = response.plan; RUN.areaChanged = true;
+        renderPlan(); applyPlanBits(params);
+      } else approved = true;
+    }
+    if (!approved) throw new Error('The shared area could not be approved.');
+    show('s-live'); $('#l-src').textContent = '· restoring result directly';
+    for (let attempt = 0; attempt < 90; attempt++) {
+      if (gen !== GEN) return;
+      const result = await getJSON(`/runs/${encodeURIComponent(RUN.run_id)}/result`);
+      if (gen !== GEN) return;
+      if (result.status === 'done') {
+        APPROVAL = collectApproval(); R = result;
+        RESTORE_DASH = { on: params.get('on'), mode: params.get('mode') };
+        dash(); return;
+      }
+      if (result.status === 'failed') throw new Error(result.error || 'The shared run failed.');
+      await new Promise(resolve => setTimeout(resolve, 400));
+      if (gen !== GEN) return;
+    }
+    throw new Error('The shared result is taking too long to finish.');
+  } catch (error) {
+    if (gen === GEN) { show('s-ask'); err('#ask-err', `Could not restore share link: ${error.message}`); }
+  }
+}
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.slice(1);
+  if (hash && hash !== activeHash) restoreShareHash(hash);
+});
+(()=>{
+  const parts = [...$('#mf').children]; let k = 0;
+  const paint = () => parts.forEach((node, index) => {
+    node.classList.toggle('on', index <= k); node.classList.toggle('act', index === k);
+  });
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { k = parts.length; paint(); return; }
+  paint();
+  setInterval(() => {
+    if (document.hidden || $('#s-ask').classList.contains('hidden')) return;
+    k = (k + 1) % (parts.length + 3); paint();
+  }, 900);
+})();
+pulseHints();
+if (location.hash.length > 1) restoreShareHash(location.hash.slice(1));
+
+show('s-ask');
