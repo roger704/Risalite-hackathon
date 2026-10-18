@@ -7,6 +7,7 @@ import json
 import math
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 import osmium
@@ -84,6 +85,40 @@ class OSMConnector(FileConnector):
             raise SchemaError(f"OSM PBF/XML could not be parsed: {exc}") from exc
 
     def _read_osm_file(self, source, config, mapping_data, selectors, snapshot_id):
+        header_warnings = []
+        timestamp = None
+        try:
+            reader = osmium.io.Reader(source)
+            timestamp = reader.header().get("osmosis_replication_timestamp")
+            reader.close()
+        except Exception:
+            timestamp = None
+        if config.source_edition is not None:
+            if not timestamp:
+                if config.parser_options.get("allow_unverified_edition") is True:
+                    header_warnings.append("source_edition not verified from file header")
+                else:
+                    raise SchemaError(
+                        "OSM extract has no osmosis_replication_timestamp in file header"
+                    )
+            else:
+                try:
+                    header_datetime = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                except (AttributeError, ValueError) as exc:
+                    raise SchemaError(
+                        f"OSM extract has an invalid osmosis_replication_timestamp: {timestamp}"
+                    ) from exc
+                if header_datetime.tzinfo is None:
+                    header_datetime = header_datetime.replace(tzinfo=timezone.utc)
+                header_date = header_datetime.astimezone(timezone.utc).date().isoformat()
+                if header_date != config.source_edition:
+                    raise SchemaError(
+                        f"OSM extract edition {header_date} does not match configured "
+                        f"source_edition {config.source_edition}"
+                    )
+        if timestamp:
+            header_warnings.append(f"osmosis_replication_timestamp: {timestamp}")
+
         processor = osmium.FileProcessor(source).with_locations().with_areas()
         factory = osmium.geom.WKBFactory()
         selected_nodes = []
@@ -132,13 +167,28 @@ class OSMConnector(FileConnector):
                 if category is None:
                     continue
                 selected_count += 1
-                members = tuple(member.ref for member in obj.members if member.type == "w")
-                selected_relations[f"relation/{obj.id}"] = (tags, category, members)
+                way_members = tuple(member.ref for member in obj.members if member.type == "w")
+                node_members = tuple(member.ref for member in obj.members if member.type == "n")
+                selected_relations[f"relation/{obj.id}"] = (
+                    tags,
+                    category,
+                    way_members,
+                    node_members,
+                )
 
         member_ids = {
-            member_id for _, _, members in selected_relations.values() for member_id in members
+            member_id
+            for _, _, way_members, _ in selected_relations.values()
+            for member_id in way_members
         }
-        relation_coordinates = self._member_way_coordinates(source, member_ids)
+        node_member_ids = {
+            member_id
+            for _, _, _, node_members in selected_relations.values()
+            for member_id in node_members
+        }
+        relation_coordinates, relation_node_coordinates = self._member_coordinates(
+            source, member_ids, node_member_ids
+        )
         records = []
         unlocatable = []
 
@@ -181,7 +231,7 @@ class OSMConnector(FileConnector):
                 )
             )
 
-        for key, (tags, category, member_ids) in selected_relations.items():
+        for key, (tags, category, way_member_ids, node_member_ids) in selected_relations.items():
             relation_type = tags.get("type")
             point = areas.get(key) if relation_type in {"multipolygon", "boundary"} else None
             flags = ()
@@ -190,9 +240,14 @@ class OSMConnector(FileConnector):
             else:
                 coordinates = [
                     coord
-                    for member_id in member_ids
+                    for member_id in way_member_ids
                     for coord in relation_coordinates.get(member_id, ())
                 ]
+                coordinates.extend(
+                    relation_node_coordinates[member_id]
+                    for member_id in node_member_ids
+                    if member_id in relation_node_coordinates
+                )
                 point = self._fallback_point(coordinates)
                 if point is None:
                     unlocatable.append(key)
@@ -219,15 +274,7 @@ class OSMConnector(FileConnector):
             warnings.append(
                 f"{len(unlocatable)} selected elements had no locatable geometry: {ids}"
             )
-        try:
-            reader = osmium.io.Reader(source)
-            header = reader.header()
-            reader.close()
-            timestamp = header.get("osmosis_replication_timestamp")
-        except Exception:
-            timestamp = None
-        if timestamp:
-            warnings.append(f"osmosis_replication_timestamp: {timestamp}")
+        warnings.extend(header_warnings)
         return records, selected_count, len(unlocatable), warnings
 
     @staticmethod
@@ -235,14 +282,17 @@ class OSMConnector(FileConnector):
         return [(node.location.lon, node.location.lat) for node in nodes if node.location.valid()]
 
     @staticmethod
-    def _member_way_coordinates(source, member_ids):
-        if not member_ids:
-            return {}
-        result = {}
+    def _member_coordinates(source, way_ids, node_ids):
+        if not way_ids and not node_ids:
+            return {}, {}
+        way_coordinates = {}
+        node_coordinates = {}
         for obj in osmium.FileProcessor(source).with_locations():
-            if isinstance(obj, osmium.osm.Way) and obj.id in member_ids:
-                result[obj.id] = OSMConnector._way_coordinates(list(obj.nodes))
-        return result
+            if isinstance(obj, osmium.osm.Way) and obj.id in way_ids:
+                way_coordinates[obj.id] = OSMConnector._way_coordinates(list(obj.nodes))
+            elif isinstance(obj, osmium.osm.Node) and obj.id in node_ids and obj.location.valid():
+                node_coordinates[obj.id] = (obj.location.lon, obj.location.lat)
+        return way_coordinates, node_coordinates
 
     def _normalize_overpass(self, source, config, mapping_data, selectors, snapshot_id):
         try:
@@ -382,7 +432,12 @@ class OSMConnector(FileConnector):
         config, snapshot_id, key, tags, category, mapping_data, point, geometry_type, flags=()
     ):
         canonical, original, category_flags = category
-        attributes = {tag: tags[tag] for tag in mapping_data["attribute_tags"] if tag in tags}
+        attributes = {
+            tag: tags[tag]
+            for tag in mapping_data["attribute_tags"]
+            if tag in tags and tags[tag].strip()
+        }
+        name = (tags.get("name") or "").strip() or None
         return Place(
             source_id=config.dataset_id,
             snapshot_id=snapshot_id,
@@ -393,7 +448,7 @@ class OSMConnector(FileConnector):
             original_category=original,
             category_mapping_version=mapping_data["mapping_version"],
             canonical_category=canonical,
-            name=tags.get("name"),
+            name=name,
             attributes=attributes,
             quality_flags=tuple(flags) + tuple(category_flags),
         )

@@ -44,7 +44,7 @@ uv run location-data ingest berlin_lor --file /absolute/path/to/lor-source.7z
 uv run location-data ingest berlin_population --file /absolute/path/to/SB_A01-16-00_2026h01_BE.xlsx
 ```
 
-The primary OSM source is a pinned Geofabrik Berlin PBF extract. Import it directly, or provide a previously downloaded `.pbf` or `.osm` XML file:
+The primary OSM source is a pinned Geofabrik Berlin PBF extract. Import it directly, or provide a previously downloaded `.pbf` or `.osm` XML file. The default configuration verifies the PBF's UTC replication date against `source_edition`; headerless local XML or synthetic files require an explicit `allow_unverified_edition` parser override and produce a warning. That override is not enabled in the committed provider configuration:
 
 ```sh
 uv run location-data ingest osm_pois
@@ -118,11 +118,11 @@ HTML returned instead of data, changed headers, invalid identifiers, duplicate o
 
 ## OpenStreetMap points of interest
 
-`osm_pois` is the primary Geofabrik PBF import; `osm_pois_overpass` is an optional bounded Overpass dataset using the same adapter and normalization contract. The parser streams OSM objects, assembles closed ways and multipolygon relations with pyosmium, and represents polygons by their WGS84 point-on-surface. Open ways use a representative point of their line. If an area cannot be assembled but member coordinates are available, the connector emits a fallback point and flags the failure; selected elements with no usable coordinates are reported separately and do not become rejected rows.
+`osm_pois` is the primary Geofabrik PBF import; `osm_pois_overpass` is an optional bounded Overpass dataset using the same adapter and normalization contract. The parser streams OSM objects, assembles closed ways and multipolygon relations with pyosmium, and represents polygons by their WGS84 point-on-surface. Open ways use a representative point of their line. If an area cannot be assembled but member coordinates are available, the connector emits a fallback point and flags the failure; selected elements with no usable coordinates are reported separately and do not become rejected rows. The PBF replication timestamp's UTC date must match the configured edition; headerless synthetic inputs are only accepted with the explicit test/local override.
 
 `config/categories/osm_v1.json` is the versioned category mapping. Selectors decide which tagged elements are retained, and ordered exact tag matches assign canonical categories. `coffee_shop` is the primary competitor category; `coffee_retail` is contextual (`shop=coffee` is not counted as a café competitor); bakery, fast-food, restaurant, and coworking are complementary or contextual. A selected element with no exact match remains in the output with `canonical_category: null` and a `category_unmapped` quality flag. The original matched tag is preserved in `original_category`. Only the mapping's explicit attribute allowlist is exported; phone numbers and address-tag dumps are not retained. Mapping roles document interpretation and do not alter the `Place` model.
 
-OSM is a community-maintained map, not a verified inventory of currently operating businesses. Opening-hours and website tags may be missing or outdated; completeness and tagging practices vary. `shop=coffee` may represent beans or equipment rather than a café. Derived databases remain subject to ODbL share-alike requirements, and dated Geofabrik URLs may expire or be removed; changing the pinned source or minimum expected counts requires a reviewed configuration update.
+OSM is a community-maintained map, not a verified inventory of currently operating businesses. Opening-hours and website tags may be missing or outdated; completeness and tagging practices vary. `shop=coffee` may represent beans or equipment rather than a café. Overpass way/relation centers can lie outside the small query bbox when their geometry intersects it, so returned points are checked against the broader Berlin extent instead. Derived databases remain subject to ODbL share-alike requirements, and dated Geofabrik URLs may expire or be removed; changing the pinned source or minimum expected counts requires a reviewed configuration update.
 
 ## Adding a connector
 

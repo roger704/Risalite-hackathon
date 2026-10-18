@@ -34,6 +34,7 @@ async def test_publishes_osm_geoparquet_and_attribution(tmp_path):
     values["parser_options"].update(
         min_expected_counts={"coffee_shop": 2},
         max_unlocatable_ratio=0.2,
+        allow_unverified_edition=True,
     )
     (configs / "osm_pois.json").write_text(json.dumps(values))
     service = DataService(tmp_path / "data", configs)
@@ -42,8 +43,8 @@ async def test_publishes_osm_geoparquet_and_attribution(tmp_path):
 
     assert manifest.quality_report.valid
     assert manifest.quality_report.rejected_rows == 0
-    assert manifest.coverage["record_count"] == 11
+    assert manifest.coverage["record_count"] == 13
     assert manifest.coverage["acquisition_mode"] == "local_file"
     assert "OpenStreetMap contributors" in manifest.attribution
     parquet = service.root / manifest.normalized_assets[0]
-    assert pq.read_table(parquet).num_rows == 11
+    assert pq.read_table(parquet).num_rows == 13

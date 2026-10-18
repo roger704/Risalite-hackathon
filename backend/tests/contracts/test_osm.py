@@ -23,7 +23,11 @@ FIXTURES = Path(__file__).parents[1] / "fixtures/osm"
 def configuration(dataset="osm_pois", **overrides):
     values = json.loads((BACKEND / f"config/datasets/{dataset}.json").read_text())
     options = dict(values["parser_options"])
-    options.update(min_expected_counts={"coffee_shop": 2}, max_unlocatable_ratio=0.2)
+    options.update(
+        min_expected_counts={"coffee_shop": 2},
+        max_unlocatable_ratio=0.2,
+        allow_unverified_edition=True,
+    )
     options.update(overrides)
     values["parser_options"] = options
     return DatasetConfig(**values)
@@ -45,9 +49,13 @@ def bundle(path, snapshot_id="synthetic-osm"):
     )
 
 
-def make_pbf(tmp_path):
+def make_pbf(tmp_path, timestamp=None):
     target = tmp_path / "pois.osm.pbf"
-    writer = osmium.SimpleWriter(str(target))
+    header = None
+    if timestamp is not None:
+        header = osmium.io.Header()
+        header.set("osmosis_replication_timestamp", timestamp)
+    writer = osmium.SimpleWriter(str(target), header=header)
     try:
         for obj in osmium.FileProcessor(FIXTURES / "pois.osm"):
             writer.add(obj)
@@ -66,6 +74,7 @@ def test_osm_ids_geometry_categories_and_quality(source_kind, tmp_path):
 
     assert report.valid
     assert report.rejected_rows == 0
+    assert "source_edition not verified from file header" in report.warnings
     assert "node/10" in records and "way/10" in records
     assert records["node/10"].source_record_id == records["node/10"].record_id
     assert records["way/10"].source_record_id == records["way/10"].record_id
@@ -100,6 +109,11 @@ def test_osm_ids_geometry_categories_and_quality(source_kind, tmp_path):
     }
     assert records["relation/80"].source_geometry_type == "relation_unassembled"
     assert "geometry_assembly_failed" in records["relation/80"].quality_flags
+    assert records["relation/90"].source_geometry_type == "relation_unassembled"
+    assert set(records["relation/90"].quality_flags) >= {
+        "geometry_assembly_failed",
+        "position_from_member_coordinates",
+    }
     assert "relation/70" not in records
     assert any(
         "1 selected elements had no locatable geometry: relation/70" in w for w in report.warnings
@@ -114,6 +128,9 @@ def test_osm_ids_geometry_categories_and_quality(source_kind, tmp_path):
     assert records["node/5"].original_category == "amenity=cafe;bar"
     assert "category_unmapped" in records["node/5"].quality_flags
     assert "node/6" not in records
+    assert records["node/7"].name is None
+    assert "opening_hours" not in records["node/7"].attributes
+    assert "brand" not in records["node/7"].attributes
     assert records["node/1"].name == "Synthetic Café"
     assert records["node/1"].attributes["opening_hours"] == "Mo-Fr 08:00-18:00"
     assert records["node/1"].attributes["website"] == "https://example.org/cafe"
@@ -121,21 +138,21 @@ def test_osm_ids_geometry_categories_and_quality(source_kind, tmp_path):
     assert "addr:street" not in records["node/1"].attributes
     assert all(record.category_mapping_version == "osm_v1" for record in records.values())
     category_line = next(w for w in report.warnings if w.startswith("category_counts:"))
-    assert "coffee_shop=8" in category_line
+    assert "coffee_shop=10" in category_line
     assert "coffee_retail=1" in category_line
     assert "unmapped=1" in category_line
-    assert any("geometry_assembly_failed: 2" == w for w in report.warnings)
+    assert any("geometry_assembly_failed: 3" == w for w in report.warnings)
 
 
 def test_minimum_count_empty_result_and_out_of_bbox_are_invalid(tmp_path):
     source = FIXTURES / "pois.osm"
     connector = OSMConnector()
     batch = connector.normalize(
-        bundle(source), configuration(min_expected_counts={"coffee_shop": 9})
+        bundle(source), configuration(min_expected_counts={"coffee_shop": 11})
     )
     report = connector.validate(batch)
     assert not report.valid
-    assert any("coffee_shop count 8 is below minimum 9" in error for error in report.errors)
+    assert any("coffee_shop count 10 is below minimum 11" in error for error in report.errors)
 
     empty_source = tmp_path / "empty.osm"
     empty_source.write_text(
@@ -169,6 +186,37 @@ def test_mapping_hash_is_enforced():
         OSMConnector().normalize(bundle(FIXTURES / "pois.osm"), mismatch)
 
 
+def test_pbf_header_date_matches_source_edition(tmp_path):
+    source = make_pbf(tmp_path, "2026-10-17T20:20:51Z")
+    connector = OSMConnector()
+    batch = connector.normalize(bundle(source), configuration(allow_unverified_edition=False))
+    report = connector.validate(batch)
+
+    assert report.valid
+    assert "osmosis_replication_timestamp: 2026-10-17T20:20:51Z" in report.warnings
+
+
+def test_pbf_header_date_must_match_source_edition(tmp_path):
+    source = make_pbf(tmp_path, "2026-10-18T00:00:00Z")
+    config = configuration(allow_unverified_edition=False)
+
+    with pytest.raises(
+        SchemaError,
+        match=(
+            "OSM extract edition 2026-10-18 does not match configured source_edition 2026-10-17"
+        ),
+    ):
+        OSMConnector().normalize(bundle(source), config)
+
+
+def test_missing_pbf_header_timestamp_requires_explicit_opt_in(tmp_path):
+    source = make_pbf(tmp_path)
+    config = configuration(allow_unverified_edition=False)
+
+    with pytest.raises(SchemaError, match="no osmosis_replication_timestamp"):
+        OSMConnector().normalize(bundle(source), config)
+
+
 def test_overpass_elements_centers_remark_and_timestamp(tmp_path):
     connector = OSMConnector()
     config = configuration("osm_pois_overpass", max_unlocatable_ratio=0.2)
@@ -193,6 +241,29 @@ def test_overpass_elements_centers_remark_and_timestamp(tmp_path):
             connector.normalize(bundle(malformed), config)
     finally:
         malformed.unlink()
+
+
+def test_overpass_way_center_outside_query_bbox_is_valid(tmp_path):
+    config = configuration("osm_pois_overpass")
+    data = json.loads((FIXTURES / "overpass.json").read_text())
+    data["elements"].append(
+        {
+            "type": "way",
+            "id": 303,
+            "center": {"lat": 52.6, "lon": 13.5},
+            "tags": {"amenity": "cafe", "name": "Cross-boundary café"},
+        }
+    )
+    source = tmp_path / "overpass_outside_query_bbox.json"
+    source.write_text(json.dumps(data))
+
+    connector = OSMConnector()
+    batch = connector.normalize(bundle(source), config)
+    report = connector.validate(batch)
+    records = {record.record_id: record for record in batch.records}
+
+    assert report.valid
+    assert "way/303" in records
 
 
 @pytest.mark.asyncio
