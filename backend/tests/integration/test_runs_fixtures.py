@@ -80,8 +80,49 @@ def test_run_store_evicts_done_runs_before_active_runs_and_rejects_when_full(cli
         json={"question": "Where in Kreuzberg should a new cafe open?"},
     )
     assert full.status_code == 503
-    assert full.json() == {"error": "fixture run store is full"}
+    assert full.json() == {"detail": "fixture run store is full"}
     assert set(RUNS) == {active["run_id"], newer_run["run_id"]}
+
+
+def test_expired_approved_runs_are_evicted_but_fresh_ones_are_preserved(client, monkeypatch):
+    monkeypatch.setattr("app.api.runs_fixtures.MAX_RUNS", 1)
+    stale = start_run(client)
+    stale_headers = auth(stale)
+    assert (
+        client.post(f"/runs/{stale['run_id']}/approve", headers=stale_headers, json={}).status_code
+        == 200
+    )
+    RUNS[stale["run_id"]]["approved_at"] -= IDLE_TTL + 1
+
+    new = client.post(
+        "/research",
+        json={"question": "Where in Kreuzberg should another cafe open?"},
+    )
+    assert new.status_code == 200
+    assert (
+        client.get(
+            f"/runs/{stale['run_id']}/areas",
+            headers=stale_headers,
+        ).status_code
+        == 404
+    )
+
+    fresh = new.json()
+    fresh_headers = auth(fresh)
+    assert (
+        client.post(f"/runs/{fresh['run_id']}/approve", headers=fresh_headers, json={}).status_code
+        == 200
+    )
+    approved_at = RUNS[fresh["run_id"]]["approved_at"]
+    full = client.post(
+        "/research",
+        json={"question": "Where should a cafe open in Neukölln?"},
+    )
+
+    assert full.status_code == 503
+    assert full.json() == {"detail": "fixture run store is full"}
+    assert RUNS[fresh["run_id"]]["status"] == "approved"
+    assert RUNS[fresh["run_id"]]["approved_at"] == approved_at
 
 
 def test_expired_pending_run_is_evicted(client, monkeypatch):

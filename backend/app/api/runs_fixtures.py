@@ -281,9 +281,24 @@ def _make_room_for_run() -> bool:
             key=lambda run_id: RUNS[run_id].get("created_at", 0),
             default=None,
         )
-        if oldest_idle is None:
+        if oldest_idle is not None:
+            RUNS.pop(oldest_idle)
+            continue
+
+        oldest_abandoned = min(
+            (
+                run_id
+                for run_id, run in RUNS.items()
+                if run["status"] in {"approved", "running"}
+                and isinstance(run.get("approved_at"), (int, float))
+                and now - run["approved_at"] > IDLE_TTL
+            ),
+            key=lambda run_id: RUNS[run_id]["approved_at"],
+            default=None,
+        )
+        if oldest_abandoned is None:
             return False
-        RUNS.pop(oldest_idle)
+        RUNS.pop(oldest_abandoned)
     return True
 
 
@@ -323,7 +338,7 @@ def research(body: ResearchRequest):
         if not _make_room_for_run():
             return JSONResponse(
                 status_code=503,
-                content={"error": "fixture run store is full"},
+                content={"detail": "fixture run store is full"},
             )
         run_id = str(uuid4())
         token = secrets.token_urlsafe(24)
@@ -354,7 +369,7 @@ def research(body: ResearchRequest):
         if not _store_run(run):
             return JSONResponse(
                 status_code=503,
-                content={"error": "fixture run store is full"},
+                content={"detail": "fixture run store is full"},
             )
         return {**_response(run), "run_token": token}
 
