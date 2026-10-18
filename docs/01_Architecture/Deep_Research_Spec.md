@@ -233,14 +233,15 @@ Runs twice: (1) on all research findings and dataset entries before merge, (2) o
 
 ## 6. T1 / T3
 
-- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures (closures → risks, openings → negative future modifiers on the gap). **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
+- **T3 (gap, D5)** uses the same flow with template `kita_gap_v1`: demand = children 0–6 per PLR (population; forecast #48 for future mode), supply = approved places per PLR from `berlin_kitas` (#38, `childcare_areas()`), gap = demand vs. supply, normalized like T2. Web research covers the Bezirk Kita development plan and announced openings/closures. Future modifiers are **signed per template** (`future_effects` in the template config): in `kita_gap_v1` added approved places (openings, B-Plan Kita sites) → `bonus: -0.10` (gap shrinks), closures → `bonus: +0.10` (gap grows), forecast growth of children 0–6 → `bonus: +0.10`; in `coffee_v1` all future modifiers are `+0.10`. **Precondition:** #38 must expose approved places per facility; otherwise T3 stays a mockup preview.
 - **T1 (point, LocalLens, D6/D7)** reuses ledger, tools, events, approval and API; result is `candidates.json` (PR #19 contract):
   1. Parse space (address) and operator profile; `berlin_addresses` (#47) → coordinates → PLR.
   2. Plan: location sub-questions + 3–4 business hypotheses with *why* (operator experience × neighbourhood gaps); user approves/edits as in E3.
   3. Ground: PLR values (area-summary API), competitors per hypothesis within the radius (OSM points; IHK as cross-check), catchment (Zensus grid #42 or walking isochrone #45), centre proximity (#41), B-Pläne nearby (#43).
   4. Per hypothesis: FOR researcher and skeptic AGAINST (same tools, budgets and ledger) → `for[]`, `against[]`, `unknowns[{text, suggested_validation}]`.
-  5. Dimensions 0–10 (D7): *Demand*, *Competition gap*, *Regulation / risk* computed by rule from grounded data and accepted findings; *Operator fit*, *Space fit*, *Cost* by a structured LLM call that must cite evidence ids (no id → dimension neutral 5); a dimension backed only by weak-tier evidence is capped at 6. Recommendation score = weighted mean; `rank_initial` from data dimensions, `rank_final` after skeptic findings.
-  6. Fact-check and writer as in §5.6–§5.7. Owner per Execution Plan: S1b (to confirm).
+  5. Fact-check (§5.6) all FOR/AGAINST findings; only the accepted set (verified + partial restricted to matching ids) goes on. Unsupported claims are dropped from `for[]`/`against[]` and listed under "Could not verify".
+  6. Dimensions 0–10 (D7): *Demand*, *Competition gap*, *Regulation / risk* computed by rule from grounded data and accepted findings; *Operator fit*, *Space fit*, *Cost* by a structured LLM call that must cite evidence ids (no id → dimension neutral 5); a dimension backed only by weak-tier evidence is capped at 6. Inputs are only grounded data and the accepted set. Recommendation score = weighted mean; `rank_initial` from data dimensions only, `rank_final` from all dimensions incl. verified AGAINST findings.
+  7. Writer as in §5.7 (accepted set only). Owner per Execution Plan: S1b (to confirm).
 
 ## 7. Fallback mode (E5)
 
@@ -324,7 +325,7 @@ Per D1 the Pydantic models in `backend/app/contracts` (PR #19: `api.Plan`/`Resea
 
 ### 9.7 One score rule (D8)
 
-S2 (`scoring.py`) and S3 (`frontend/app/scoring.js`) implement the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → bonus added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers, `demoted_by` → expected scores and order) is run by both test suites.
+S2 (`scoring.py`) and S3 (`frontend/app/scoring.js`) implement the same rule: missing layer → excluded from that cell's weighted mean and weights re-normalized (no mean imputation); future mode → signed bonus (per template, §6) added **before** the final 0–1 rescale so it can still change the order at the top; `rank()` as §5.5. A shared file of golden test vectors (input values, weights, modifiers incl. a negative T3 bonus, `demoted_by` → expected scores and order) is run by both test suites.
 
 ## 10. Models (bake-off, 2026-10-18)
 
