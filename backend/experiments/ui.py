@@ -80,7 +80,10 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin is None:
             return True
-        return urlsplit(origin).netloc == (self.headers.get("Host") or "")
+        try:
+            return urlsplit(origin).netloc == (self.headers.get("Host") or "")
+        except ValueError:  # malformed Origin, e.g. "http://["
+            return False
 
     def stream_research(self, question: str) -> None:
         connected = True
