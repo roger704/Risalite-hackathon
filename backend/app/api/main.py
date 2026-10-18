@@ -1,6 +1,7 @@
 """Public local-snapshot reads. Acquisition is deliberately a CLI operation."""
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -12,7 +13,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.service import DataService
-from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
+from app.connectors.population_forecast import expected_change
+from app.domain import (
+    ConnectorError,
+    ForecastObservation,
+    NormalizedRecord,
+    SnapshotManifest,
+    record_from_dict,
+)
 
 
 class DatasetResponse(BaseModel):
@@ -154,6 +162,89 @@ def create_app(
             limit=limit,
             cursor=cursor,
         )
+
+    @application.get("/api/v1/population-forecast/expected-change")
+    def population_forecast_change(
+        data: Annotated[DataService, Depends(get_service)],
+        snapshot_id: Annotated[str, Query(min_length=1)],
+        area_code: Annotated[str, Query(min_length=1)],
+        target_year: int,
+        scenario: str = "middle",
+        metric_code: str = "population_total",
+        age_min: Annotated[int | None, Query(ge=0)] = None,
+        age_max_exclusive: Annotated[int | None, Query(ge=0)] = None,
+    ):
+        config = data.configs.get("berlin_population_forecast")
+        if config is None:
+            raise ConnectorError("UNKNOWN_DATASET", "Unknown dataset: berlin_population_forecast")
+        if scenario not in {"middle", "upper", "lower"}:
+            raise ConnectorError(
+                "INVALID_FILTER", "scenario must be one of middle, upper, or lower"
+            )
+        if target_year not in config.parser_options.get("target_years", ()):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                f"target_year must be between 2025 and 2040; received {target_year}",
+            )
+        if re.fullmatch(r"\d{8}", area_code):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "Population forecasts are published only to Prognoseraum resolution; "
+                f"use area_code {area_code[:4]} instead of Planungsraum {area_code}.",
+            )
+        if age_max_exclusive is not None and (age_min is None or age_max_exclusive <= age_min):
+            raise ConnectorError(
+                "INVALID_FILTER",
+                "age_max_exclusive must be greater than age_min; provide both for bounded ages",
+            )
+
+        matches: list[ForecastObservation] = []
+        cursor = None
+        while True:
+            page = data.records(
+                "berlin_population_forecast",
+                snapshot_id,
+                area_code=area_code,
+                limit=1000,
+                cursor=cursor,
+            )
+            for item in page["records"]:
+                record = record_from_dict(item)
+                if (
+                    isinstance(record, ForecastObservation)
+                    and record.metric_code == metric_code
+                    and record.scenario == scenario
+                    and record.age_min == age_min
+                    and record.age_max_exclusive == age_max_exclusive
+                ):
+                    matches.append(record)
+            cursor = page["next_cursor"]
+            if cursor is None:
+                break
+        base_period = config.parser_options["base_period"]
+        target_period = f"{target_year}-12-31"
+        bases = [
+            record
+            for record in matches
+            if record.reference_period == base_period and record.value_status == "observed"
+        ]
+        targets = [
+            record
+            for record in matches
+            if record.reference_period == target_period and record.value_status == "forecast"
+        ]
+        common_units = {record.unit for record in bases} & {record.unit for record in targets}
+        preferred_unit = "thousand_persons" if scenario != "middle" else "persons"
+        unit = preferred_unit if preferred_unit in common_units else next(iter(common_units), None)
+        bases = [record for record in bases if record.unit == unit]
+        targets = [record for record in targets if record.unit == unit]
+        if len(bases) != 1 or len(targets) != 1:
+            raise ConnectorError(
+                "NOT_FOUND",
+                f"No {scenario} {metric_code} data for area {area_code} and target year "
+                f"{target_year} with the requested age interval.",
+            )
+        return expected_change(bases[0], targets[0])
 
     return application
 
