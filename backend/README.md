@@ -244,3 +244,32 @@ uv run ruff format --check app tests
 Pytest's default options exclude tests marked `live`; an explicit `-m live` opts in to public-provider tests. GitHub Actions runs the offline checks with `uv sync --locked`.
 
 The normal suite runs offline with synthetic fixtures and mocked acquisition. It exercises the implemented connectors, contracts, ingestion failures and snapshot compatibility, API queries, and CLI behavior. It does not require downloading all provider data on each test run. Full official datasets and generated local snapshots are excluded from Git.
+
+## Research agent (S1)
+
+Run the complete offline coffee-area flow with the synthetic PLR fixture and mock research/model clients:
+
+```sh
+RISALITE_MOCK=1 uv run uvicorn app.api.main:app
+```
+
+Create and approve a run:
+
+```sh
+curl -sS -X POST http://127.0.0.1:8000/research \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Where is it smart to open a coffee place in Kreuzberg?"}'
+curl -sS -X POST http://127.0.0.1:8000/runs/<run_id>/approve \
+  -H 'Content-Type: application/json' \
+  -d '{"layers":[{"id":"cost","enabled":false}]}'
+curl -N http://127.0.0.1:8000/runs/<run_id>/events
+curl -sS http://127.0.0.1:8000/runs/<run_id>/result
+```
+
+The CLI auto-approves the same flow and prints the run directory:
+
+```sh
+uv run python -m app.agent --mock "Where is it smart to open a coffee place in Kreuzberg?"
+```
+
+Runs are stored in `runs/` by default; set `RISALITE_RUNS_DIR` to select another location. Fixture layer values are synthetic and are not live geodata.

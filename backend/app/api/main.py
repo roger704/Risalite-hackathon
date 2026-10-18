@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.research import router as research_router
 from app.application.service import DataService
 from app.domain import ConnectorError, NormalizedRecord, SnapshotManifest
 
@@ -60,9 +61,15 @@ def create_app(
     service: DataService | None = None,
     data_dir: Path | str | None = None,
     config_dir: Path | str | None = None,
+    runs_dir: Path | str | None = None,
+    mock: bool | None = None,
 ) -> FastAPI:
     application = FastAPI(title="AI Location Intelligence", version="0.1.0")
     application.state.data_service = service
+    application.state.research_orchestrator = None
+    application.state.research_runs_dir = Path(runs_dir) if runs_dir is not None else None
+    application.state.research_mock = mock
+    application.state.research_tasks = set()
 
     def get_service() -> DataService:
         if application.state.data_service is None:
@@ -155,6 +162,7 @@ def create_app(
             cursor=cursor,
         )
 
+    application.include_router(research_router)
     return application
 
 

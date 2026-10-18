@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "area": "Friedrichshain-Kreuzberg",
+  "cells": [
+    {"id":"02100101","name":"Askanischer Platz","values":[0.35,0.50,0.30,0.80,0.75]},
+    {"id":"02100102","name":"Mehringplatz","values":[0.55,0.40,0.35,0.60,0.45]},
+    {"id":"02100103","name":"Am Berlin Museum","values":[0.45,0.50,0.35,0.55,0.60]},
+    {"id":"02100104","name":"Moritzplatz","values":[0.72,0.70,0.45,0.75,0.60]},
+    {"id":"02100105","name":"Prinzenstraße","values":[0.52,0.55,0.40,0.70,0.65]},
+    {"id":"02100106","name":"Wassertorplatz","values":[0.48,0.45,0.40,0.55,0.50]},
+    {"id":"02200207","name":"Gleisdreieck","values":[0.40,0.45,0.25,0.85,0.80]},
+    {"id":"02200208","name":"Rathaus Yorckstraße","values":[0.70,0.68,0.55,0.75,0.65]},
+    {"id":"02200209","name":"Viktoriapark","values":[0.62,0.70,0.35,0.65,0.70]},
+    {"id":"02200210","name":"Urbanstraße","values":[0.78,0.75,0.65,0.70,0.60]},
+    {"id":"02200211","name":"Chamissokiez","values":[0.75,0.80,0.55,0.62,0.55]},
+    {"id":"02200212","name":"Graefekiez Süd","values":[0.88,0.82,0.72,0.65,0.60]},
+    {"id":"02200213","name":"Graefekiez Nord","values":[1.0,1.0,0.60,0.90,0.70]},
+    {"id":"02300314","name":"Oranienplatz","values":[0.82,0.78,0.80,0.82,0.65]},
+    {"id":"02300315","name":"Lausitzer Platz","values":[0.95,0.90,0.80,0.75,0.60]},
+    {"id":"02300316","name":"Köpenicker Straße","values":[0.50,0.55,0.25,0.60,0.50]},
+    {"id":"02300417","name":"Reichenberger Straße West","values":[0.85,0.80,0.65,0.65,0.55]},
+    {"id":"02300418","name":"Reichenberger Straße Ost","values":[0.90,0.80,0.55,0.55,0.50]},
+    {"id":"02300419","name":"Wrangelkiez","values":[1.0,1.0,0.60,0.95,0.50]}
+  ]
+}
